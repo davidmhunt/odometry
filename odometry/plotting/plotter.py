@@ -238,11 +238,11 @@ class Plotter:
                 label="truth")
 
         ax.set_xlim(
-            np.min(history_position_m_gt[:idx,0]) - 5,
-            np.max(history_position_m_gt[:idx,0]) + 5)
+            np.min(history_position_m_gt[:idx,0]) - 1,
+            np.max(history_position_m_gt[:idx,0]) + 1)
         ax.set_ylim(
-            np.min(history_position_m_gt[:idx,1]) - 5,
-            np.max(history_position_m_gt[:idx,1]) + 5)
+            np.min(history_position_m_gt[:idx,1]) - 1,
+            np.max(history_position_m_gt[:idx,1]) + 1)
             
         ax.set_title("Position",fontsize=self.font_size_title)
         ax.set_xlabel("X (m)",fontsize=self.font_size_axis_labels)

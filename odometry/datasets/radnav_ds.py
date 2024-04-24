@@ -11,7 +11,8 @@ class radnavDS:
                  camera_folder="camera",
                  imu_orientation_folder="imu_data",
                  imu_full_folder="imu_full",
-                 map_path="/home/david/data/wilkinson_pointcloud/wilk_2d_filtered.npy") -> None:
+                 vehicle_vel_folder="vehicle_vel"
+                 ) -> None:
         
         #dataset folder path
         self.dataset_path = dataset_path
@@ -41,6 +42,11 @@ class radnavDS:
         self.imu_full_files = []
         self.imu_full_enabled = False
 
+        #vehicle velocity data
+        self.vehicle_vel_folder = vehicle_vel_folder
+        self.vehicle_vel_files = []
+        self.vehicle_vel_enabled = False
+
         #variable to keep track of the number of frames
         self.num_frames = 0
 
@@ -57,6 +63,7 @@ class radnavDS:
         self.import_camera_data()
         self.import_imu_orientation_data()
         self.import_imu_full_data()  
+        self.import_vehicle_vel_data()
             
     def determine_num_frames(self):
 
@@ -72,6 +79,8 @@ class radnavDS:
             self.set_num_frames(len(self.imu_full_files))
         if self.imu_orientation_enabled:
             self.set_num_frames(len(self.imu_orientation_files))
+        if self.vehicle_vel_enabled:
+            self.set_num_frames(len(self.vehicle_vel_files))
         
         return
     
@@ -271,14 +280,48 @@ class radnavDS:
         if os.path.isdir(path):
             self.imu_full_enabled = True
             self.imu_full_files = sorted(os.listdir(path))
-            print("found {} radar samples".format(len(self.imu_full_files)))
+            print("found {}imu (full data) samples".format(len(self.imu_full_files)))
         else:
             print("did not find imu (full data) samples")
 
         return
     
-    def get_imu_full_data(self):
+    def get_imu_full_data(self,idx=0):
 
-        print("imu_full dataset processing not yet implemented")
+        assert self.imu_full_enabled, "No IMU Full dataset loaded"
 
-        pass
+        #load the data sample
+        path = os.path.join(
+            self.dataset_path,
+            self.imu_full_folder,
+            self.imu_full_files[idx])
+
+        return np.load(path)
+    
+    ####################################################################
+    #handling vehicle velocity data
+    ####################################################################
+    def import_vehicle_vel_data(self):
+
+        path = os.path.join(self.dataset_path,self.vehicle_vel_folder)
+
+        if os.path.isdir(path):
+            self.vehicle_vel_enabled = True
+            self.vehicle_vel_files = sorted(os.listdir(path))
+            print("found {} vehicle velocity samples".format(len(self.vehicle_vel_files)))
+        else:
+            print("did not find vehicle velocity samples")
+
+        return
+    
+    def get_vehicle_vel_data(self,idx=0):
+
+        assert self.vehicle_vel_files, "No Vehicle velocity dataset loaded"
+
+        #load the data sample
+        path = os.path.join(
+            self.dataset_path,
+            self.vehicle_vel_folder,
+            self.vehicle_vel_files[idx])
+
+        return np.load(path)

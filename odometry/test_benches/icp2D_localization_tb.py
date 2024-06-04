@@ -3,7 +3,7 @@ from tqdm import tqdm
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.datasets.radnav_ds import radnavDS
 from odometry.datasets.map_handler import MapHandler
-from odometry.plotting.plotter import Plotter
+from odometry.plotting.plotter_localization import PlotterLocalization
 from odometry.analyzers.analyzer import Analyzer
 
 class icp2DLocalizationTB:
@@ -23,7 +23,7 @@ class icp2DLocalizationTB:
         self.dataset:radnavDS = dataset
 
         #initialize a plotter
-        self.plotter = Plotter(dataset,map_handler)
+        self.plotter = PlotterLocalization(dataset,map_handler)
 
         #initialize an analyzer class
         self.analyzer = Analyzer()

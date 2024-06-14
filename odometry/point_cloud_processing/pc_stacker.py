@@ -133,13 +133,28 @@ class pcStacker:
         self.current_time_s = current_time_s
         self.elapsed_time_s = current_time_s - self.initial_time_s
         
+        #get rot/trans from sensor frame (at current position) to global
+        R_cur_to_global = rotation_functions.get_rot_matrix(heading_rad)
+
+        #get rot/trans from global to initial global pose
+
+        #(R from global -> initial sensor frame is inverse of sens -> global)
+        R_global_to_init = rotation_functions.get_rot_matrix(self.initial_heading_rad)
+
+        #compute transformation from current -> initial (in sensor frame)
+        R = R_cur_to_global.T @ R_global_to_init
+        trans = (pose_m - self.initial_pose_m) @ R_global_to_init
+
         #apply the rotation and translation
-        aligned_points = \
-            rotation_functions.apply_rot_trans(
-                points=current_points,
-                rot_angle_rad= self.rel_heading_rad,
-                trans= self.rel_pose_m
-            )
+        aligned_points = (current_points @ R) + trans
+
+        # #apply the rotation and translation
+        # aligned_points = \
+        #     rotation_functions.apply_rot_trans(
+        #         points=current_points,
+        #         rot_angle_rad= self.rel_heading_rad,
+        #         trans= self.rel_pose_m
+        #     )
         
         x_idx = np.argmin(np.abs(
             self.range_bins[:,None] - aligned_points[:,0]),
@@ -158,17 +173,45 @@ class pcStacker:
         #convert the grid to a point cloud
         x_idxs,y_idxs = np.nonzero(self.point_cloud_grid)
 
-        x_vals = self.range_bins[x_idxs]
-        y_vals = self.range_bins[y_idxs]
+        if x_idxs.shape[0] > 0:
+        
+            x_vals = self.range_bins[x_idxs]
+            y_vals = self.range_bins[y_idxs]
 
-        #return the point cloud in the reference frame of the current
-        #location of the vehicle (from the current position, not the 
-        #initial position)
-        return rotation_functions.apply_rot_trans(
-            points= np.column_stack((x_vals,y_vals)),
-            rot_angle_rad= -1 * self.rel_heading_rad,
-            trans= -1 * self.rel_pose_m
-        )
+            #return the point cloud in the reference frame of the current
+            #location of the vehicle (from the current position, not the 
+            #initial position)
+
+            current_points = np.column_stack((x_vals,y_vals))
+            #get rot/trans from initial sensor frame (at current position) to global
+            R_init_to_global = rotation_functions.get_rot_matrix(self.initial_heading_rad)
+
+            #(R from global -> current sensor frame is inverse of sens -> global)
+            R_global_to_curr = rotation_functions.get_rot_matrix(self.current_heading_rad)
+
+            #compute transformation from current -> initial (in sensor frame)
+            R = R_init_to_global.T @ R_global_to_curr
+            trans = (self.initial_pose_m - self.current_pose_m) @ R_global_to_curr
+
+            #apply the rotation and translation
+            return (current_points @ R) + trans
+        
+        else:
+            return np.empty(shape=(0,2))
+        
+    def get_point_from_initial_pose(self)->np.ndarray:
+
+        #convert the grid to a point cloud
+        x_idxs,y_idxs = np.nonzero(self.point_cloud_grid)
+
+        if x_idxs.shape[0] > 0:
+        
+            x_vals = self.range_bins[x_idxs]
+            y_vals = self.range_bins[y_idxs]
+
+            return np.column_stack((x_vals,y_vals))
+        else:
+            return np.empty(shape=(0,2))
     
     ####################################################################
     #Get final point cloud, check distance covered and rotation angle
@@ -180,7 +223,7 @@ class pcStacker:
     
     def get_rel_heading_deg(self)->float:
 
-        return np.rad2deg(self.rel_heading_rad)
+        return np.abs(np.rad2deg(self.rel_heading_rad))
     
     def get_elapsed_time(self)->float:
 

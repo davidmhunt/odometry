@@ -1,11 +1,13 @@
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from odometry.supportFns import rotation_functions
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.datasets.radnav_ds import radnavDS
 from odometry.datasets.map_handler import MapHandler
 from odometry.plotting.plotter_localization import PlotterLocalization
+from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.analyzers.analyzer import Analyzer
 from odometry.estimators.estimators import (
     _ExtendedKalmanFilter,
@@ -14,6 +16,7 @@ from odometry.estimators.estimators import (
     Inertial)
 from odometry.point_cloud_processing.pc_stacker import pcStacker
 from odometry.point_cloud_processing.multipath import MultiPath
+from odometry.plotting.movies import MovieGenerator
 
 class combinedPointCloudKalmanTB:
 
@@ -42,8 +45,8 @@ class combinedPointCloudKalmanTB:
         self.dataset:radnavDS = dataset
 
         #initialize a plotter
-        self.plotter = PlotterLocalization(dataset,map_handler)
-
+        self.plotter_localization = PlotterLocalization(dataset,map_handler)
+        self.plotter_kalman = PlotterKalman()
         #initialize an analyzer class
         self.analyzer = Analyzer()
 
@@ -60,6 +63,11 @@ class combinedPointCloudKalmanTB:
             clustering_eps=0.3,
             clustering_min_samples=15
         )
+        #combined point cloud processing history
+        self.history_pc_stacker_point_clouds:list = None
+        self.history_pc_stacker_position_m:list = None
+        self.history_pc_stacker_heading_rad:list = None
+        self.history_pc_stacker_reset()
 
         #kalman filter histories
         self.history_filter_est = None
@@ -67,6 +75,7 @@ class combinedPointCloudKalmanTB:
         self.history_filter_y = None
         self.history_filter_p = None
 
+        return
     
     ####################################################################
     #Initializing localizers and filters
@@ -128,7 +137,7 @@ class combinedPointCloudKalmanTB:
 
 
         if show:
-            self.plotter.plot_detections_on_map(
+            self.plotter_localization.plot_detections_on_map(
                 current_points=init_points,
                 heading_rad=new_heading_rad,
                 pose_m=new_pose_m,
@@ -243,6 +252,39 @@ class combinedPointCloudKalmanTB:
         self.history_filter_y.append(self.filter.y)
     
     ####################################################################
+    #Histories (point cloud stacking)
+    ####################################################################
+    def history_pc_stacker_reset(self):
+
+        self.history_pc_stacker_point_clouds = []
+        self.history_pc_stacker_position_m = []
+        self.history_pc_stacker_heading_rad = []
+
+        return
+
+    def history_pc_stacker_update(
+            self,
+            valid_stacked_point_cloud:np.ndarray,
+            icp_position_m:np.ndarray,
+            icp_heading_rad:float):
+        """Save the most recently computed stacked point cloud and its
+        estimated position and heading
+
+        Args:
+            valid_stacked_point_cloud (np.ndarray): Nx2 array of valid points
+                corresponding to the most recent stacked point cloud after
+                ray tracing/multi-path rejection
+            icp_position_m (np.ndarray): Nx2 array corresponding to the
+                position from the most recent icp estimate
+            icp_heading_rad (float): heading corresponding to the icp position
+                estimate using the most recent stacked point cloud
+        """
+        
+        self.history_pc_stacker_point_clouds.append(valid_stacked_point_cloud)
+        self.history_pc_stacker_position_m.append(icp_position_m)
+        self.history_pc_stacker_heading_rad.append(icp_heading_rad)
+
+    ####################################################################
     #Handling time
     #################################################################### 
     def get_dataset_start_time(self,idx=0)->float:
@@ -344,7 +386,11 @@ class combinedPointCloudKalmanTB:
     #Running localization for the dataset
     ####################################################################
 
-    def run(self,max_frame=-1):
+    def run(
+            self,
+            max_frame=-1,
+            gt_enabled=True,
+            movie_generator:MovieGenerator = None):
         if max_frame == -1:
             max_frame = self.dataset.num_frames
 
@@ -359,19 +405,19 @@ class combinedPointCloudKalmanTB:
         )
 
         for i in tqdm(range(max_frame)):
+            if gt_enabled:
+                # update the lidar ground truth
+                gt_points = self.dataset.get_lidar_point_cloud(idx=i)
 
-            # # update the lidar ground truth
-            # gt_points = self.dataset.get_lidar_point_cloud(idx=i)
+                new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                    points=gt_points
+                )
 
-            # new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-            #     points=gt_points
-            # )
-
-            # self.history_update_pose_gt(
-            #     position_m=new_pose_m,
-            #     heading_rad=new_heading_rad,
-            #     idx = i
-            # )
+                self.history_update_pose_gt(
+                    position_m=new_pose_m,
+                    heading_rad=new_heading_rad,
+                    idx = i
+                )
 
             #perform localization with the EKF
 
@@ -415,11 +461,18 @@ class combinedPointCloudKalmanTB:
                 if ((est_heading_rad is not None) and
                     (est_pose_m is not None)):
 
-                    #perform a measurement
+                    # #perform a measurement
                     self.filter_perform_update(
                         estimated_position_m=est_pose_m,
                         estimated_heading_rad=est_heading_rad,
                         t = self.filter_last_t
+                    )
+
+                    #save the measurement and point cloud
+                    self.history_pc_stacker_update(
+                        valid_stacked_point_cloud=pc,
+                        icp_position_m=est_pose_m,
+                        icp_heading_rad=est_heading_rad
                     )
                 
                 # reset the point cloud stacker
@@ -446,6 +499,16 @@ class combinedPointCloudKalmanTB:
                 heading_rad=self.filter.x[2],
                 idx=i
             )
+
+            if movie_generator:
+                #plot the current state
+                self.plot_compilation(
+                    idx = i,
+                    axs = movie_generator.axs,
+                    show=False
+                )
+
+                movie_generator.save_frame(clear_axs=True)
         return
     
     ####################################################################
@@ -459,6 +522,88 @@ class combinedPointCloudKalmanTB:
             self.history_heading_deg,
             self.history_heading_deg_gt
         )
+    
+    ####################################################################
+    #Plot compilation of data
+    ####################################################################
+    def plot_compilation(
+            self,
+            idx=-1,
+            axs:plt.Axes=[],
+            show=False
+        ):
+
+        if len(axs) == 0:
+            fig,axs=plt.subplots(2,3, figsize=(15,10))
+            fig.subplots_adjust(wspace=0.3,hspace=0.30)
+
+        #top row pose(localization and heading) and camera view
+        self.plotter_localization.plot_heading_history_deg(
+            history_heading_deg=self.history_heading_deg,
+            history_heading_deg_gt=self.history_heading_deg_gt,
+            idx=idx+1,
+            ax=axs[0,0],
+            show=False
+        )
+        
+        self.plotter_localization.plot_position_history_m(
+            history_position_m=self.history_position_m,
+            history_position_m_gt=self.history_position_m_gt,
+            idx=idx+1,
+            ax=axs[0,1],
+            show=False
+        )
+
+        if self.dataset.camera_enabled:
+
+            axs[0,2].imshow(
+                self.dataset.get_camera_frame(idx)
+            )
+            axs[0,2].set_title("Camera View")
+
+        #bottom row (combined point cloud) and kalman filtering
+        if len(self.history_filter_g) > 0:
+            self.plotter_kalman.plot_chi_2_resp(
+                g_thresh=self.filter.g_thresh[2],
+                g_hist=np.array(self.history_filter_g),
+                idx=idx,
+                ax=axs[1,0],
+                show=False
+            )
+
+        self.plotter_localization.marker_size = 0.5
+        if len(self.history_pc_stacker_point_clouds) > 0:
+            self.plotter_localization.plot_detections_on_map(
+                current_points=self.history_pc_stacker_point_clouds[-1],
+                heading_rad=self.history_pc_stacker_heading_rad[-1],
+                pose_m=self.history_pc_stacker_position_m[-1],
+                ax=axs[1,1],
+                show=False
+            )
+            axs[1,1].set_title("Last Raytraced Point Cloud",
+                               fontsize=self.plotter_localization.font_size_title)
+            
+        combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
+        if combined_pc.shape[0] > 0:
+
+            self.plotter_localization.plot_detections_on_map(
+                current_points=combined_pc,
+                heading_rad=self.point_cloud_stacker.initial_heading_rad,
+                pose_m=self.point_cloud_stacker.initial_pose_m,
+                ax=axs[1,2],
+                show=False
+            ) 
+            axs[1,2].set_title("Current Stacked Point Cloud: {}".format(len(combined_pc)),
+                               fontsize=self.plotter_localization.font_size_title)
+        
+        #reset the marker size
+        self.plotter_localization.marker_size=10
+
+        if show:
+            plt.show()
+
+
+    
 
 
 

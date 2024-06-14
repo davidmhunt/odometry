@@ -20,12 +20,10 @@ class PlotterKalman:
             x_history:np.ndarray,
             p_history:np.ndarray=None,
             axs:plt.Axes=[],
-            idx:int = 0
+            idx:int = -1
     ):
         if len(axs) == 0:
             fig, axs = plt.subplots(1, 7, figsize=(20, 5))
-        if idx == 0:
-            idx = -1
         
         #plot position history
         axs[0].plot(x_history[:idx,0],x_history[:idx,1])
@@ -54,16 +52,14 @@ class PlotterKalman:
     def plot_chi_2_resp(self,
                         g_thresh:int,
                         g_hist:np.ndarray,
-                        idx:int=0,
-                        ax:plt.Axes = None):
+                        idx:int=-1,
+                        ax:plt.Axes = None,
+                        show=False):
         
         if not ax:
             fig,ax = plt.subplots()
         
-        if idx == 0:
-            ax.plot(g_hist,label="test statistic")
-        else:
-            ax.plot(g_hist[:idx],label="test statistic")
+        ax.plot(g_hist[:idx],label="test statistic")
         
         ax.axhline(
             g_thresh,
@@ -72,19 +68,17 @@ class PlotterKalman:
             label="chi2 threshold")
         
         ax.legend()
-        plt.show()
+
+        if show:
+            plt.show()
     
     def plot_residual_hist(
             self,
             y_hist:list,
-            idx:int=0,
             ax:plt.Axes = None):
 
         if not ax:
             fig,ax = plt.subplots()
-            
-        if idx == 0:
-            idx = -1
 
         ax.hist([y[0] for y in y_hist],bins=40,alpha=0.5)
         ax.hist([y[1] for y in y_hist], bins=40,alpha=0.5)

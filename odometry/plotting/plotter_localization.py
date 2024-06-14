@@ -322,14 +322,14 @@ class PlotterLocalization:
 
     def plot_heading_history(self,
                          history_heading_deg:list,
-                         idx=0,
+                         idx=-1,
                          ax:plt.Axes=None,
                          show:bool=False):
         """Plot the heading history (in degrees)
 
         Args:
             history_heading_deg (list): history of the heading
-            idx (int, optional): max index to plot to. Defaults to 0.
+            idx (int, optional): max index to plot to. Defaults to -1.
             ax (plt.Axes, optional): Axes to plot on. Defaults to None.
             show (bool, optional): displays plot on True. Defaults to False.
         """
@@ -337,10 +337,7 @@ class PlotterLocalization:
         if not ax:
             fig,ax = plt.subplots()
         
-        if idx == 0:
-            ax.plot(history_heading_deg)
-        else:
-            ax.plot(history_heading_deg[:idx])
+        ax.plot(history_heading_deg[:idx])
         
         ax.set_title("Heading history (deg)",fontsize=self.font_size_title)
         ax.set_xlabel("Frame",fontsize=self.font_size_axis_labels)
@@ -358,7 +355,7 @@ class PlotterLocalization:
     def plot_position_history_m(self,
                          history_position_m:np.ndarray,
                          history_position_m_gt:np.ndarray = np.empty(shape=(0,2)),
-                         idx=0,
+                         idx=-1,
                          ax:plt.Axes=None,
                          show:bool=False):
         """Plot the position history (in meters)
@@ -366,16 +363,13 @@ class PlotterLocalization:
         Args:
             history_position_m (np.ndarray): history of the est position
             history_position_m_gt (np.ndarray): history of the gt position
-            idx (int, optional): max index to plot to. Defaults to 0.
+            idx (int, optional): max index to plot to. Defaults to -1.
             ax (plt.Axes, optional): Axes to plot on. Defaults to None.
             show (bool, optional): displays plot on True. Defaults to False.
         """
 
         if not ax:
             fig,ax = plt.subplots(figsize=(3,3))
-        
-        if idx == 0:
-            idx = -1 #plot all of the history
         ax.plot(
             history_position_m[:idx,0],
             history_position_m[:idx,1],
@@ -391,11 +385,11 @@ class PlotterLocalization:
                 label="truth")
 
         ax.set_xlim(
-            np.min(history_position_m_gt[:idx,0]) - 3,
-            np.max(history_position_m_gt[:idx,0]) + 3)
+            np.min(history_position_m[:idx,0]) - 3,
+            np.max(history_position_m[:idx,0]) + 3)
         ax.set_ylim(
-            np.min(history_position_m_gt[:idx,1]) - 3,
-            np.max(history_position_m_gt[:idx,1]) + 3)
+            np.min(history_position_m[:idx,1]) - 3,
+            np.max(history_position_m[:idx,1]) + 3)
             
         ax.set_title("Position",fontsize=self.font_size_title)
         ax.set_xlabel("X (m)",fontsize=self.font_size_axis_labels)
@@ -422,7 +416,7 @@ class PlotterLocalization:
     def plot_heading_history_deg(self,
                          history_heading_deg:list,
                          history_heading_deg_gt:list = [],
-                         idx=0,
+                         idx=-1,
                          ax:plt.Axes=None,
                          show:bool=False):
         """Plot the heading history (in degrees)
@@ -437,9 +431,6 @@ class PlotterLocalization:
         if not ax:
             fig,ax = plt.subplots(figsize=(3,3))
         
-        if idx == 0:
-            idx = -1 #plot all of the history
-
         #plot the localization heading history
         ax.plot(history_heading_deg[:idx],
                 color="blue",

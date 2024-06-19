@@ -50,7 +50,15 @@ class MultiPath:
     def remove_multipath(
             self,
             pc_cartesian:np.ndarray
-    ):
+    )->np.ndarray:
+        """Removes multipath detections from a radar point cloud
+
+        Args:
+            pc_cartesian (np.ndarray): Nx2 point cloud in cartesian coordinates
+
+        Returns:
+            np.ndarray: Nx2 array of points with multipath detections removed
+        """
         
         #perform initial clustering in cartesian
         labels = self._cluster_points(pc_cartesian)

@@ -147,14 +147,6 @@ class pcStacker:
 
         #apply the rotation and translation
         aligned_points = (current_points @ R) + trans
-
-        # #apply the rotation and translation
-        # aligned_points = \
-        #     rotation_functions.apply_rot_trans(
-        #         points=current_points,
-        #         rot_angle_rad= self.rel_heading_rad,
-        #         trans= self.rel_pose_m
-        #     )
         
         x_idx = np.argmin(np.abs(
             self.range_bins[:,None] - aligned_points[:,0]),
@@ -169,6 +161,12 @@ class pcStacker:
 
     
     def get_points(self)->np.ndarray:
+        """Obtain the currently stacked point cloud in the current sensor frame
+        (translates points from the initial position to the current position)
+
+        Returns:
+            np.ndarray: Nx2 array of points in the current sensor frame
+        """
 
         #convert the grid to a point cloud
         x_idxs,y_idxs = np.nonzero(self.point_cloud_grid)
@@ -198,8 +196,14 @@ class pcStacker:
         
         else:
             return np.empty(shape=(0,2))
-        
+    
+
     def get_point_from_initial_pose(self)->np.ndarray:
+        """Obtain the currently stacked point cloud in the initial sensor frame 
+
+        Returns:
+            np.ndarray: Nx2 array of points in the initial sensor frame
+        """
 
         #convert the grid to a point cloud
         x_idxs,y_idxs = np.nonzero(self.point_cloud_grid)
@@ -218,13 +222,28 @@ class pcStacker:
     ####################################################################
 
     def get_rel_distance_m(self)->float:
+        """Return distance traveled since last reset
+
+        Returns:
+            float: Euclidian norm of distance traveled
+        """
 
         return np.linalg.norm(self.rel_pose_m)
     
     def get_rel_heading_deg(self)->float:
+        """Obtain the total rotation since the last reset
+
+        Returns:
+            float: Absolute value of total rotation in degrees
+        """
 
         return np.abs(np.rad2deg(self.rel_heading_rad))
     
     def get_elapsed_time(self)->float:
+        """Obtain the total time elapsed since the last reset
+
+        Returns:
+            float: total time in seconds since last reset
+        """
 
         return self.elapsed_time_s

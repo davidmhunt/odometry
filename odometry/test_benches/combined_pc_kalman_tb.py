@@ -168,7 +168,7 @@ class combinedPointCloudKalmanTB:
             t0=start_time_s,
             x0 = x0,
             P0 = P0,
-            chi2_pct=0.95,
+            chi2_pct=0.95, #originally 0.95
             do_chi2=True
         )
 
@@ -443,7 +443,7 @@ class combinedPointCloudKalmanTB:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 1.5) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90):
 
                 #get the stacked point cloud

@@ -41,7 +41,12 @@ bash Anaconda3-2023.09-0-Linux-x86_64.sh -b
 conda create -n odometry python=3.10
 ```
 
-### 2. Install CPSL_TI_Radar using Poetry
+### 2. Clone CPSL_TI_Radar
+```
+git clone https://github.com/davidmhunt/Odometry.git
+```
+
+### 3. Install CPSL_TI_Radar using Poetry
 
 #### Installing Poetry:
  

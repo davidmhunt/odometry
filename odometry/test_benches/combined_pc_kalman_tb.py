@@ -443,7 +443,7 @@ class combinedPointCloudKalmanTB:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 1.0) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90):
 
                 #get the stacked point cloud
@@ -481,7 +481,7 @@ class combinedPointCloudKalmanTB:
                     initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
                     initial_time_s=self.filter_last_t
                 )
-            elif self.point_cloud_stacker.get_elapsed_time() > 5:
+            elif self.point_cloud_stacker.get_elapsed_time() > 10:
 
                 #if the vehicle hasn't moved significantly over the last 5 seconds,
                 #go ahead and reset the point cloud stacker to prevent 

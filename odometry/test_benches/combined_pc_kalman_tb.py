@@ -60,8 +60,8 @@ class combinedPointCloudKalmanTB:
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
-            clustering_eps=0.75, #NOTE originally 0.3
-            clustering_min_samples=15 #NOTE originally 15
+            clustering_eps=.75, #NOTE originally 0.3
+            clustering_min_samples=20 #NOTE originally 15
         )
         #combined point cloud processing history
         self.history_pc_stacker_point_clouds:list = None
@@ -443,9 +443,9 @@ class combinedPointCloudKalmanTB:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #NOTE:a combined point cloud (originally 1.5m, 90 degrees, no time constraint)
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.3) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
-                (self.point_cloud_stacker.get_elapsed_time() > 10):
+                    (self.point_cloud_stacker.get_elapsed_time() > 7.5):
 
                 #get the stacked point cloud
                 pc = self.point_cloud_stacker.get_points()

@@ -104,8 +104,8 @@ class MultiPath:
                 #identify indicies of points that are past these points
                 invalid_idxs = \
                     (pc_polar[:,0] > max_range) & \
-                    (pc_polar[:,1] > angle_bounds[1]) & \
-                    (pc_polar[:,1] < angle_bounds[0])
+                    ((pc_polar[:,1] > angle_bounds[1]) | \
+                    (pc_polar[:,1] < angle_bounds[0]))
             else: #standard case
                 invalid_idxs = \
                     (pc_polar[:,0] > max_range) & \

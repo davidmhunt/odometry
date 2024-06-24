@@ -443,6 +443,7 @@ class combinedPointCloudKalmanTB:
 
 #TODO change velocity variable
             if(i%10 == 0):
+                vehicle_vel = self.filter.x[3]
                 val_dist_calc = ((self.dataset.get_vehicle_vel_data(i)[0][1]-0.15)/0.2)*.3+0.5
 
             #check to see if the vehicle has moved a sufficient amount for using

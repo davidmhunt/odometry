@@ -443,7 +443,7 @@ class combinedPointCloudKalmanTB:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 1.0) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 

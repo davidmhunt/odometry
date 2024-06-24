@@ -60,8 +60,8 @@ class combinedPointCloudKalmanTB:
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
-            clustering_eps=0.75, #NOTE originally 0.3
-            clustering_min_samples=15 #NOTE originally 15
+            clustering_eps=0.40, #NOTE originally 0.3
+            clustering_min_samples=13 #NOTE originally 15
         )
         #combined point cloud processing history
         self.history_pc_stacker_point_clouds:list = None

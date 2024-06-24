@@ -441,11 +441,18 @@ class combinedPointCloudKalmanTB:
                 current_time_s=self.filter_last_t
             )
 
+#TODO change velocity variable
+            if(i%10 == 0):
+                val_dist_calc = ((self.dataset.get_vehicle_vel_data(i)[0][1]-0.15)/0.2)*.3+0.5
+
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > val_dist_calc) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
+
+                #print(self.dataset.get_vehicle_vel_data(i)[0][1])
+                print(val_dist_calc)
 
                 #get the stacked point cloud
                 pc = self.point_cloud_stacker.get_points()

@@ -60,8 +60,8 @@ class combinedPointCloudKalmanTB:
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
-            clustering_eps=0.4,
-            clustering_min_samples=13
+            clustering_eps = 1.0,
+            clustering_min_samples= 12
         )
         #combined point cloud processing history
         self.history_pc_stacker_point_clouds:list = None
@@ -440,20 +440,26 @@ class combinedPointCloudKalmanTB:
                     ]),
                 current_time_s=self.filter_last_t
             )
-
-#TODO change velocity variable
+        
+            # runs every 10 iterations
             if(i%10 == 0):
+                # gets velocity of the vehicle
                 vehicle_vel = self.filter.x[3]
-                val_dist_calc = ((self.dataset.get_vehicle_vel_data(i)[0][1]-0.15)/0.2)*.3+0.5
+
+                # Calculations derived from:
+                # vehicle velocity of .15 corresponds with the best distance before updating being .5
+                # vehicle velocity of .35 corresponds with .75
+                # the calculations treats the .15 vehicle velocity as x = 0 and .5 as a y-intercept
+                val_dist_calc = ((vehicle_vel-0.15)/0.2)*.3+0.5
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > val_dist_calc) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 
                 #print(self.dataset.get_vehicle_vel_data(i)[0][1])
-                print(val_dist_calc)
+                #print(val_dist_calc)
 
                 #get the stacked point cloud
                 pc = self.point_cloud_stacker.get_points()

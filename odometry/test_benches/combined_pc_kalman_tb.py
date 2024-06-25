@@ -16,6 +16,7 @@ from odometry.estimators.estimators import (
     Inertial)
 from odometry.point_cloud_processing.pc_stacker import pcStacker
 from odometry.point_cloud_processing.multipath import MultiPath
+from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
 
 class combinedPointCloudKalmanTB:
@@ -63,6 +64,10 @@ class combinedPointCloudKalmanTB:
             clustering_eps=0.40, #NOTE originally 0.3
             clustering_min_samples=13 #NOTE originally 15
         )
+        self.vel_filtering = VelFiltering(
+            v_thresh=0.4
+        )
+
         #combined point cloud processing history
         self.history_pc_stacker_point_clouds:list = None
         self.history_pc_stacker_position_m:list = None

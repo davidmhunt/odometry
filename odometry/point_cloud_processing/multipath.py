@@ -117,9 +117,13 @@ class MultiPath:
         
         #perform a final round of clustering to only keep the clustered points
         valid_stacked_pc_cart = pc_cartesian[valid_points,:]
-        labels = self._cluster_points(valid_stacked_pc_cart)
         
-        return valid_stacked_pc_cart[labels!=-1,:]
+        if valid_stacked_pc_cart.shape[0] > 0:
+            labels = self._cluster_points(valid_stacked_pc_cart)
+        
+            return valid_stacked_pc_cart[labels!=-1,:]
+        else:
+            return np.empty(shape=(0,2))
     
 
     

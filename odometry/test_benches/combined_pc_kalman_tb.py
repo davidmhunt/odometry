@@ -439,7 +439,7 @@ class combinedPointCloudKalmanTB:
             if self.vel_filtering_enabled:
                 radar_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,
-                    ego_vel=np.array(self.filter.x[3],0.0)
+                    ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
             #filter out ground detections, etc

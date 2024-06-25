@@ -96,7 +96,7 @@ class MapHandler:
 
         #load the file
         img = cv2.imread(map_path,cv2.IMREAD_GRAYSCALE)
-        #img = cv2.threshold(img,127,255,cv2.THRESH_BINARY)[1]
+        img = cv2.threshold(img,240,255,cv2.THRESH_BINARY)[1]
         img = np.flipud(img)
 
         #create a mesh grid of the map space
@@ -110,7 +110,7 @@ class MapHandler:
         grid = np.vstack([xx.ravel(),yy.ravel()]).T
 
         #get the points from the map
-        mask = (img.ravel() == 205)
+        mask = (img.ravel() != 0)
         points = grid[mask]
 
         return points

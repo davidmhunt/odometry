@@ -441,16 +441,16 @@ class combinedPointCloudKalmanTB:
                 current_time_s=self.filter_last_t
             )
         
+            #attempt at changing rel distance for different velocities
             # runs every 10 iterations
-            if(i%10 == 0):
+            #if(i%10 == 0):
                 # gets velocity of the vehicle
-                vehicle_vel = self.filter.x[3]
-
+                #vehicle_vel = self.filter.x[3]
                 # Calculations derived from:
                 # vehicle velocity of .15 corresponds with the best distance before updating being .5
                 # vehicle velocity of .35 corresponds with .75
                 # the calculations treats the .15 vehicle velocity as x = 0 and .5 as a y-intercept
-                val_dist_calc = ((vehicle_vel-0.15)/0.2)*.3+0.5
+                #val_dist_calc = ((vehicle_vel-0.15)/0.2)*.3+0.5
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud

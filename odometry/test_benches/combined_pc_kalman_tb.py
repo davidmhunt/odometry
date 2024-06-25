@@ -25,7 +25,9 @@ class combinedPointCloudKalmanTB:
                  localizer:icp2DLocalization,
                  gt_localizer:icp2DLocalization,
                  map_handler:MapHandler,
-                 dataset:radnavDS) -> None:
+                 dataset:radnavDS,
+                 vel_filter_enabled = True,
+                 vel_filter_v_thresh = 1.0) -> None:
         
         #initialize the localizer
         self.localizer:icp2DLocalization = localizer
@@ -64,8 +66,9 @@ class combinedPointCloudKalmanTB:
             clustering_eps = 1.0,
             clustering_min_samples= 12
         )
+        self.vel_filtering_enabled = vel_filter_enabled
         self.vel_filtering = VelFiltering(
-            v_thresh=0.4
+            v_thresh=vel_filter_v_thresh
         )
 
         #combined point cloud processing history
@@ -431,6 +434,13 @@ class combinedPointCloudKalmanTB:
 
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
+
+            #filter dynamic objects
+            if self.vel_filtering_enabled:
+                radar_points = self.vel_filtering.get_static_detections(
+                    detections=radar_points,
+                    ego_vel=np.array(self.filter.x[3],0.0)
+                )
 
             #filter out ground detections, etc
             radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])

@@ -27,7 +27,10 @@ class combinedPointCloudKalmanTB:
                  map_handler:MapHandler,
                  dataset:radnavDS,
                  vel_filter_enabled = True,
-                 vel_filter_v_thresh = 1.0) -> None:
+                 vel_filter_v_thresh = 1.0,
+                 min_static_rejection_radius:float = 2.0,
+                 dynamic_cluster_eps:float = 1.0,
+                 dynamic_cluster_min_samples = 7) -> None:
         
         #initialize the localizer
         self.localizer:icp2DLocalization = localizer
@@ -68,7 +71,10 @@ class combinedPointCloudKalmanTB:
         )
         self.vel_filtering_enabled = vel_filter_enabled
         self.vel_filtering = VelFiltering(
-            v_thresh=vel_filter_v_thresh
+            v_thresh=vel_filter_v_thresh,
+            min_static_rejection_radius=min_static_rejection_radius,
+            dynamic_cluster_eps=dynamic_cluster_eps,
+            dynamic_cluster_min_samples=dynamic_cluster_min_samples
         )
 
         #combined point cloud processing history
@@ -437,9 +443,19 @@ class combinedPointCloudKalmanTB:
 
             #filter dynamic objects
             if self.vel_filtering_enabled:
-                radar_points = self.vel_filtering.get_static_detections(
+                static_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,
                     ego_vel=np.array([self.filter.x[3],0.0])
+                )
+
+                dynamic_points = self.vel_filtering.get_dynamic_detections(
+                    detections=radar_points,
+                    ego_vel=np.array([self.filter.x[3],0.0])
+                )
+
+                radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                    static_detections=static_points,
+                    dynamic_detections=dynamic_points
                 )
 
             #filter out ground detections, etc

@@ -60,6 +60,9 @@ class MultiPath:
             np.ndarray: Nx2 array of points with multipath detections removed
         """
         
+        if pc_cartesian.shape[0] == 0:
+            return np.empty(shape=(0,2))
+        
         #perform initial clustering in cartesian
         labels = self._cluster_points(pc_cartesian)
 

@@ -494,29 +494,6 @@ class combinedPointCloudKalmanTB:
 
             #filter out ground detections, etc
             radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
-
-
-            self.point_cloud_stacker.add_points(
-                current_points=static_points[:,0:2],
-                heading_rad=self.filter.x[2],
-                pose_m= \
-                    np.array([
-                        self.filter.x[0],
-                        self.filter.x[1]
-                    ]),
-                current_time_s=self.filter_last_t
-            )
-
-            self.dynamic_point_cloud_stacker.add_points(
-                current_points=dynamic_points[:,0:2],
-                heading_rad=self.filter.x[2],
-                pose_m= \
-                    np.array([
-                        self.filter.x[0],
-                        self.filter.x[1]
-                    ]),
-                current_time_s=self.filter_last_t
-            )
         
             #attempt at changing rel distance for different velocities
             # runs every 10 iterations

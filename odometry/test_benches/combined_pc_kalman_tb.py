@@ -454,6 +454,39 @@ class combinedPointCloudKalmanTB:
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
+                self.point_cloud_stacker.add_points(
+                    current_points=static_points[:, 0:2],
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
+
+                self.dynamic_point_cloud_stacker.add_points(
+                    current_points=dynamic_points[:, 0:2],
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
+            else:
+                self.point_cloud_stacker.add_points(
+                    current_points=radar_points[:, 0:2],
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
+
                 #radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
                     #static_detections=static_points,
                     #dynamic_detections=dynamic_points

@@ -453,6 +453,8 @@ class combinedPointCloudKalmanTB:
                     detections=radar_points,
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
+            else:
+                static_points=radar_points
 
                 #radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
                     #static_detections=static_points,

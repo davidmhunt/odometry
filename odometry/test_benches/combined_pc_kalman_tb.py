@@ -442,8 +442,6 @@ class combinedPointCloudKalmanTB:
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
 
-            # filter out ground detections, etc
-            radar_points = self.localizer.remove_sensor_self_detections(radar_points[:, :2])
 
             #filter dynamic objects
             if self.vel_filtering_enabled:
@@ -489,6 +487,11 @@ class combinedPointCloudKalmanTB:
                         ]),
                     current_time_s=self.filter_last_t
                 )
+
+            # filter out ground detections, etc
+            static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
+            dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
+
 
                 #radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
                     #static_detections=static_points,

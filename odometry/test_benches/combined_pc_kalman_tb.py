@@ -453,6 +453,8 @@ class combinedPointCloudKalmanTB:
                     detections=radar_points,
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
+            else:
+                static_points=radar_points
 
                 self.point_cloud_stacker.add_points(
                     current_points=static_points[:, 0:2],

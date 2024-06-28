@@ -65,6 +65,7 @@ class combinedPointCloudKalmanTB:
 
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
+        self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
             clustering_eps = 1.0,
             clustering_min_samples= 12
@@ -453,16 +454,28 @@ class combinedPointCloudKalmanTB:
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
-                radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
-                    static_detections=static_points,
-                    dynamic_detections=dynamic_points
-                )
+                #radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                    #static_detections=static_points,
+                    #dynamic_detections=dynamic_points
+                #)
 
             #filter out ground detections, etc
             radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
 
+
             self.point_cloud_stacker.add_points(
-                current_points=radar_points,
+                current_points=static_points[:,0:2],
+                heading_rad=self.filter.x[2],
+                pose_m= \
+                    np.array([
+                        self.filter.x[0],
+                        self.filter.x[1]
+                    ]),
+                current_time_s=self.filter_last_t
+            )
+
+            self.dynamic_point_cloud_stacker.add_points(
+                current_points=dynamic_points[:,0:2],
                 heading_rad=self.filter.x[2],
                 pose_m= \
                     np.array([
@@ -493,7 +506,13 @@ class combinedPointCloudKalmanTB:
                 #print(val_dist_calc)
 
                 #get the stacked point cloud
-                pc = self.point_cloud_stacker.get_points()
+                static_pc = self.point_cloud_stacker.get_points()
+                dynamic_pc = self.dynamic_point_cloud_stacker.get_points()
+
+                pc = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                     static_detections=static_pc,
+                     dynamic_detections=dynamic_pc
+                )
 
                 #remove multipath detections
                 pc = self.multipath.remove_multipath(pc)

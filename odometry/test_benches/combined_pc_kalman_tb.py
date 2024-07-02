@@ -59,7 +59,6 @@ class combinedPointCloudKalmanTB:
 
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
-        self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
             clustering_eps = 1.0,
             clustering_min_samples= 12
@@ -429,10 +428,11 @@ class combinedPointCloudKalmanTB:
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
 
+            #filter out ground detections, etc
+            radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
 
-            
             self.point_cloud_stacker.add_points(
-                current_points=radar_points[:, 0:2],
+                current_points=radar_points,
                 heading_rad=self.filter.x[2],
                 pose_m= \
                     np.array([
@@ -441,10 +441,6 @@ class combinedPointCloudKalmanTB:
                     ]),
                 current_time_s=self.filter_last_t
             )
-
-            # filter out ground detections, etc
-            static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
-            dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
@@ -456,13 +452,7 @@ class combinedPointCloudKalmanTB:
                 #print(val_dist_calc)
 
                 #get the stacked point cloud
-                static_pc = self.point_cloud_stacker.get_points()
-                dynamic_pc = self.dynamic_point_cloud_stacker.get_points()
-
-                pc = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
-                     static_detections=static_pc,
-                     dynamic_detections=dynamic_pc
-                )
+                pc = self.point_cloud_stacker.get_points()
 
                 #remove multipath detections
                 pc = self.multipath.remove_multipath(pc)
@@ -616,11 +606,3 @@ class combinedPointCloudKalmanTB:
 
         if show:
             plt.show()
-
-
-    
-
-
-
-
-

@@ -19,7 +19,7 @@ from odometry.point_cloud_processing.multipath import MultiPath
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
 
-class combinedPCVelFilteringStackedTB:
+class combinedPCKalmanVelFiltering:
 
     def __init__(self,
                  localizer:icp2DLocalization,
@@ -67,7 +67,7 @@ class combinedPCVelFilteringStackedTB:
         self.point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
             clustering_eps = 1.0,
-            clustering_min_samples= 7 #was 12
+            clustering_min_samples= 12
         )
         self.vel_filtering_enabled = vel_filter_enabled
         self.vel_filtering = VelFiltering(
@@ -441,7 +441,6 @@ class combinedPCVelFilteringStackedTB:
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
 
-
             #filter dynamic objects
             if self.vel_filtering_enabled:
                 static_points = self.vel_filtering.get_static_detections(
@@ -454,38 +453,28 @@ class combinedPCVelFilteringStackedTB:
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
-                self.point_cloud_stacker.add_points(
-                    current_points=static_points[:, 0:2],
-                    heading_rad=self.filter.x[2],
-                    pose_m= \
-                        np.array([
-                            self.filter.x[0],
-                            self.filter.x[1]
-                        ]),
-                    current_time_s=self.filter_last_t
+                radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                    static_detections=static_points,
+                    dynamic_detections=dynamic_points
                 )
 
-            else:
-                self.point_cloud_stacker.add_points(
-                    current_points=radar_points[:, 0:2],
-                    heading_rad=self.filter.x[2],
-                    pose_m= \
-                        np.array([
-                            self.filter.x[0],
-                            self.filter.x[1]
-                        ]),
-                    current_time_s=self.filter_last_t
-                )
+            #filter out ground detections, etc
+            radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
 
-            # filter out ground detections, etc
-            static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
-            dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
+            self.point_cloud_stacker.add_points(
+                current_points=radar_points,
+                heading_rad=self.filter.x[2],
+                pose_m= \
+                    np.array([
+                        self.filter.x[0],
+                        self.filter.x[1]
+                    ]),
+                current_time_s=self.filter_last_t
+            )
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-
-            #rel distance was o.5
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 
@@ -493,13 +482,7 @@ class combinedPCVelFilteringStackedTB:
                 #print(val_dist_calc)
 
                 #get the stacked point cloud
-                static_pc = self.point_cloud_stacker.get_points()
-                dynamic_pc = self.dynamic_point_cloud_stacker.get_points()
-
-                pc = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
-                     static_detections=static_pc,
-                     dynamic_detections=dynamic_pc
-                )
+                pc = self.point_cloud_stacker.get_points()
 
                 #remove multipath detections
                 pc = self.multipath.remove_multipath(pc)

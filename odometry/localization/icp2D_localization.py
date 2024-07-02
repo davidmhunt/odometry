@@ -168,4 +168,6 @@ class icp2DLocalization(icp2D):
             if new_pose_m is not None:
                 self.current_pose_m = new_pose_m
 
-        return new_heading_rad,new_pose_m
+            return new_heading_rad,new_pose_m
+        else:
+            return None,None

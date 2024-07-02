@@ -1,11 +1,23 @@
 import numpy as np
+from sklearn.cluster import DBSCAN
 
 
 class VelFiltering:
 
-    def __init__(self,v_thresh:float=1.0) -> None:
+    def __init__(self,
+                 v_thresh:float=1.0,
+                 min_static_rejection_radius:float = 2.0,
+                 dynamic_cluster_eps:float = 1.0,
+                 dynamic_cluster_min_samples = 7) -> None:
         
         self.v_thresh:float = v_thresh
+
+        self.dbscan_clusterer:DBSCAN  = DBSCAN(
+            eps=dynamic_cluster_eps,
+            min_samples=dynamic_cluster_min_samples
+        )
+
+        self.min_static_rejection_radius = min_static_rejection_radius
         
         return
 
@@ -100,6 +112,46 @@ class VelFiltering:
         static_idxs = errors < self.v_thresh
 
         return detections[static_idxs,:]
+    
+    def remove_dynamic_clusters_from_static_detections(
+            self,
+            static_detections:np.ndarray,
+            dynamic_detections:np.ndarray)->np.ndarray:
+
+
+        if dynamic_detections.shape[0] > 0:
+            labels = self.dbscan_clusterer.fit_predict(dynamic_detections[:,0:2])
+            
+            #get the unique cluster ids
+            unique_labels = np.unique(labels)
+            num_clusters = len(unique_labels) -1
+
+            #create a list of valid indicies
+            valid_idxs = np.ones(static_detections.shape[0],dtype=bool)
+
+            if num_clusters > 0:
+                for cluster_id in unique_labels[1:]:
+                    
+                    #identify points in the cluster
+                    cluster_points = dynamic_detections[labels==cluster_id,0:2]
+
+                    #compute the centroid
+                    centroid = np.average(cluster_points,axis=0)
+
+                    #compute distance between centroid and all static objects
+                    distances = np.linalg.norm(static_detections[:,0:2] - centroid)
+
+                    moving_idxs = distances < self.min_static_rejection_radius
+
+                    valid_idxs[moving_idxs] = False
+
+                return static_detections[valid_idxs,:]
+            else:
+                return static_detections
+
+
+        else:
+            return static_detections
     
 
 

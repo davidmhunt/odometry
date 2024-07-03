@@ -8,7 +8,6 @@ from odometry.analyzers.analyzer import Analyzer
 from odometry.estimators.estimators import (
     _ExtendedKalmanFilter,
     KalmanXYPhiSpeedGyroEncoder,
-    InertialIntegrator,
     Inertial)
 
 class icp2DLocalizationKalmanTB:
@@ -27,7 +26,6 @@ class icp2DLocalizationKalmanTB:
         self.filter:KalmanXYPhiSpeedGyroEncoder = None
         self.filter_R:np.ndarray = None
         self.filter_msmt_component:list = None
-        self.filter_integrator = InertialIntegrator()
         
         #filter time tracking
         self.filter_last_t:float = None
@@ -163,9 +161,6 @@ class icp2DLocalizationKalmanTB:
         #reset filter time
         self.filter_last_t = \
             self.dataset.get_imu_full_data(idx=0)[0,0]
-        
-        #initialize the integrator
-        self.filter_integrator = InertialIntegrator()
         
 
     

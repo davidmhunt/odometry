@@ -31,7 +31,6 @@ class InertialIntegrator(MotionModel):
         self.t:float = 0.0
         self.x:np.ndarray = None
         self.P:np.ndarray = None
-        self.Q:np.ndarray = self.get_Q_matrix()
 
         #initialize a random number genreator class
         self.rng =  np.random.default_rng()
@@ -148,8 +147,6 @@ class GyroEncoderIntegrator(InertialIntegrator):
         self.t = t0
         self.x = x0
         self.P = P0
-
-        self.Q = self.get_Q_matrix()
     
     def f_func(
             self,

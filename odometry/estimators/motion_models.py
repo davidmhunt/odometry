@@ -1,14 +1,40 @@
 import numpy as np
 from odometry.estimators.estimators import Inertial
 
-class InertialIntegrator:
-    def __init__(self):
 
+class MotionModel:
+    """Base motion model class with methods to be implemented
+    by the child class
+    """
+    def __init__(self) -> None:
+        pass
+
+    def reset(self,*args,**kwargs):
+        pass
+
+    def predict(self,dt,*args,**kwargs):
+        pass
+
+    def sample(self,n_samples)->np.ndarray:
+        pass
+
+####################################################################
+# Inertial Integration measurement models
+####################################################################
+
+class InertialIntegrator(MotionModel):
+    def __init__(self):
+        super().__init__()
+        
         #state variables
+        self.t0:float = 0.0
+        self.t:float = 0.0
         self.x:np.ndarray = None
         self.P:np.ndarray = None
-        self.Q:np.ndarray = None
-        self.reset()
+        self.Q:np.ndarray = self.get_Q_matrix()
+
+        #initialize a random number genreator class
+        self.rng =  np.random.default_rng()
 
     def reset(self):
         #implemented by child class
@@ -68,21 +94,82 @@ class InertialIntegrator:
 
         self.P = F @ self.P @ F.T + Q
 
+        self.t += dt
+    
+    def sample(self,n_samples):
+        #to be implemented by the child class
+        pass
+
 class GyroEncoderIntegrator(InertialIntegrator):
 
-    def __init__(self):
+    def __init__(
+            self,
+            t0:float=0.0,
+            x0:np.ndarray=np.zeros(shape=6),
+            P0:np.ndarray=np.diag([5,5,0.1,1,1e-2,1e-2])
+    ):
+        """Initialize a new GyroEncoderIntegrator object
+        states are [x,y,phi,vel,gyro_bias, encoder_bias]
+
+        Args:
+            t0 (float): start time in seceonds
+            x0 (np.ndarray, optional): Initial state space
+                [x,y,z,phi,vel,gyro_bias,encoder bias].
+                Defaults to np.zeros(shape=6).
+            P0 (np.ndarray, optional): Initial state covariance
+                matrix. Defaults to np.diag([5,5,0.1,1,1e-2,1e-2]).
+        """
+
+        #initialize state variables
         super().__init__()
 
-    def reset(self):
+        self.reset(t0,x0,P0)
+
+    def reset(
+            self,
+            t0:float=0.0,
+            x0:np.ndarray=np.zeros(shape=6),
+            P0:np.ndarray=np.diag([5,5,0.1,1,1e-2,1e-2])
+    ):
+        """reset the encoder object
+        states are [x,y,phi,vel,gyro_bias, encoder_bias]
+
+        Args:
+            t0 (float,optional): start time in seceonds. Defaults to 0.0
+            x0 (np.ndarray, optional): Initial state space
+                [x,y,z,phi,vel,gyro_bias,encoder bias].
+                Defaults to np.zeros(shape=6).
+            P0 (np.ndarray, optional): Initial state covariance
+                matrix. Defaults to np.diag([5,5,0.1,1,1e-2,1e-2]).
+        """
         
-        pass
+        #reset all state matricies
+        self.t0=t0
+        self.t = t0
+        self.x = x0
+        self.P = P0
+
+        self.Q = self.get_Q_matrix()
     
     def f_func(
             self,
             x:np.ndarray,
             inertial:Inertial,
             dt: float) -> np.ndarray:
-        
+        """State f function to propagate states forward
+
+        Args:
+            x (np.ndarray): current states defined as 
+                [x,y,z,phi,vel,gyro_bias,encoder bias]
+            inertial (Inertial): Inertial object with angular
+                velocity (omega) in rad/sec and linear velocity
+                in m/s
+            dt (float): time since the last sample
+
+        Returns:
+            np.ndarray: updated state space
+        """
+
         assert dt >= 0
         
         #get the angular and linear velocity from the inertial
@@ -106,6 +193,16 @@ class GyroEncoderIntegrator(InertialIntegrator):
             x:np.ndarray,
             inertial:Inertial,
             dt: float)->np.ndarray:
+        """Jacobian matrix based on the f function
+
+        Args:
+            x (np.ndarray): current state space
+            inertial (Inertial): inertial object (unused)
+            dt (float): time since last sample (in seconds)
+
+        Returns:
+            np.ndarray: the Jacobian matrix based on the f function
+        """
         
         assert dt >= 0
         # x position
@@ -206,3 +303,18 @@ class GyroEncoderIntegrator(InertialIntegrator):
         )
         # fmt: on
         return Q
+
+    def sample(self, n_samples):
+        """Compute N samples of the 
+
+        Args:
+            n_samples (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return self.rng.multivariate_normal(
+            mean=self.x[0:3],
+            cov=self.P[0:3,0:3],
+            size=n_samples
+        )

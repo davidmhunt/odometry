@@ -14,7 +14,9 @@ class particleFilter:
             max_particles=1000,
             measurement_model_sigma = 0.5,
             measurement_model_z_hit = 0.8,
-            measurement_model_z_rand = 0.2) -> None:
+            measurement_model_z_rand = 0.2,
+            valid_pose_var_thresh = 1.0,
+            valid_heading_var_thresh = 0.5) -> None:
         
         #initializing particles (indexed as [x,y,heading (radians)])
         self.max_particles = max_particles
@@ -41,6 +43,16 @@ class particleFilter:
 
         #filter parameters for computing motion between states
         self.motion_model:MotionModel = motion_model
+
+        #keep track of current odometry
+        self.current_pose_m:np.ndarray = np.array([0.0,0.0])
+        self.current_heading_rad = 0.0
+
+        #tracking if the valid pose is valid
+        self.current_odom_valid = False
+        self.valid_pose_var_thresh = valid_pose_var_thresh
+        self.valid_heading_var_thresh = valid_heading_var_thresh
+
     
     ####################################################################
     #Load map information
@@ -300,7 +312,7 @@ class particleFilter:
     
 
     ####################################################################
-    # odometry
+    # Particle filter update algorithms
     ####################################################################
     
     def run_MCL_alg(self,measured_point_cloud:np.ndarray):
@@ -314,11 +326,62 @@ class particleFilter:
             points=measured_point_cloud
         )
 
-        #TODO: perform re-sampling
         self.particles = self.rng.choice(
             a=self.particles,
             replace=True,
             axis=0,
-            size=self.particles.shape[0],
-            p=np.float64(self.weights)
+            size=self.max_particles,
+            p=np.float64(self.weights[:,0])
         )
+    
+    ####################################################################
+    # odometry updating
+    ####################################################################
+
+    def odometry_reset(self):
+        """Reset the current particle filter odometry
+        """
+        self.current_heading_rad = 0.0
+        self.current_pose_m = 0.0
+
+        self.current_odom_valid = False
+    
+    def odometry_update_from_measurement(
+            self,
+            measured_point_cloud:np.ndarray):
+        
+        #run the particle filter algorithm
+        self.run_MCL_alg(measured_point_cloud)
+
+        #update the pose mean and variance from the resampled particles
+        self.current_pose_m = np.average(
+            a=self.particles[:,0:2],
+            axis=0
+        )
+
+        pose_m_var = np.var(
+            a=self.particles[:,0:2],
+            axis=0
+        )
+
+        #update the heading mean and variance from the resampled particles
+        self.current_heading_rad = np.average(
+            a=self.particles[:,2]
+        )
+
+        heading_rad_var = np.var(
+            a=self.particles[:,2]
+        )
+        
+        if (heading_rad_var < self.valid_heading_var_thresh) and \
+            (pose_m_var[0] < self.valid_pose_var_thresh) and \
+            (pose_m_var[1] < self.valid_pose_var_thresh):
+
+            self.current_odom_valid = True
+        else:
+            #TODO: set current odom valid to false here if needed
+            pass
+
+
+        return
+        

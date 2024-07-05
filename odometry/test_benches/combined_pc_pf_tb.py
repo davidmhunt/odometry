@@ -135,8 +135,11 @@ class combinedPCPFTb:
         )
 
         #get the first points in the localizer point cloud
-        init_points = self.dataset.get_radar_detections(idx=0)
-        init_points = init_points[:,:2]
+        # init_points = self.dataset.get_radar_detections(idx=0)
+        # init_points = init_points[:,:2]
+        
+        #reset particle filter localization
+        self.localizer.odometry_reset()
         
         #TODO: Add this back if needed
         # new_heading_rad,new_pose_m = self.localizer.update_odometry(
@@ -454,67 +457,73 @@ class combinedPCPFTb:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud and updating the particle filter
-            # if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
-            #     (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
-            #     (self.point_cloud_stacker.get_elapsed_time() > 10):
-
-            #     #get the stacked point cloud
-            #     pc = self.point_cloud_stacker.get_points()
-
-            #     #remove multipath detections
-            #     pc = self.multipath.remove_multipath(pc)
-            
-            #     est_heading_rad,est_pose_m = self.localizer.update_odometry(
-            #         points=pc,
-            #         estimated_heading_rad=self.filter.x[2],
-            #         estimated_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
-            #     )
-
-            #     if ((est_heading_rad is not None) and
-            #         (est_pose_m is not None)):
-
-            #         # #perform a measurement
-            #         self.filter_perform_update(
-            #             estimated_position_m=est_pose_m,
-            #             estimated_heading_rad=est_heading_rad,
-            #             t = self.particle_filter_last_t
-            #         )
-
-            #         #save the measurement and point cloud
-            #         self.history_pc_stacker_update(
-            #             valid_stacked_point_cloud=pc,
-            #             position_m=est_pose_m,
-            #             heading_rad=est_heading_rad
-            #         )
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
+                (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
+                (self.point_cloud_stacker.get_elapsed_time() > 10):
                 
-            #     # reset the point cloud stacker
-            #     self.point_cloud_stacker.reset(
-            #         initial_heading_rad=self.filter.x[2],
-            #         initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-            #         initial_time_s=self.particle_filter_last_t
-            #     )
-            # elif self.point_cloud_stacker.get_elapsed_time() > 10:
+                #get the stacked point cloud
+                pc = self.point_cloud_stacker.get_points()
 
-            #     #if the vehicle hasn't moved significantly over the last 10 seconds,
-            #     #go ahead and reset the point cloud stacker to prevent 
-            #     #accumulation of false points
-            #     # reset the point cloud stacker
-            #     self.point_cloud_stacker.reset(
-            #         initial_heading_rad=self.localizer.motion_model.x[2],
-            #         initial_pose_m=np.array(
-            #             [self.localizer.motion_model.x[0],
-            #              self.localizer.motion_model.x[1]]),
-            #         initial_time_s=self.particle_filter_last_t
-            #     )
+                #remove multipath detections
+                pc = self.multipath.remove_multipath(pc)
+            
+                self.localizer.odometry_update_from_measurement(
+                    measured_point_cloud=pc
+                )
+
+                if self.localizer.current_odom_valid:
+
+                    #save the measurement and point cloud
+                    self.history_pc_stacker_update(
+                        valid_stacked_point_cloud=pc,
+                        position_m=self.localizer.current_pose_m,
+                        heading_rad=self.localizer.current_heading_rad
+                    )
+
+                    #TODO: update histories with valid odom measurement
+                
+                #reset the motion model
+                self.localizer.motion_model_reset(self.particle_filter_last_t)
+
+                # reset the point cloud stacker
+                self.point_cloud_stacker.reset(
+                    initial_heading_rad=self.localizer.motion_model.x[2],
+                    initial_pose_m=np.array(
+                        [self.localizer.motion_model.x[0],
+                         self.localizer.motion_model.x[1]]),
+                    initial_time_s=self.particle_filter_last_t
+                )
+            elif self.point_cloud_stacker.get_elapsed_time() > 10:
+
+                #if the vehicle hasn't moved significantly over the last 10 seconds,
+                #go ahead and reset the point cloud stacker to prevent 
+                #accumulation of false points
+                # reset the point cloud stacker
+                self.point_cloud_stacker.reset(
+                    initial_heading_rad=self.localizer.motion_model.x[2],
+                    initial_pose_m=np.array(
+                        [self.localizer.motion_model.x[0],
+                         self.localizer.motion_model.x[1]]),
+                    initial_time_s=self.particle_filter_last_t
+                )
 
                 #don't reset the particle filter's motion model though
 
             
-            # self.history_update_pose(
-            #     position_m=np.array([self.filter.x[0],self.filter.x[1]]),
-            #     heading_rad=self.filter.x[2],
-            #     idx=i
-            # )
+            #compute the latest updated pose
+            #TODO: edit behavior for when the pf doesn't have
+                #accurate odometry yet
+            
+            pose_m = self.localizer.current_pose_m + \
+                self.localizer.motion_model.x[0:2]
+            
+            heading_rad = self.localizer.current_heading_rad + \
+                self.localizer.motion_model.x[2]
+            self.history_update_pose(
+                position_m=pose_m,
+                heading_rad=heading_rad,
+                idx=i
+            )
 
             # if movie_generator:
             #     #plot the current state
@@ -524,7 +533,7 @@ class combinedPCPFTb:
             #         show=False
             #     )
 
-            #     movie_generator.save_frame(clear_axs=True)
+                # movie_generator.save_frame(clear_axs=True)
         return
     
     ####################################################################
@@ -578,14 +587,12 @@ class combinedPCPFTb:
             axs[0,2].set_title("Camera View")
 
         #bottom row (combined point cloud) and kalman filtering
-        if len(self.history_filter_g) > 0:
-            self.plotter_kalman.plot_chi_2_resp(
-                g_thresh=self.filter.g_thresh[2],
-                g_hist=np.array(self.history_filter_g),
-                idx=idx,
-                ax=axs[1,0],
-                show=False
-            )
+        self.plotter_localization.plot_particles_on_map(
+            particles=self.localizer.particles,
+            pose_m=self.localizer.current_pose_m,
+            ax=axs[1,0],
+            show=False
+        )
 
         self.plotter_localization.marker_size = 0.5
         if len(self.history_pc_stacker_point_clouds) > 0:

@@ -6,7 +6,6 @@ from odometry.supportFns import rotation_functions
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.localization.particle_filter import particleFilter
 from odometry.estimators.estimators import Inertial
-from odometry.estimators.motion_models import GyroEncoderIntegrator
 from odometry.datasets.radnav_ds import radnavDS
 from odometry.datasets.map_handler import MapHandler
 from odometry.plotting.plotter_localization import PlotterLocalization
@@ -15,15 +14,17 @@ from odometry.analyzers.analyzer import Analyzer
 from odometry.point_cloud_processing.pc_stacker import pcStacker
 from odometry.point_cloud_processing.multipath import MultiPath
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
+from odometry.point_cloud_processing.ground_detection_filtering import groundDetectionFiltering
 from odometry.plotting.movies import MovieGenerator
 
-class combinedPCPFInertial:
+class combinedPCPFTb:
 
     def __init__(self,
                  localizer:particleFilter,
                  gt_localizer:icp2DLocalization,
                  map_handler:MapHandler,
                  dataset:radnavDS,
+                 self_detection_radius_m=0.5,
                  vel_filter_enabled = True,
                  vel_filter_v_thresh = 1.0,
                  min_static_rejection_radius:float = 2.0,
@@ -67,6 +68,9 @@ class combinedPCPFInertial:
             min_static_rejection_radius=min_static_rejection_radius,
             dynamic_cluster_eps=dynamic_cluster_eps,
             dynamic_cluster_min_samples=dynamic_cluster_min_samples
+        )
+        self.ground_detection_filtering = groundDetectionFiltering(
+            self_detection_radius_m
         )
 
         #combined point cloud processing history
@@ -133,7 +137,8 @@ class combinedPCPFInertial:
         #get the first points in the localizer point cloud
         init_points = self.dataset.get_radar_detections(idx=0)
         init_points = init_points[:,:2]
-
+        
+        #TODO: Add this back if needed
         # new_heading_rad,new_pose_m = self.localizer.update_odometry(
         #     points=init_points,
         #     estimated_heading_rad=est_start_heading_rad,
@@ -141,6 +146,7 @@ class combinedPCPFInertial:
         # )
         
         #TODO: add in reset_odometry to particle filter
+        #to reset the particle filter odometry
         # self.localizer.reset_odometry(
         #     pose=new_pose_m,
         #     heading_rad=new_heading_rad
@@ -155,21 +161,19 @@ class combinedPCPFInertial:
 
     def init_motion_model(self,
                     start_time_s:float):
-        
-        #declare initial state [x,y,phi,speed,gyro bias, encoder bias]
-        x0 = np.zeros(shape=6,dtype=float)
+        """Initialize the particle filter's motion
+        model
 
-        #declare initial state covariance matrix
-        P0 = np.diag([5,5,0.1,1,1e-2,1e-2])
-
+        Args:
+            start_time_s (float): time of first data sample
+                in seconds
+        """
         self.localizer.motion_model_reset(
-            t0=start_time_s,
-            x0=x0,
-            P0=P0
+            t0=start_time_s
         )
 
         #reset filter histories
-        self.history_filters_reset()
+        self.history_motion_model_reset()
 
         #reset filter time
         self.particle_filter_last_t = \
@@ -180,7 +184,9 @@ class combinedPCPFInertial:
     #################################################################### 
 
     def history_localizers_reset(self):
-
+        """reest the history tracking of the ground truth
+        localizer and the particle filter
+        """
         n = self.dataset.num_frames
 
         #reset the pose histories
@@ -195,13 +201,15 @@ class combinedPCPFInertial:
                                 position_m:np.ndarray,
                                 heading_rad:np.ndarray,
                                 idx:int):
-        """Update the pose history for the localizer
+        """Update the pose history for the localizer (particle filter)
 
         Args:
             position_m (np.ndarray): the position from the localizer
             heading_rad (np.ndarray): the heading from the localizer
             idx (int): the index of the sample from the dataset
         """
+        #TODO: modify this to work depending on the 
+        #particle filter
         self.history_position_m[idx] = position_m
         self.history_heading_deg[idx] = np.rad2deg(heading_rad)
     
@@ -220,24 +228,28 @@ class combinedPCPFInertial:
         self.history_heading_deg_gt[idx] = np.rad2deg(heading_rad)
     
     ####################################################################
-    #Histories (filtering)
+    #Histories (motion models)
     ####################################################################
-    def history_filters_reset(self):
+    def history_motion_model_reset(self):
 
         self.history_filter_est = [self.localizer.motion_model.x.copy()]
-        self.history_filter_p = [np.sqrt(np.diag(self.filter.P))]
+        # self.history_filter_p = [np.sqrt(np.diag(self.localizer.motion_model.P))]
     
-    def history_filters_update_state_history(self):
-
+    def history_motion_model_update_history(self):
+        """Update the history tracking of the particle
+        filter's motion model state
+        """
         self.history_filter_est.append(self.localizer.motion_model.x.copy())
-        self.history_filter_p.append(np.sqrt(np.diag(self.localizer.motion_model.P)))
+        # self.history_filter_p.append(np.sqrt(np.diag(self.localizer.motion_model.P)))
 
     
     ####################################################################
     #Histories (point cloud stacking)
     ####################################################################
     def history_pc_stacker_reset(self):
-
+        """Reset the history tracking of the "point cloud stacker"
+        which is used to generate more detailed point clouds
+        """
         self.history_pc_stacker_point_clouds = []
         self.history_pc_stacker_position_m = []
         self.history_pc_stacker_heading_rad = []
@@ -301,7 +313,14 @@ class combinedPCPFInertial:
     #Filter Predictions and Updates
     ####################################################################
     def motion_model_predict_from_frame_samples(self, idx = 0):
+        """Predict forward the motion model from the IMU's
+        gyroscope reading (in rad/sec) and the robot's
+        velocity tracker
 
+        Args:
+            idx (int, optional): The frame index of data
+                to use to predict the state forward. Defaults to 0.
+        """
         imu_data = self.dataset.get_imu_full_data(idx)
         vel_data = self.dataset.get_vehicle_vel_data(idx)
 
@@ -336,24 +355,22 @@ class combinedPCPFInertial:
             self.particle_filter_last_t = imu_data[i,0]
 
             #update histories
-            self.history_filters_update_state_history()
+            self.history_motion_model_update_history()
 
         return
     
     def reset_motion_model(self,
                     start_time_s:float):
-        
-        #declare initial state [x,y,phi,speed,gyro bias, encoder bias]
-        x0 = np.zeros(shape=6,dtype=float)
+        """Reset the motion model of the particle filter
 
-        #declare initial state covariance matrix
-        P0 = np.diag([5,5,0.1,1,1e-2,1e-2])
-
+        Args:
+            start_time_s (float): the time in seconds
+                for the reset motion model to use as its 
+                new start time
+        """
         #reset the motion model with the most recent t
         self.localizer.motion_model_reset(
-            t0=self.particle_filter_last_t,
-            x0=x0,
-            P0=P0
+            t0=self.particle_filter_last_t
         )
         
 
@@ -369,12 +386,14 @@ class combinedPCPFInertial:
         if max_frame == -1:
             max_frame = self.dataset.num_frames
 
-        #TODO: improve to resent point cloud stacker
+        #TODO: David reset the localizer's motion model
+
+        #reset the point cloud stacker to be at 0,0
         self.point_cloud_stacker.reset(
-            initial_heading_rad=self.filter.x[2],
+            initial_heading_rad=self.localizer.motion_model.x[2],
             initial_pose_m=np.array([
-                self.filter.x[0],
-                self.filter.x[1]
+                self.localizer.motion_model.x[0],
+                self.localizer.motion_model.x[1]
             ]),
             initial_time_s=self.particle_filter_last_t
         )
@@ -393,9 +412,7 @@ class combinedPCPFInertial:
                     heading_rad=new_heading_rad,
                     idx = i
                 )
-
-            #perform localization with the EKF
-
+            
             #predict the states forward
             self.motion_model_predict_from_frame_samples(idx=i)
 
@@ -406,12 +423,12 @@ class combinedPCPFInertial:
             if self.vel_filtering_enabled:
                 static_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,
-                    ego_vel=np.array([self.filter.x[3],0.0])
+                    ego_vel=np.array([self.localizer.motion_model.x[3],0.0])
                 )
 
                 dynamic_points = self.vel_filtering.get_dynamic_detections(
                     detections=radar_points,
-                    ego_vel=np.array([self.filter.x[3],0.0])
+                    ego_vel=np.array([self.localizer.motion_model.x[3],0.0])
                 )
 
                 radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
@@ -420,91 +437,94 @@ class combinedPCPFInertial:
                 )
 
             #filter out ground detections, etc
-            radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
+            radar_points = \
+                self.ground_detection_filtering.remove_sensor_self_detections(
+                    radar_points[:,:2])
 
             self.point_cloud_stacker.add_points(
                 current_points=radar_points,
-                heading_rad=self.filter.x[2],
+                heading_rad=self.localizer.motion_model.x[2],
                 pose_m= \
                     np.array([
-                        self.filter.x[0],
-                        self.filter.x[1]
+                        self.localizer.motion_model.x[0],
+                        self.localizer.motion_model.x[1]
                     ]),
                 current_time_s=self.particle_filter_last_t
             )
 
             #check to see if the vehicle has moved a sufficient amount for using
-            #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
-                (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
-                (self.point_cloud_stacker.get_elapsed_time() > 10):
+            #a combined point cloud and updating the particle filter
+            # if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
+            #     (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
+            #     (self.point_cloud_stacker.get_elapsed_time() > 10):
 
-                #print(self.dataset.get_vehicle_vel_data(i)[0][1])
-                #print(val_dist_calc)
+            #     #get the stacked point cloud
+            #     pc = self.point_cloud_stacker.get_points()
 
-                #get the stacked point cloud
-                pc = self.point_cloud_stacker.get_points()
-
-                #remove multipath detections
-                pc = self.multipath.remove_multipath(pc)
+            #     #remove multipath detections
+            #     pc = self.multipath.remove_multipath(pc)
             
-                est_heading_rad,est_pose_m = self.localizer.update_odometry(
-                    points=pc,
-                    estimated_heading_rad=self.filter.x[2],
-                    estimated_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
-                )
+            #     est_heading_rad,est_pose_m = self.localizer.update_odometry(
+            #         points=pc,
+            #         estimated_heading_rad=self.filter.x[2],
+            #         estimated_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
+            #     )
 
-                if ((est_heading_rad is not None) and
-                    (est_pose_m is not None)):
+            #     if ((est_heading_rad is not None) and
+            #         (est_pose_m is not None)):
 
-                    # #perform a measurement
-                    self.filter_perform_update(
-                        estimated_position_m=est_pose_m,
-                        estimated_heading_rad=est_heading_rad,
-                        t = self.particle_filter_last_t
-                    )
+            #         # #perform a measurement
+            #         self.filter_perform_update(
+            #             estimated_position_m=est_pose_m,
+            #             estimated_heading_rad=est_heading_rad,
+            #             t = self.particle_filter_last_t
+            #         )
 
-                    #save the measurement and point cloud
-                    self.history_pc_stacker_update(
-                        valid_stacked_point_cloud=pc,
-                        position_m=est_pose_m,
-                        heading_rad=est_heading_rad
-                    )
+            #         #save the measurement and point cloud
+            #         self.history_pc_stacker_update(
+            #             valid_stacked_point_cloud=pc,
+            #             position_m=est_pose_m,
+            #             heading_rad=est_heading_rad
+            #         )
                 
-                # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.particle_filter_last_t
-                )
-            elif self.point_cloud_stacker.get_elapsed_time() > 10:
+            #     # reset the point cloud stacker
+            #     self.point_cloud_stacker.reset(
+            #         initial_heading_rad=self.filter.x[2],
+            #         initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
+            #         initial_time_s=self.particle_filter_last_t
+            #     )
+            # elif self.point_cloud_stacker.get_elapsed_time() > 10:
 
-                #if the vehicle hasn't moved significantly over the last 5 seconds,
-                #go ahead and reset the point cloud stacker to prevent 
-                #accumulation of false points
-                # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.particle_filter_last_t
-                )
+            #     #if the vehicle hasn't moved significantly over the last 10 seconds,
+            #     #go ahead and reset the point cloud stacker to prevent 
+            #     #accumulation of false points
+            #     # reset the point cloud stacker
+            #     self.point_cloud_stacker.reset(
+            #         initial_heading_rad=self.localizer.motion_model.x[2],
+            #         initial_pose_m=np.array(
+            #             [self.localizer.motion_model.x[0],
+            #              self.localizer.motion_model.x[1]]),
+            #         initial_time_s=self.particle_filter_last_t
+            #     )
+
+                #don't reset the particle filter's motion model though
 
             
-            self.history_update_pose(
-                position_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                heading_rad=self.filter.x[2],
-                idx=i
-            )
+            # self.history_update_pose(
+            #     position_m=np.array([self.filter.x[0],self.filter.x[1]]),
+            #     heading_rad=self.filter.x[2],
+            #     idx=i
+            # )
 
-            if movie_generator:
-                #plot the current state
-                self.plot_compilation(
-                    idx = i,
-                    axs = movie_generator.axs,
-                    show=False
-                )
+            # if movie_generator:
+            #     #plot the current state
+            #     self.plot_compilation(
+            #         idx = i,
+            #         axs = movie_generator.axs,
+            #         show=False
+            #     )
 
-                movie_generator.save_frame(clear_axs=True)
+            #     movie_generator.save_frame(clear_axs=True)
         return
     
     ####################################################################

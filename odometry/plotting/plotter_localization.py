@@ -328,6 +328,7 @@ class PlotterLocalization:
     def plot_particles_on_map(
             self,
             particles:np.ndarray,
+            pose_m:np.ndarray = np.empty(shape=(0,2)),
             ax:plt.Axes=None,
             display_arrows=False,
             show=False
@@ -337,6 +338,8 @@ class PlotterLocalization:
         Args:
             particles (np.ndarray): Nx3 array of N particles expressed 
                 in [x,y,headding_rad] in the global coordinate frame
+            pose_m (np.ndarray,optional): If provided, the pose in [x,y] of the ego.
+                Defaults to np.empty(shape=(0,2))
             ax (plt.Axes, optional): A set of axes to plot on. 
                 Defaults to None.
             show (bool, optional): on True, shows the plot. 
@@ -368,6 +371,16 @@ class PlotterLocalization:
             marker="D",
             color="red",
             s=self.particle_marker_size)
+        
+        if pose_m.shape[0] > 0:
+            ax.scatter(
+                pose_m[0],
+                pose_m[1],
+                marker="o",
+                color="cyan",
+                s=15.0,
+                label="est position"
+            )
         
         #add arrows
         if display_arrows:

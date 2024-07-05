@@ -12,7 +12,9 @@ class particleFilter:
             self,
             motion_model:MotionModel,
             max_particles=1000,
-            measurement_sigma = 0.5) -> None:
+            measurement_model_sigma = 0.5,
+            measurement_model_z_hit = 0.8,
+            measurement_model_z_rand = 0.2) -> None:
         
         #initializing particles (indexed as [x,y,heading (radians)])
         self.max_particles = max_particles
@@ -28,8 +30,11 @@ class particleFilter:
         #random number generator
         self.rng:np.random.Generator = np.random.default_rng()
 
-        #gaussian distribution for liklihood fields (mean z)
-        self.gaus_dist:scipy.stats.norm_gen = norm(0,measurement_sigma)
+        #measurement model parameters (only use hit and random
+        # as the radar has no "max hit")
+        self.mm_z_hit = measurement_model_z_hit
+        self.mm_z_rand = measurement_model_z_rand
+        self.gaus_dist:scipy.stats.norm_gen = norm(0,measurement_model_sigma)
 
         #kneighbors for identifying nearest points
         self.nbrs:NearestNeighbors = None
@@ -219,7 +224,7 @@ class particleFilter:
         """
         
         #initialize an empty weights vector
-        weights = np.zeros(shape=(particles.shape[0],),dtype=float)
+        weights = np.zeros(shape=(particles.shape[0],),dtype=np.float128)
 
         #re-initialize the neighbors
         self.nbrs = NearestNeighbors(
@@ -240,7 +245,9 @@ class particleFilter:
              for i in range(aligned_points.shape[0])])
         
         #compute the pdf value for each distance
-        pdf_vals = self.gaus_dist.pdf(distances)
+        pdf_vals = self.mm_z_hit * \
+            np.float128(self.gaus_dist.pdf(distances)) \
+            + self.mm_z_rand
 
         #compute the weights for each particle
         weights = np.prod(pdf_vals,axis=1)
@@ -252,14 +259,66 @@ class particleFilter:
     #motion model
     ####################################################################
 
-    def motion_model_reset(self,*args,**kwargs):
+    def motion_model_reset(self,t0,*args,**kwargs):
+        """reset the motion model
 
-        self.motion_model.reset(*args,**kwargs)
+        Args:
+            t0 (float): start time in seceonds.
+        """
+        self.motion_model.reset(t0,*args,**kwargs)
     
-    def motion_model_predict(self,dt,*args,**kwargs):
+    def motion_model_predict(self,dt,inertial:Inertial, *args,**kwargs):
+        """Predict the motion model forward with inertial sensor
+        measurements
 
-        self.motion_model.predict(dt,*args,**kwargs)
+        Args:
+            dt (float): time since last measurement
+            inertial (Inertial): Inertial object with at least angular (rad/sec)
+            and linear velocity (m/s) measurements
+        """
+
+        self.motion_model.predict(dt,inertial, *args,**kwargs)
     
-    def motion_model_sample(self,n_samples):
+    def motion_model_sample(self,n_samples)->np.ndarray:
+        """Compute N randomly distributed samples 
+            based on the motion model to apply to N particles
 
-        self.motion_model.sample(n_samples)
+        Args:
+            n_samples (int): the number of samples to generate
+                from the motion model sampler
+
+        Returns:
+            np.ndarray: Nx3 samples with [x,y,phi]
+        """
+        return self.motion_model.sample(n_samples)
+    
+    def motion_model_update_particles(self):
+        """Update the current list of particle using the motion model
+        """
+        self.particles = \
+            self.motion_model.get_updated_particles(self.particles)
+    
+
+    ####################################################################
+    # odometry
+    ####################################################################
+    
+    def run_MCL_alg(self,measured_point_cloud:np.ndarray):
+
+        #propagate particles forward
+        self.motion_model_update_particles()
+
+        #run the measurement model
+        self.weights = self.liklihood_field_measurement_model(
+            particles=self.particles,
+            points=measured_point_cloud
+        )
+
+        #TODO: perform re-sampling
+        self.particles = self.rng.choice(
+            a=self.particles,
+            replace=True,
+            axis=0,
+            size=self.particles.shape[0],
+            p=np.float64(self.weights)
+        )

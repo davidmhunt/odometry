@@ -7,44 +7,128 @@ class MotionModel:
     by the child class
     """
     def __init__(self) -> None:
-        pass
 
-    def reset(self,*args,**kwargs):
-        pass
+        #time tracking
+        self.t0:float = 0.0
+        self.t:float = 0.0
 
-    def predict(self,dt,*args,**kwargs):
+        #state tracking
+        self.x:np.ndarray = None #minimum of [x,y,phi (rad), vel]
+        self.states_initialized:bool = False
+        #random number generation
+        self.rng =  np.random.default_rng()
+        
+        return
+
+    def reset(self,t0,x0:np.ndarray,*args,**kwargs):
+        """reset the motion model
+
+        Args:
+            t0 (float,optional): start time in seceonds.
+            x0 (np.ndarray, optional): Initial state space
+                minimum of [x,y,phi,vel].
+        """
+        #reset time tracking
+        self.t0 = t0
+        self.t = t0
+
+        #reset state matrix
+        self.x = x0
+
+        self.states_initialized = True
+        
+        return
+
+    def predict(self,dt:float,inertial:Inertial, *args,**kwargs):
+        """Predict the motion model forward with inertial sensor
+        measurements
+
+        Args:
+            dt (float): time since last measurement
+            inertial (Inertial): Inertial object with at least angular (rad/sec)
+            and linear velocity (m/s) measurements
+        """
+        
+        #implemented by child class
+        
         pass
 
     def sample(self,n_samples)->np.ndarray:
+        """Compute N randomly distributed samples 
+            based on the motion model to apply to N particles
+
+        Args:
+            n_samples (int): the number of samples to generate
+                from the motion model sampler
+
+        Returns:
+            np.ndarray: Nx3 samples with [x,y,phi]
+        """
+        
         pass
 
+    def get_updated_particles(self,particles:np.ndarray)->np.ndarray:
+        """Obtain an updated set of particles that have 
+        been propagated forward using information from the 
+        motion model
+
+        Args:
+            particles (np.ndarray): Nx3 array of N particles
+                containing [x,y,phi (rad)] for each particle
+
+        Returns:
+            np.ndarray: Nx3 array of N particles that 
+                have been propagated forward using the 
+                motion model
+        """
+        
+        return particles + self.sample(particles.shape[0])
+
 ####################################################################
-# Inertial Integration measurement models
+# Multi-variate gaussian measurement models
+    #inspiried by EKF computation (don't work too well right now)
 ####################################################################
 
-class InertialIntegrator(MotionModel):
+class InertialIntegratorMM(MotionModel):
     def __init__(self):
         super().__init__()
         
-        #state variables
-        self.t0:float = 0.0
-        self.t:float = 0.0
-        self.x:np.ndarray = None
+        # add variable for state covariance
         self.P:np.ndarray = None
 
-        #initialize a random number genreator class
-        self.rng =  np.random.default_rng()
+    def reset(self, t0, x0: np.ndarray, P0:np.ndarray, *args, **kwargs):
+        """reset motion model states
 
-    def reset(self):
-        #implemented by child class
-        pass
+        Args:
+            t0 (float,optional): start time in seceonds.
+            x0 (np.ndarray, optional): Initial state space
+            P0 (np.ndarray, optional): Initial state covariance
+                matrix.
+        """
+        super().reset(t0, x0, *args, **kwargs)
+        
+        self.P = P0
+
+        return
 
     def f_func(
             self,
             x:np.ndarray,
             inertial:Inertial,
             dt: float) -> np.ndarray:
-        
+        """State f function to propagate states forward
+
+        Args:
+            x (np.ndarray): current states defined as 
+                [x,y,z,phi,vel,gyro_bias,encoder bias]
+            inertial (Inertial): Inertial object with angular
+                velocity (omega) in rad/sec and linear velocity
+                in m/s
+            dt (float): time since the last sample
+
+        Returns:
+            np.ndarray: updated state space
+        """
         #implemented by child
         pass
     
@@ -53,7 +137,17 @@ class InertialIntegrator(MotionModel):
             x:np.ndarray,
             inertial:Inertial,
             dt: float)->np.ndarray:
-        
+        """Jacobian matrix based on the f function
+
+        Args:
+            x (np.ndarray): current state space
+            inertial (Inertial): inertial object (unused)
+            dt (float): time since last sample (in seconds)
+
+        Returns:
+            np.ndarray: the Jacobian matrix based on the f function
+        """
+
         #implemented by child
         pass
 
@@ -68,6 +162,13 @@ class InertialIntegrator(MotionModel):
         sigma_e=1e-5,
         **kwargs,
     ):
+        """Process noise matrix
+        sigma_x - position process noise
+        sigma_h - heading process noise
+        sigma_s - speed process noise
+        sigma_g - gyro bias random walk, units of rad/sec * 1/sqrt(Hz)
+        sigma_e - encoder bias random walk, units of m/sec * 1/sqrt(Hz)
+        """
         #implemented by child
         pass
 
@@ -75,7 +176,14 @@ class InertialIntegrator(MotionModel):
             self,
             dt:float,
             inertial: Inertial):
-        
+        """Predict the motion model forward with inertial sensor
+        measurements
+
+        Args:
+            dt (float): time since last measurement
+            inertial (Inertial): Inertial object with at least angular (rad/sec)
+            and linear velocity (m/s) measurements
+        """      
         #update the states
         self.x = self.f_func(self.x,inertial,dt)
         
@@ -99,7 +207,7 @@ class InertialIntegrator(MotionModel):
         #to be implemented by the child class
         pass
 
-class GyroEncoderIntegrator(InertialIntegrator):
+class GyroEncoderIntegratorMM(InertialIntegratorMM):
 
     def __init__(
             self,
@@ -143,10 +251,9 @@ class GyroEncoderIntegrator(InertialIntegrator):
         """
         
         #reset all state matricies
-        self.t0=t0
-        self.t = t0
-        self.x = x0
-        self.P = P0
+        super().reset(t0,x0,P0)
+
+        return
     
     def f_func(
             self,
@@ -176,7 +283,7 @@ class GyroEncoderIntegrator(InertialIntegrator):
         # propagate omega and velocity with IMU/encoder
         x_old = x.copy()
         x[2] = x[2] + (omega - x[4]) * dt
-        x[3] = (vel - x[5]) * dt
+        x[3] = vel - x[5] * dt
 
         # propagate position
         v_avg = (x_old[3] + x[3]) / 2
@@ -231,9 +338,9 @@ class GyroEncoderIntegrator(InertialIntegrator):
         self,
         x: np.ndarray,
         dt: float,
-        sigma_x=0.001, #originally .001
+        sigma_x=0.01, #originally .001
         sigma_h=0.005, #originally 0.005
-        sigma_s=0.01, #originally 0.01
+        sigma_s=0.001, #originally 0.01
         sigma_g=1e-5,
         sigma_e=1e-5,
         **kwargs,
@@ -301,17 +408,171 @@ class GyroEncoderIntegrator(InertialIntegrator):
         # fmt: on
         return Q
 
-    def sample(self, n_samples):
-        """Compute N samples of the 
+    def sample(self, n_samples:int)->np.ndarray:
+        """Compute N randomly distributed samples 
+            based on the motion model to apply to N particles
 
         Args:
-            n_samples (_type_): _description_
+            n_samples (int): the number of samples to generate
+                from the motion model sampler
 
         Returns:
-            _type_: _description_
+            np.ndarray: Nx3 samples with [x,y,phi]
         """
         return self.rng.multivariate_normal(
             mean=self.x[0:3],
             cov=self.P[0:3,0:3],
             size=n_samples
         )
+
+####################################################################
+# Odometry motion model
+    #"sample_motion_model_odometry" algorithm from Probabilistic
+    #robotics text book
+####################################################################
+
+class OdometryMM(MotionModel):
+    def __init__(
+            self,
+            a1=0.01,
+            a2=0.01,
+            a3=0.01,
+            a4=0.01) -> None:
+        """initialize odometry motion model
+        NOTE: states defined as [x,y,z,phi,vel]
+
+
+        Args:
+            a1 (float, optional): Error scalar applied to rotations when
+                computing rotation variances. Defaults to 0.01.
+            a2 (float, optional): Error scalar applied to translation when
+                computing rotation variances. Defaults to 0.01.
+            a3 (float, optional): Error scalar applied to translation when
+                computing translation variances. Defaults to 0.01.
+            a4 (float, optional): Error scalar applied to rotations when
+                computing translation variances. Defaults to 0.01.
+
+        Returns:
+            _type_: _description_
+        """
+
+        #initialize parent class
+        super().__init__()
+
+        #define scalars for error constants
+        self.a1 = a1
+        self.a2 = a2
+        self.a3 = a3
+        self.a4 = a4
+
+        self.reset()
+        
+        return
+
+    def reset(
+            self,
+            t0=0.0,
+            x0:np.ndarray=np.zeros(shape=4,dtype=float),
+            *args, **kwargs):
+        """reset the motion model, if previously initialized
+        only resets the x,y, and phi terms of the motion
+        model states
+
+        Args:
+            t0 (float,optional): start time in seceonds.
+                defaults to 0.0
+            x0 (np.ndarray, optional): Initial state space
+                as [x,y,phi,vel]. Defaults to np.zeros(shape=4)
+        """
+        
+        if self.states_initialized:
+            x = self.x.copy()
+            x[0:3] = x0[0:3]
+        
+            super().reset(t0, x, *args, **kwargs)
+        else:
+            super().reset(t0, x0, *args, **kwargs)
+
+        return
+    
+    def predict(self, dt: float, inertial: Inertial):
+        """Predict the motion model forward with inertial sensor
+        measurements
+
+        Args:
+            dt (float): time since last measurement
+            inertial (Inertial): Inertial object with at least angular (rad/sec)
+            and linear velocity (m/s) measurements
+        """   
+        assert dt >= 0
+        
+        #get the angular and linear velocity from the inertial
+        omega = inertial.gyro
+        vel = inertial.sencode
+
+        # propagate omega and velocity with IMU/encoder
+        x_old = self.x.copy()
+        self.x[2] = self.x[2] + (omega * dt)
+        self.x[3] = vel
+
+        # propagate position
+        v_avg = (x_old[3] + self.x[3]) / 2
+        phi_avg = (x_old[2] + self.x[2]) / 2
+        self.x[0] = self.x[0] + dt * v_avg * np.cos(phi_avg)
+        self.x[1] = self.x[1] + dt * v_avg * np.sin(phi_avg)
+        
+        return
+    
+    def sample(self, n_samples) -> np.ndarray:
+        
+        #1. compute the rotation, translation, and rotation used 
+        #to decompose the ego motion from the accumulated odometry
+
+        #from eq5.34 in probabilistic robotics
+        d_rot_1 = np.arctan2(self.x[1], self.x[0]) - self.x[2]
+
+        #from eq5.35 in probabilistic robotics
+        d_trans = np.linalg.norm(self.x[0:2])
+
+        #from eq5.36 from probabilistic robotics
+        d_rot_2 = self.x[2] - d_rot_1
+
+        #2. using a multivariate gaussian, generate n 
+        mean = np.array([d_rot_1,d_trans,d_rot_2])
+
+        c_rot_1 = (self.a1 * (d_rot_1 ** 2)) + \
+            (self.a2 * (d_trans ** 2))
+        c_trans = (self.a4 * (d_rot_1 ** 2)) + \
+            (self.a4 * (d_rot_2 ** 2)) + \
+            (self.a3 * (d_trans ** 2))
+        c_rot_2 = (self.a1 * (d_rot_2 ** 2)) + \
+            (self.a2 * (d_trans ** 2))
+        
+        cov = np.diag([c_rot_1,c_trans,c_rot_2])
+
+        #compute the preterbed vals with N samples and cols of
+        #[d_rot_1, d_trans, and d_rot_2]
+        preturbed_vals = self.rng.multivariate_normal(
+            mean=mean,
+            cov=cov,
+            size=n_samples
+        )
+
+        #compute the sampels
+        samples = np.zeros(shape=(n_samples,3),dtype=float)
+
+        #compute x vals
+        samples[:,0] = np.multiply(
+            preturbed_vals[:,1],
+            np.cos(self.x[2] + preturbed_vals[:,0]))
+        
+        #compute y vals
+        samples[:,1] = np.multiply(
+            preturbed_vals[:,1],
+            np.sin(self.x[2] + preturbed_vals[:,0]))
+        
+        #compute phi vals
+        samples[:,2] = preturbed_vals[:,0] + preturbed_vals[:,2]
+
+        return samples
+

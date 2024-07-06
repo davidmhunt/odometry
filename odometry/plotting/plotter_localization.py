@@ -419,6 +419,43 @@ class PlotterLocalization:
 
         return
 
+    def plot_weights(
+            self,
+            weights:np.ndarray,
+            ax:plt.Axes=None,
+            show=False
+    ):
+        """Plots a point cloud onto the known map
+
+        Args:
+            weights (np.ndarray): current particle filter weights
+            ax (plt.Axes, optional): A set of axes to plot on. 
+                Defaults to None.
+            show (bool, optional): on True, shows the plot. 
+                Defaults to False.
+        """
+        
+        if not ax:
+            fig,ax = plt.subplots()
+
+        #plot the aligned_detections
+        ax.plot(
+            weights,
+            color="green",
+            label="truth")
+        
+
+        ax.set_title("Measurement model weights: {}",fontsize=self.font_size_title)
+        ax.set_xlabel("particle index",fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("Weight value",fontsize=self.font_size_axis_labels)
+        ax.grid("False")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return
 
     def plot_heading_history(self,
                          history_heading_deg:list,

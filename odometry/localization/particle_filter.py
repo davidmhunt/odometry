@@ -212,9 +212,28 @@ class particleFilter:
             hdg_range=hdg_range,
             N=N
         )
+        self.weights = np.ones(shape=N,dtype=float) / N
+    
+    def initialize_from_gaussian_dist(
+            self,
+            mean:np.ndarray,
+            cov:np.ndarray,
+            N=1000):
+        """Initialize particles using a gaussian distribution
+        (initialize randomly from all of th efree space)
 
-        self.max_particles = N
+        Args:
+            mean (np.ndarray): mean expressed as [x,y,heading (rad)]
+            cov (np.ndarray): 3x3 covariance matrix
+            N (int, optional): number of particles to compute.
+              Defaults to 1000
+        """
 
+        self.particles = self.get_gaussian_particles(
+            mean=mean,
+            cov=cov,
+            N=N
+        )
         self.weights = np.ones(shape=N,dtype=float) / N
 
     ####################################################################
@@ -342,7 +361,7 @@ class particleFilter:
         """Reset the current particle filter odometry
         """
         self.current_heading_rad = 0.0
-        self.current_pose_m = 0.0
+        self.current_pose_m = np.array([0.0,0.0])
 
         self.current_odom_valid = False
     

@@ -52,6 +52,8 @@ class combinedPCPFTb:
         #localization histories
         self.history_position_m = None
         self.history_heading_deg = None
+        self.history_particles = None
+        self.history_weights = None
         self.history_position_m_gt = None
         self.history_heading_deg_gt = None
         self.history_localizers_reset()
@@ -129,10 +131,21 @@ class combinedPCPFTb:
         )
 
         #initialize the particle filter
-        self.localizer.initialize_from_uniform_dist(
-            hdg_range=hdg_range,
+        self.localizer.initialize_from_gaussian_dist(
+            mean=np.array([
+                est_start_pose_m[0],
+                est_start_pose_m[1],
+                est_start_heading_rad
+            ]),
+            cov=np.diag([1.0,1.0,0.5]),
             N=n_particles
         )
+
+        #TODO: change to uniform if originally lost
+        # self.localizer.initialize_from_uniform_dist(
+        #     hdg_range=hdg_range,
+        #     N=n_particles
+        # )
 
         #get the first points in the localizer point cloud
         # init_points = self.dataset.get_radar_detections(idx=0)
@@ -199,6 +212,10 @@ class combinedPCPFTb:
         #reset the orientation histories
         self.history_heading_deg = [None] * n
         self.history_heading_deg_gt = [None] * n
+
+        #reset the particle history tracking
+        self.history_particles = []
+        self.history_weights = []
     
     def history_update_pose(self,
                                 position_m:np.ndarray,
@@ -229,6 +246,11 @@ class combinedPCPFTb:
         """
         self.history_position_m_gt[idx] = position_m
         self.history_heading_deg_gt[idx] = np.rad2deg(heading_rad)
+    
+    def history_save_particles_and_weights(self):
+
+        self.history_particles.append(self.localizer.particles)
+        self.history_weights.append(self.localizer.weights)
     
     ####################################################################
     #Histories (motion models)
@@ -457,10 +479,10 @@ class combinedPCPFTb:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud and updating the particle filter
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
-                (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
-                (self.point_cloud_stacker.get_elapsed_time() > 10):
-                
+            #was 0.5m 90deg 10s
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
+                (self.point_cloud_stacker.get_rel_heading_deg() > 90):
+                #TODO: add time reset if needed later
                 #get the stacked point cloud
                 pc = self.point_cloud_stacker.get_points()
 
@@ -482,6 +504,9 @@ class combinedPCPFTb:
 
                     #TODO: update histories with valid odom measurement
                 
+                #save the particle history
+                self.history_save_particles_and_weights()
+
                 #reset the motion model
                 self.localizer.motion_model_reset(self.particle_filter_last_t)
 
@@ -525,15 +550,15 @@ class combinedPCPFTb:
                 idx=i
             )
 
-            # if movie_generator:
-            #     #plot the current state
-            #     self.plot_compilation(
-            #         idx = i,
-            #         axs = movie_generator.axs,
-            #         show=False
-            #     )
+            if movie_generator:
+                #plot the current state
+                self.plot_compilation(
+                    idx = i,
+                    axs = movie_generator.axs,
+                    show=False
+                )
 
-                # movie_generator.save_frame(clear_axs=True)
+                movie_generator.save_frame(clear_axs=True)
         return
     
     ####################################################################
@@ -591,20 +616,27 @@ class combinedPCPFTb:
             particles=self.localizer.particles,
             pose_m=self.localizer.current_pose_m,
             ax=axs[1,0],
+            display_arrows=True,
             show=False
         )
 
-        self.plotter_localization.marker_size = 0.5
-        if len(self.history_pc_stacker_point_clouds) > 0:
-            self.plotter_localization.plot_detections_on_map(
-                current_points=self.history_pc_stacker_point_clouds[-1],
-                heading_rad=self.history_pc_stacker_heading_rad[-1],
-                pose_m=self.history_pc_stacker_position_m[-1],
-                ax=axs[1,1],
-                show=False
-            )
-            axs[1,1].set_title("Last Raytraced Point Cloud",
-                               fontsize=self.plotter_localization.font_size_title)
+        self.plotter_localization.plot_weights(
+            weights=self.localizer.weights,
+            ax=axs[1,1],
+            show=False
+        )
+        
+        # self.plotter_localization.marker_size = 0.5
+        # if len(self.history_pc_stacker_point_clouds) > 0:
+        #     self.plotter_localization.plot_detections_on_map(
+        #         current_points=self.history_pc_stacker_point_clouds[-1],
+        #         heading_rad=self.history_pc_stacker_heading_rad[-1],
+        #         pose_m=self.history_pc_stacker_position_m[-1],
+        #         ax=axs[1,1],
+        #         show=False
+        #     )
+        #     axs[1,1].set_title("Last Raytraced Point Cloud",
+        #                        fontsize=self.plotter_localization.font_size_title)
             
         combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
         if combined_pc.shape[0] > 0:

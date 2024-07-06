@@ -1,6 +1,6 @@
 import numpy as np
 from odometry.estimators.estimators import Inertial
-
+from odometry.supportFns.rotation_functions import apply_unique_rot_trans_to_multiple_points
 
 class MotionModel:
     """Base motion model class with methods to be implemented
@@ -81,8 +81,25 @@ class MotionModel:
                 have been propagated forward using the 
                 motion model
         """
+
+        #sample the motion model (in the sensor coordinate frame)
+        odom_update_samples = self.sample(particles.shape[0])
+
+        #apply a rotation and translation to the x,y coordinate of
+        #each sample so that the sampled odometry update is in 
+        #each unique particle's sensor frame        
+        odom_updates_in_particle_frames = \
+            apply_unique_rot_trans_to_multiple_points(
+                points=odom_update_samples[:,0:2],
+                rot_angles_rad=particles[:,2],
+                translations=particles[:,0:2]
+            )
         
-        return particles + self.sample(particles.shape[0])
+        #update the odom_update_samples wiht the updates in each
+        #particle's reference frame
+        odom_update_samples[:,0:2] = odom_updates_in_particle_frames[:,0,:]
+        
+        return particles + odom_update_samples
 
 ####################################################################
 # Multi-variate gaussian measurement models

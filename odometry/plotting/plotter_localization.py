@@ -21,8 +21,8 @@ class PlotterLocalization:
         #particle filter specific
         self.particle_marker_size = 5
         self.arrow_length = 0.4
-        self.particles_x_buffer = 3
-        self.particles_y_buffer = 3        
+        self.particles_x_buffer = 5
+        self.particles_y_buffer = 5       
 
         #import the dataset
         self.dataset:radnavDS = dataset

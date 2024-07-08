@@ -99,7 +99,7 @@ class MotionModel:
         #particle's reference frame
         odom_update_samples[:,0:2] = odom_updates_in_particle_frames[:,0,:]
         
-        return particles + odom_update_samples
+        return odom_update_samples
 
 ####################################################################
 # Multi-variate gaussian measurement models

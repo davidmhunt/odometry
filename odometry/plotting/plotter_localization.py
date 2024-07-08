@@ -328,7 +328,8 @@ class PlotterLocalization:
     def plot_particles_on_map(
             self,
             particles:np.ndarray,
-            pose_m:np.ndarray = np.empty(shape=(0,2)),
+            est_pose_m:np.ndarray = np.empty(shape=(0,2)),
+            gt_pose_m:np.ndarray = np.empty(shape=(0,2)),
             ax:plt.Axes=None,
             display_arrows=False,
             show=False
@@ -338,7 +339,9 @@ class PlotterLocalization:
         Args:
             particles (np.ndarray): Nx3 array of N particles expressed 
                 in [x,y,headding_rad] in the global coordinate frame
-            pose_m (np.ndarray,optional): If provided, the pose in [x,y] of the ego.
+            est_pose_m (np.ndarray,optional): If provided, the estimated pose in [x,y] of the ego.
+                Defaults to np.empty(shape=(0,2))
+            gt_pose_m (np.ndarray,optional): If provided, the ground truth pose in [x,y] of the ego.
                 Defaults to np.empty(shape=(0,2))
             ax (plt.Axes, optional): A set of axes to plot on. 
                 Defaults to None.
@@ -372,16 +375,26 @@ class PlotterLocalization:
             color="red",
             s=self.particle_marker_size)
         
-        if pose_m.shape[0] > 0:
+        if est_pose_m.shape[0] > 0:
             ax.scatter(
-                pose_m[0],
-                pose_m[1],
+                est_pose_m[0],
+                est_pose_m[1],
                 marker="o",
                 color="cyan",
                 s=15.0,
                 label="est position"
             )
         
+        if gt_pose_m.shape[0] > 0:
+            ax.scatter(
+                gt_pose_m[0],
+                gt_pose_m[1],
+                marker="d",
+                color="green",
+                s=15.0,
+                label="gt position"
+            )
+
         #add arrows
         if display_arrows:
             ax.quiver(
@@ -412,7 +425,7 @@ class PlotterLocalization:
         ax.yaxis.set_major_locator(plt.MultipleLocator(5.0))
         ax.grid("True")
         handles,labels = ax.get_legend_handles_labels()
-        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+        ax.legend(handles[1:4], labels[1:4], loc="lower right",fontsize=self.font_size_legend)
 
         if show:
             plt.show()

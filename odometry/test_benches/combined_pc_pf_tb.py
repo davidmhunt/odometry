@@ -474,12 +474,8 @@ class combinedPCPFTb:
 
             self.point_cloud_stacker.add_points(
                 current_points=radar_points,
-                heading_rad=self.localizer.motion_model.x[2],
-                pose_m= \
-                    np.array([
-                        self.localizer.motion_model.x[0],
-                        self.localizer.motion_model.x[1]
-                    ]),
+                heading_rad=self.localizer.current_heading_rad,
+                pose_m= self.localizer.current_pose_m,
                 current_time_s=self.particle_filter_last_t
             )
 
@@ -502,6 +498,7 @@ class combinedPCPFTb:
                     )
                 )
                 
+                #update particle filter (and update motion model)
                 self.localizer.odometry_update_from_measurement(
                     measured_point_cloud=pc
                 )
@@ -520,15 +517,10 @@ class combinedPCPFTb:
                 #save the particle history
                 self.history_save_particles_and_weights()
 
-                #reset the motion model
-                self.localizer.motion_model_reset(self.particle_filter_last_t)
-
                 # reset the point cloud stacker
                 self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.localizer.motion_model.x[2],
-                    initial_pose_m=np.array(
-                        [self.localizer.motion_model.x[0],
-                         self.localizer.motion_model.x[1]]),
+                    initial_heading_rad=self.localizer.current_heading_rad,
+                    initial_pose_m=self.localizer.current_pose_m,
                     initial_time_s=self.particle_filter_last_t
                 )
             elif self.point_cloud_stacker.get_elapsed_time() > 10:
@@ -538,32 +530,18 @@ class combinedPCPFTb:
                 #accumulation of false points
                 # reset the point cloud stacker
                 self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.localizer.motion_model.x[2],
-                    initial_pose_m=np.array(
-                        [self.localizer.motion_model.x[0],
-                         self.localizer.motion_model.x[1]]),
+                    initial_heading_rad=self.localizer.current_heading_rad,
+                    initial_pose_m=self.localizer.current_pose_m,
                     initial_time_s=self.particle_filter_last_t
                 )
-
-                #don't reset the particle filter's motion model though
-
             
             #compute the latest updated pose
             #TODO: edit behavior for when the pf doesn't have
                 #accurate odometry yet
             
-            pose_m = self.localizer.current_pose_m + \
-                rotation_functions.apply_rot_trans(
-                    self.localizer.motion_model.x[0:2],
-                    rot_angle_rad=self.localizer.current_heading_rad,
-                    trans=self.localizer.current_pose_m
-                )
-            
-            heading_rad = self.localizer.current_heading_rad + \
-                self.localizer.motion_model.x[2]
             self.history_update_pose(
-                position_m=pose_m,
-                heading_rad=heading_rad,
+                position_m=self.localizer.current_pose_m,
+                heading_rad=self.localizer.current_heading_rad,
                 idx=i
             )
 
@@ -656,11 +634,12 @@ class combinedPCPFTb:
         #reset the marker size
         self.plotter_localization.marker_size=10
         
-        #bottom row (combined point cloud) and kalman filtering
-        if len(self.history_pc_stacker_point_clouds) > 0:
+        #bottom row particle filter results
+        if len(self.history_particles_motion_model) > 0:
             self.plotter_localization.plot_particles_on_map(
                 particles=self.history_particles_motion_model[-1],
-                pose_m=self.localizer.current_pose_m,
+                est_pose_m=self.localizer.current_pose_m,
+                gt_pose_m=self.gt_localizer.current_pose_m,
                 ax=axs[2,0],
                 display_arrows=True,
                 show=False
@@ -676,7 +655,8 @@ class combinedPCPFTb:
 
         self.plotter_localization.plot_particles_on_map(
             particles=self.localizer.particles,
-            pose_m=self.localizer.current_pose_m,
+            est_pose_m=self.localizer.current_pose_m,
+            gt_pose_m=self.gt_localizer.current_pose_m,
             ax=axs[2,2],
             display_arrows=True,
             show=False

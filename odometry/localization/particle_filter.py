@@ -45,8 +45,11 @@ class particleFilter:
         self.motion_model:MotionModel = motion_model
 
         #keep track of current odometry
-        self.current_pose_m:np.ndarray = np.array([0.0,0.0])
-        self.current_heading_rad = 0.0
+        self.current_pose_m:np.ndarray = np.array([0.0,0.0]) #pose including motion model
+        self.current_heading_rad = 0.0 #heading including motion model
+
+        self.last_measured_pose_m:np.ndarray = np.array([0.0,0.0]) #based on last msmt with particles
+        self.last_measured_heading_rad = 0.0 #based on last msmt with particles
 
         #tracking if the valid pose is valid
         self.current_odom_valid = False
@@ -297,6 +300,9 @@ class particleFilter:
             t0 (float): start time in seceonds.
         """
         self.motion_model.reset(t0,*args,**kwargs)
+
+        #update the current position
+        self.update_current_position()
     
     def motion_model_predict(self,dt,inertial:Inertial, *args,**kwargs):
         """Predict the motion model forward with inertial sensor
@@ -308,7 +314,10 @@ class particleFilter:
             and linear velocity (m/s) measurements
         """
 
-        self.motion_model.predict(dt,inertial, *args,**kwargs)
+        self.motion_model.predict(dt,inertial, *args,**kwargs) 
+
+        #update the current position
+        self.update_current_position()       
     
     def motion_model_sample(self,n_samples)->np.ndarray:
         """Compute N randomly distributed samples 
@@ -357,23 +366,42 @@ class particleFilter:
     # odometry updating
     ####################################################################
 
+    def update_current_position(self):
+
+        self.current_pose_m = rotation_functions.apply_rot_trans(
+            self.motion_model.x[0:2],
+            rot_angle_rad=self.last_measured_heading_rad,
+            trans=self.last_measured_pose_m
+        )
+
+        self.current_heading_rad = self.last_measured_heading_rad \
+            + self.motion_model.x[2]
+    
     def odometry_reset(self):
         """Reset the current particle filter odometry
         """
         self.current_heading_rad = 0.0
         self.current_pose_m = np.array([0.0,0.0])
 
+        self.last_measured_heading_rad = 0.0
+        self.last_measured_pose_m = np.array([0.0,0.0])
+
         self.current_odom_valid = False
     
     def odometry_update_from_measurement(
             self,
             measured_point_cloud:np.ndarray):
-        
+        """Update the odometry and particle filter from a measuremnt
+        NOTE: also resets the motion model
+
+        Args:
+            measured_point_cloud (np.ndarray): _description_
+        """
         #run the particle filter algorithm
         self.run_MCL_alg(measured_point_cloud)
 
         #update the pose mean and variance from the resampled particles
-        self.current_pose_m = np.average(
+        self.last_measured_pose_m = np.average(
             a=self.particles[:,0:2],
             axis=0
         )
@@ -384,7 +412,7 @@ class particleFilter:
         )
 
         #update the heading mean and variance from the resampled particles
-        self.current_heading_rad = np.average(
+        self.last_measured_heading_rad = np.average(
             a=self.particles[:,2]
         )
 
@@ -400,6 +428,11 @@ class particleFilter:
         else:
             #TODO: set current odom valid to false here if needed
             pass
+
+        #reset the motion model (also updates the current position)
+        self.motion_model_reset(
+            t0=self.motion_model.t
+        )
 
 
         return

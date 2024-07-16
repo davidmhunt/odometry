@@ -78,3 +78,16 @@ If the pyproject.toml file is updated, the poetry installation must also be upda
 poetry lock --no-update
 poetry install
 ```
+
+### Using .env for Project Directories
+
+In order to use any datasets in your computer's directory, you must first create a .env file and mark where the dataset files can be found.
+
+1. Create a .env file in your project's root directory. This will file will not be uploaded to GitHub when you commit your changes.
+2. Inside the .env file, add these variables
+```
+DATASET_DIRECTORY=/example/your_directory
+MAP_DIRECTORY=/example/your_directory
+MOVIE_TEMP_DIRECTORY=/example/your_directory
+```
+3. Replace the example text with the path to your directory

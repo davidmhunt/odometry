@@ -16,15 +16,21 @@ from odometry.estimators.estimators import (
     Inertial)
 from odometry.point_cloud_processing.pc_stacker import pcStacker
 from odometry.point_cloud_processing.multipath import MultiPath
+from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
 
-class combinedPointCloudKalmanTB:
+class combinedPCVelFilteringStackedTB:
 
     def __init__(self,
                  localizer:icp2DLocalization,
                  gt_localizer:icp2DLocalization,
                  map_handler:MapHandler,
-                 dataset:radnavDS) -> None:
+                 dataset:radnavDS,
+                 vel_filter_enabled = True,
+                 vel_filter_v_thresh = 1.0,
+                 min_static_rejection_radius:float = 2.0,
+                 dynamic_cluster_eps:float = 1.0,
+                 dynamic_cluster_min_samples = 7) -> None:
         
         #initialize the localizer
         self.localizer:icp2DLocalization = localizer
@@ -59,9 +65,17 @@ class combinedPointCloudKalmanTB:
 
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
+        self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
             clustering_eps = 1.0,
-            clustering_min_samples= 12
+            clustering_min_samples= 7 #was 12
+        )
+        self.vel_filtering_enabled = vel_filter_enabled
+        self.vel_filtering = VelFiltering(
+            v_thresh=vel_filter_v_thresh,
+            min_static_rejection_radius=min_static_rejection_radius,
+            dynamic_cluster_eps=dynamic_cluster_eps,
+            dynamic_cluster_min_samples=dynamic_cluster_min_samples
         )
 
         #combined point cloud processing history
@@ -428,23 +442,61 @@ class combinedPointCloudKalmanTB:
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
 
-            #filter out ground detections, etc
-            radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
 
-            self.point_cloud_stacker.add_points(
-                current_points=radar_points,
-                heading_rad=self.filter.x[2],
-                pose_m= \
-                    np.array([
-                        self.filter.x[0],
-                        self.filter.x[1]
-                    ]),
-                current_time_s=self.filter_last_t
-            )
+            #filter dynamic objects
+            if self.vel_filtering_enabled:
+                static_points = self.vel_filtering.get_static_detections(
+                    detections=radar_points,
+                    ego_vel=np.array([self.filter.x[3],0.0])
+                )
+
+                dynamic_points = self.vel_filtering.get_dynamic_detections(
+                    detections=radar_points,
+                    ego_vel=np.array([self.filter.x[3],0.0])
+                )
+
+                # filter out ground detections, etc
+                static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
+                dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
+
+                self.point_cloud_stacker.add_points(
+                    current_points=static_points[:, 0:2],
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
+
+                self.dynamic_point_cloud_stacker.add_points(
+                    current_points=dynamic_points[:, 0:2],
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
+            else:
+                self.point_cloud_stacker.add_points(
+                    current_points=radar_points[:, 0:2],
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
+
+            #rel distance was o.5
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 
@@ -452,7 +504,13 @@ class combinedPointCloudKalmanTB:
                 #print(val_dist_calc)
 
                 #get the stacked point cloud
-                pc = self.point_cloud_stacker.get_points()
+                static_pc = self.point_cloud_stacker.get_points()
+                dynamic_pc = self.dynamic_point_cloud_stacker.get_points()
+
+                pc = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                     static_detections=static_pc,
+                     dynamic_detections=dynamic_pc
+                )
 
                 #remove multipath detections
                 pc = self.multipath.remove_multipath(pc)

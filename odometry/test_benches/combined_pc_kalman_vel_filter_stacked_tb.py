@@ -455,6 +455,10 @@ class combinedPCVelFilteringStackedTB:
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
+                # filter out ground detections, etc
+                static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
+                dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
+
                 self.point_cloud_stacker.add_points(
                     current_points=static_points[:, 0:2],
                     heading_rad=self.filter.x[2],
@@ -487,10 +491,6 @@ class combinedPCVelFilteringStackedTB:
                         ]),
                     current_time_s=self.filter_last_t
                 )
-
-            # filter out ground detections, etc
-            static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
-            dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud

@@ -68,7 +68,7 @@ class combinedPCVelFilteringStackedTB:
         self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
             clustering_eps = 1.0,
-            clustering_min_samples= 7 #was 12
+            clustering_min_samples= 12
         )
         self.vel_filtering_enabled = vel_filter_enabled
         self.vel_filtering = VelFiltering(
@@ -395,7 +395,27 @@ class combinedPCVelFilteringStackedTB:
         #save the histories
         self.history_filters_update_state_history()
         self.history_filters_update_from_msmt()
-        
+    
+    def velreset(self):
+        if self.vel_filtering_enabled:
+            self.dynamic_point_cloud_stacker.reset(
+                initial_heading_rad=self.filter.x[2],
+                initial_pose_m=np.array([
+                    self.filter.x[0],
+                    self.filter.x[1]
+                ]),
+                initial_time_s=self.filter_last_t
+            )
+     
+        self.point_cloud_stacker.reset(
+            initial_heading_rad=self.filter.x[2],
+            initial_pose_m=np.array([
+                self.filter.x[0],
+                self.filter.x[1]
+            ]),
+            initial_time_s=self.filter_last_t
+        )
+    
 
     ####################################################################
     #Running localization for the dataset
@@ -410,14 +430,7 @@ class combinedPCVelFilteringStackedTB:
             max_frame = self.dataset.num_frames
 
         #TODO: improve to resent point cloud stacker
-        self.point_cloud_stacker.reset(
-            initial_heading_rad=self.filter.x[2],
-            initial_pose_m=np.array([
-                self.filter.x[0],
-                self.filter.x[1]
-            ]),
-            initial_time_s=self.filter_last_t
-        )
+        self.velreset()
 
         for i in tqdm(range(max_frame)):
             if gt_enabled:
@@ -450,28 +463,24 @@ class combinedPCVelFilteringStackedTB:
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
+
                 dynamic_points = self.vel_filtering.get_dynamic_detections(
                     detections=radar_points,
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
-                # filter out ground detections, etc
-                static_points = self.localizer.remove_sensor_self_detections(static_points[:, :2])
-                dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:, :2])
+                #filter out ground detections
+                radar_points = self.localizer.remove_sensor_self_detections(static_points[:,:2])
+                dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:,:2])
 
-                self.point_cloud_stacker.add_points(
-                    current_points=static_points[:, 0:2],
-                    heading_rad=self.filter.x[2],
-                    pose_m= \
-                        np.array([
-                            self.filter.x[0],
-                            self.filter.x[1]
-                        ]),
-                    current_time_s=self.filter_last_t
-                )
+                # radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                #     static_detections=static_points,
+                #     dynamic_detections=dynamic_points
+                # )
+                
 
                 self.dynamic_point_cloud_stacker.add_points(
-                    current_points=dynamic_points[:, 0:2],
+                    current_points=dynamic_points,
                     heading_rad=self.filter.x[2],
                     pose_m= \
                         np.array([
@@ -480,17 +489,21 @@ class combinedPCVelFilteringStackedTB:
                         ]),
                     current_time_s=self.filter_last_t
                 )
+
             else:
-                self.point_cloud_stacker.add_points(
-                    current_points=radar_points[:, 0:2],
-                    heading_rad=self.filter.x[2],
-                    pose_m= \
-                        np.array([
-                            self.filter.x[0],
-                            self.filter.x[1]
-                        ]),
-                    current_time_s=self.filter_last_t
-                )
+                radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
+            
+
+            self.point_cloud_stacker.add_points(
+                current_points=radar_points,
+                heading_rad=self.filter.x[2],
+                pose_m= \
+                    np.array([
+                        self.filter.x[0],
+                        self.filter.x[1]
+                    ]),
+                current_time_s=self.filter_last_t
+            )
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
@@ -507,7 +520,7 @@ class combinedPCVelFilteringStackedTB:
                 static_pc = self.point_cloud_stacker.get_points()
                 dynamic_pc = self.dynamic_point_cloud_stacker.get_points()
 
-                pc = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                pc = self.vel_filtering.remove_dynamic_clusters_from_static_detections_knn(
                      static_detections=static_pc,
                      dynamic_detections=dynamic_pc
                 )
@@ -539,22 +552,14 @@ class combinedPCVelFilteringStackedTB:
                     )
                 
                 # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.filter_last_t
-                )
+                self.velreset()
             elif self.point_cloud_stacker.get_elapsed_time() > 10:
 
                 #if the vehicle hasn't moved significantly over the last 5 seconds,
                 #go ahead and reset the point cloud stacker to prevent 
                 #accumulation of false points
                 # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.filter_last_t
-                )
+                self.velreset()
 
             
             self.history_update_pose(
@@ -647,17 +652,20 @@ class combinedPCVelFilteringStackedTB:
                                fontsize=self.plotter_localization.font_size_title)
             
         combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
-        if combined_pc.shape[0] > 0:
+        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_point_from_initial_pose()
+        if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
-            self.plotter_localization.plot_detections_on_map(
-                current_points=combined_pc,
+            self.plotter_localization.plot_dynamic_and_static_detections_on_map(
+                static_points=combined_pc,
+                dynamic_points=dynamic_combined_pc,
                 heading_rad=self.point_cloud_stacker.initial_heading_rad,
                 pose_m=self.point_cloud_stacker.initial_pose_m,
                 ax=axs[1,2],
                 show=False
             ) 
-            axs[1,2].set_title("Current Stacked Point Cloud: {}".format(len(combined_pc)),
-                               fontsize=self.plotter_localization.font_size_title)
+            axs[1,2].set_title("Current Stacked Point Cloud", #{}".format(len(combined_pc))
+                               fontsize=self.plotter_localization.font_size_legend)
+        
         
         #reset the marker size
         self.plotter_localization.marker_size=10

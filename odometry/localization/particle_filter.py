@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import DBSCAN
 from odometry.supportFns import rotation_functions
 import scipy.stats
 from scipy.stats import norm
@@ -43,6 +44,12 @@ class particleFilter:
 
         #filter parameters for computing motion between states
         self.motion_model:MotionModel = motion_model
+
+        #particle clustering
+        self.dbscan_particle_clustering:DBSCAN = DBSCAN(
+            eps=0.2,
+            min_samples=20
+        )
 
         #keep track of current odometry
         self.current_pose_m:np.ndarray = np.array([0.0,0.0]) #pose including motion model
@@ -191,6 +198,46 @@ class particleFilter:
         """
 
         return self.rng.multivariate_normal(mean,cov,size=N)
+    
+    #TODO: Update the following functions and documentation for them
+    def multinomial_sampling(self,weights: np.ndarray, n: int) -> np.ndarray:
+        """Draw samples from multinomial distribution
+
+        For a more efficient implementation, see
+        https://en.wikipedia.org/wiki/Alias_method
+        """
+        weights /= sum(weights)  # normalize
+        w_cum = np.cumsum(weights)  # CDF
+        w_cum[-1] = 1.0  # avoid round-off error
+        rands = np.random.rand(n)  # get points on cdf curve to sample
+        indices = np.searchsorted(w_cum, rands)
+        return indices
+
+    
+    def residual_sampling(self,weights: np.ndarray, n: int) -> np.ndarray:
+        """Use the residual method to get samples
+
+        Uses multinomial sampling on the residuals
+        """
+        if n != len(weights):
+            raise NotImplementedError(
+                "Not sure how to implement for n less than weights len"
+            )
+        indices = np.zeros(n, dtype=int)
+
+        # take floor(N*w copies of each weight)
+        num_copies = (n * np.asarray(weights)).astype(int)
+        k = 0
+        for i in range(n):
+            for _ in range(num_copies[i]):  # make n copies
+                indices[k] = i
+                k += 1
+
+        # use multinomial sampling on residuals for the rest
+        residual = weights - num_copies  # fractional part
+        indices[k:n] = self.multinomial_sampling(residual, n - k)
+
+        return indices
 
 
     ####################################################################
@@ -288,6 +335,111 @@ class particleFilter:
         weights = weights / np.sum(weights)
 
         return weights
+    
+    def liklihood_field_measurement_model_thresholded(
+            self,
+            particles:np.ndarray,
+            points:np.ndarray,
+            threshold_m:float = 0.1,
+            percentile:float = 90) ->np.ndarray:
+        """Compute the liklihood field for a given set of particles
+
+        Args:
+            particles (np.ndarray): Nx3 array of particles
+            points (np.ndarray): Mx2 array of detections in the 
+                sensor reference frame
+
+        Returns:
+            np.ndarray: Nx1 array of updated weights
+        """
+        
+        #initialize an empty weights vector
+        weights = np.zeros(shape=(particles.shape[0],),dtype=np.float128)
+
+        #re-initialize the neighbors
+        self.nbrs = NearestNeighbors(
+            n_neighbors=1,
+            n_jobs=1,
+            algorithm='kd_tree'
+        ).fit(self.map_points)
+
+        #apply the rotation and translation for each particle for each of the points
+        aligned_points = rotation_functions.apply_multiple_rot_trans(
+            points=points,
+            rot_angles_rad=particles[:,2],
+            translations=particles[:,0:2]
+        )
+        
+        #for each point, compute the distance to the nearest point in the map
+        distances = np.array([self.nbrs.kneighbors(aligned_points[i, :, :])[0] \
+             for i in range(aligned_points.shape[0])])
+        
+        #compute the probability based on the percentage of points that meet the threshold
+        weights = np.sum(distances <= threshold_m, axis=1) / distances.shape[1]
+
+        #only keep the top percentile of the weights
+        p = np.percentile(weights,percentile)
+        weights[weights<p] = 0.0
+
+        #compute the weights for each particle
+        weights = weights / np.sum(weights)
+
+        return weights
+    
+    def liklihood_field_measurement_model_sprt(
+            self,
+            particles:np.ndarray,
+            points:np.ndarray) ->np.ndarray:
+        """Compute the liklihood field for a given set of particles
+
+        Args:
+            particles (np.ndarray): Nx3 array of particles
+            points (np.ndarray): Mx2 array of detections in the 
+                sensor reference frame
+
+        Returns:
+            np.ndarray: Nx1 array of updated weights
+        """
+        
+        #initialize an empty weights vector
+        weights = np.zeros(shape=(particles.shape[0],),dtype=np.float128)
+
+        #re-initialize the neighbors
+        self.nbrs = NearestNeighbors(
+            n_neighbors=1,
+            n_jobs=1,
+            algorithm='kd_tree'
+        ).fit(self.map_points)
+
+        #apply the rotation and translation for each particle for each of the points
+        aligned_points = rotation_functions.apply_multiple_rot_trans(
+            points=points,
+            rot_angles_rad=particles[:,2],
+            translations=particles[:,0:2]
+        )
+        
+        #for each point, compute the distance to the nearest point in the map
+        distances = np.array([self.nbrs.kneighbors(aligned_points[i, :, :])[0] \
+             for i in range(aligned_points.shape[0])])
+        
+        #compute the pdf value
+        pdf_vals = np.float64(self.gaus_dist.pdf(distances))
+
+        #divide by some uniform value
+        max_gaus = self.gaus_dist.pdf(0)
+        weights = np.sum(np.log(pdf_vals/(max_gaus/3)),axis=1)
+
+        #compute the probability of a true detection
+        weights = np.exp(weights) / (1.0 + np.exp(weights))
+
+        if(np.sum(weights>0.5) > 5):
+
+            #compute the weights for each particle
+            weights = weights / np.sum(weights)
+        else:
+            weights = np.ones(shape=(particles.shape[0])) / particles.shape[0]
+
+        return weights
 
     ####################################################################
     #motion model
@@ -349,18 +501,30 @@ class particleFilter:
         self.motion_model_update_particles()
 
         #run the measurement model
-        self.weights = self.liklihood_field_measurement_model(
+        # self.weights = self.liklihood_field_measurement_model_thresholded(
+        #     particles=self.particles,
+        #     points=measured_point_cloud,
+        #     threshold_m=0.5,
+        #     percentile=99
+        # )
+
+        self.weights = self.liklihood_field_measurement_model_sprt(
             particles=self.particles,
             points=measured_point_cloud
         )
 
-        self.particles = self.rng.choice(
-            a=self.particles,
-            replace=True,
-            axis=0,
-            size=self.max_particles,
-            p=np.float64(self.weights[:,0])
-        )
+        resampled_idxs = self.multinomial_sampling(
+            self.weights,self.weights.shape[0])
+        
+        self.particles = self.particles[resampled_idxs,:]
+
+        # self.particles = self.rng.choice(
+        #     a=self.particles,
+        #     replace=True,
+        #     axis=0,
+        #     size=self.max_particles,
+        #     p=np.float64(self.weights[:,0])
+        # )
     
     ####################################################################
     # odometry updating
@@ -400,24 +564,42 @@ class particleFilter:
         #run the particle filter algorithm
         self.run_MCL_alg(measured_point_cloud)
 
+        #cluster the resampled particles
+        labels = self.dbscan_particle_clustering.fit_predict(self.particles[:,0:2])
+        
+        #determine the most popular label
+        if (np.max(labels) >= 0):
+            unique_labels = np.unique(labels)[1:]
+
+            label_counts = np.array(
+                [np.sum(labels==unique_labels[i]) \
+                for i in range(unique_labels.shape[0])]
+            )
+
+            most_likely_particles_cluster = self.particles[
+                labels == np.argmax(label_counts),:
+            ]
+        else:
+            most_likely_particles_cluster = self.particles
+
         #update the pose mean and variance from the resampled particles
         self.last_measured_pose_m = np.average(
-            a=self.particles[:,0:2],
+            a=most_likely_particles_cluster[:,0:2],
             axis=0
         )
 
         pose_m_var = np.var(
-            a=self.particles[:,0:2],
+            a=most_likely_particles_cluster[:,0:2],
             axis=0
         )
 
         #update the heading mean and variance from the resampled particles
         self.last_measured_heading_rad = np.average(
-            a=self.particles[:,2]
+            a=most_likely_particles_cluster[:,2]
         )
 
         heading_rad_var = np.var(
-            a=self.particles[:,2]
+            a=most_likely_particles_cluster[:,2]
         )
         
         if (heading_rad_var < self.valid_heading_var_thresh) and \

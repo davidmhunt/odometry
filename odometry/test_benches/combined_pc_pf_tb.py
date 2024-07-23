@@ -499,23 +499,22 @@ class combinedPCPFTb:
                 )
                 
                 #update particle filter (and update motion model)
-                self.localizer.odometry_update_from_measurement(
-                    measured_point_cloud=pc
-                )
+                if(pc.shape[0] > 0):
+                    self.localizer.odometry_update_from_measurement(
+                        measured_point_cloud=pc
+                    )
 
-                #if self.localizer.current_odom_valid:
-
-                #save the measurement and point cloud
-                self.history_pc_stacker_update(
-                    valid_stacked_point_cloud=pc,
-                    position_m=self.localizer.current_pose_m,
-                    heading_rad=self.localizer.current_heading_rad
-                )
+                    #save the measurement and point cloud
+                    self.history_pc_stacker_update(
+                        valid_stacked_point_cloud=pc,
+                        position_m=self.localizer.current_pose_m,
+                        heading_rad=self.localizer.current_heading_rad
+                    )
 
                     #TODO: update histories with valid odom measurement
                 
-                #save the particle history
-                self.history_save_particles_and_weights()
+                    #save the particle history
+                    self.history_save_particles_and_weights()
 
                 # reset the point cloud stacker
                 self.point_cloud_stacker.reset(

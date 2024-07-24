@@ -396,7 +396,7 @@ class combinedPointCloudKalmanTB:
             max_frame = self.dataset.num_frames
 
         #TODO: improve to resent point cloud stacker
-        self.point_cloud_stacker.reset(
+        self.point_cloud_stacker.reset_full(
             initial_heading_rad=self.filter.x[2],
             initial_pose_m=np.array([
                 self.filter.x[0],
@@ -481,7 +481,7 @@ class combinedPointCloudKalmanTB:
                     )
                 
                 # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
+                self.point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
                     initial_time_s=self.filter_last_t
@@ -492,7 +492,7 @@ class combinedPointCloudKalmanTB:
                 #go ahead and reset the point cloud stacker to prevent 
                 #accumulation of false points
                 # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
+                self.point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
                     initial_time_s=self.filter_last_t

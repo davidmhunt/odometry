@@ -398,7 +398,7 @@ class combinedPCVelFilteringStackedTB:
     
     def velreset(self):
         if self.vel_filtering_enabled:
-            self.dynamic_point_cloud_stacker.reset(
+            self.dynamic_point_cloud_stacker.reset_full(
                 initial_heading_rad=self.filter.x[2],
                 initial_pose_m=np.array([
                     self.filter.x[0],
@@ -407,7 +407,7 @@ class combinedPCVelFilteringStackedTB:
                 initial_time_s=self.filter_last_t
             )
      
-        self.point_cloud_stacker.reset(
+        self.point_cloud_stacker.reset_full(
             initial_heading_rad=self.filter.x[2],
             initial_pose_m=np.array([
                 self.filter.x[0],

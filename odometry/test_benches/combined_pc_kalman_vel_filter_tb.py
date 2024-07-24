@@ -396,7 +396,7 @@ class combinedPCKalmanVelFiltering:
 
     def velreset(self):
             if self.vel_filtering_enabled:
-                self.point_cloud_stacker.reset(
+                self.point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([
                         self.filter.x[0],
@@ -405,7 +405,7 @@ class combinedPCKalmanVelFiltering:
                     initial_time_s=self.filter_last_t
                 )
 
-                self.dynamic_point_cloud_stacker.reset(
+                self.dynamic_point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([
                         self.filter.x[0],
@@ -414,7 +414,7 @@ class combinedPCKalmanVelFiltering:
                     initial_time_s=self.filter_last_t
                 )
             else:
-                self.point_cloud_stacker.reset(
+                self.point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([
                         self.filter.x[0],

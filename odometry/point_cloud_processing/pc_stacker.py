@@ -55,7 +55,7 @@ class pcStacker:
 
         return
     
-    def reset(
+    def reset_full(
             self,
             initial_heading_rad:float=0.0,
             initial_pose_m =np.array([0.0,0.0]),
@@ -72,8 +72,6 @@ class pcStacker:
                 of the first frame in the stacked point cloud. Defaults to 
                 0.0 seconds
         """
-        #reset the stacked point cloud
-        self.stacked_point_cloud = []
 
         #reset the heading tracking
         self.initial_heading_rad = initial_heading_rad
@@ -93,6 +91,82 @@ class pcStacker:
         self.point_cloud_grid = \
             np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
                      dtype=np.int8)
+
+        return
+    
+    def reset_recenter(
+            self,
+            initial_heading_rad:float=0.0,
+            initial_pose_m =np.array([0.0,0.0]),
+            initial_time_s:float=0.0,
+            initial_pc:np.ndarray = np.empty(shape=(0,2))
+            ):
+        """Reset the point cloud stacker to be centered around a new location
+
+        Args:
+            initial_heading_rad (float, optional): Initial heading for the
+                 stacked point clouds. Defaults to 0.0.
+            initial_pose_m (np.ndarray, optional): Initial position in (x,y)
+                of the stacked point clouds. Defaults to np.array([0.0,0.0]).
+            initial_time_s (float, optional): If available, the start time
+                of the first frame in the stacked point cloud. Defaults to 
+                0.0 seconds
+            initial_pc (np.ndarray,optional): The initial point cloud (in the global frame) #TODO: check which frame to actually put these in
+                to use if avaialble. If none provided, will translate 
+                previous stacked point cloud into the new reference frame. Defaults to
+                np.empty(shape=(0,2))
+        """
+
+        if (initial_pc.shape[0] == 0):
+            #get the previous stacked points in new sensor frame
+            self.current_heading_rad = initial_heading_rad
+            self.current_pose_m = initial_pose_m
+
+            #get the points in the new reference frame
+            initial_pc = self.get_points()
+
+        
+        
+        #reset the grid
+        self.point_cloud_grid = \
+            np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
+                    dtype=np.int8)
+            
+        
+        #filter out points that are out of the grid now
+        valid_x_idxs = np.abs(self.range_bins[:,None] - initial_pc[:,0]) <= self.resolution_m
+        initial_pc = initial_pc[valid_x_idxs,:]
+
+        valid_y_idxs = np.abs(self.range_bins[:,None] - initial_pc[:,1]) <= self.resolution_m
+        initial_pc = initial_pc[valid_y_idxs,:]
+
+        #add the points into the grid
+        x_idx = np.argmin(np.abs(
+            self.range_bins[:,None] - initial_pc[:,0]),
+            axis=0
+        )
+        y_idx = np.argmin(np.abs(
+            self.range_bins[:,None] - initial_pc[:,1]),
+            axis=0
+        )
+
+        #add points to the grid
+        self.point_cloud_grid[x_idx,y_idx] = 1
+
+        #reset the heading tracking
+        self.initial_heading_rad = initial_heading_rad
+        self.current_heading_rad = initial_heading_rad
+        self.rel_heading_rad = 0.0
+
+        #reset the position tracking
+        self.initial_pose_m = initial_pose_m
+        self.current_pose_m = initial_pose_m
+        self.rel_pose_m = np.array([0.0,0.0])
+
+        #reset time tracking
+        self.initial_time_s = initial_time_s
+        self.current_time_s = initial_time_s
+        self.elapsed_time_s = 0.0
 
         return
     

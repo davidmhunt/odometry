@@ -508,7 +508,7 @@ class particleFilter:
         #     percentile=99
         # )
 
-        self.weights = self.liklihood_field_measurement_model_sprt(
+        self.weights = self.liklihood_field_measurement_model(
             particles=self.particles,
             points=measured_point_cloud
         )
@@ -569,7 +569,9 @@ class particleFilter:
         
         #determine the most popular label
         if (np.max(labels) >= 0):
-            unique_labels = np.unique(labels)[1:]
+            
+            unique_labels = np.unique(labels)
+            unique_labels = unique_labels[unique_labels != -1]
 
             label_counts = np.array(
                 [np.sum(labels==unique_labels[i]) \

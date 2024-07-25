@@ -509,8 +509,8 @@ class combinedPCVelFilteringStackedTB:
             #a combined point cloud
 
             #rel distance was o.5
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
-                (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 3.0) or \
+                (self.point_cloud_stacker.get_rel_heading_deg() > 180) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 
                 #print(self.dataset.get_vehicle_vel_data(i)[0][1])

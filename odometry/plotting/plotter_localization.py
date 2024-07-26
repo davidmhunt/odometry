@@ -18,6 +18,12 @@ class PlotterLocalization:
         self.plot_y_max = 20
         self.marker_size = 10
 
+        #particle filter specific
+        self.particle_marker_size = 5
+        self.arrow_length = 0.4
+        self.particles_x_buffer = 5
+        self.particles_y_buffer = 5       
+
         #import the dataset
         self.dataset:radnavDS = dataset
         self.map_handler:MapHandler = map_handler
@@ -542,7 +548,7 @@ class PlotterLocalization:
                 Defaults to False.
         """
 
-        radar_points = self.dataset.get_radar_detections(radar_points)
+        radar_points = self.dataset.get_radar_detections(idx)
         radar_points = radar_points[:,:2]
         
         self.plot_detections_on_map(
@@ -554,7 +560,151 @@ class PlotterLocalization:
         )
         
         return
+    
+    def plot_particles_on_map(
+            self,
+            particles:np.ndarray,
+            est_pose_m:np.ndarray = np.empty(shape=(0,2)),
+            gt_pose_m:np.ndarray = np.empty(shape=(0,2)),
+            ax:plt.Axes=None,
+            display_arrows=False,
+            show=False
+    ):
+        """Plots a point cloud onto the known map
 
+        Args:
+            particles (np.ndarray): Nx3 array of N particles expressed 
+                in [x,y,headding_rad] in the global coordinate frame
+            est_pose_m (np.ndarray,optional): If provided, the estimated pose in [x,y] of the ego.
+                Defaults to np.empty(shape=(0,2))
+            gt_pose_m (np.ndarray,optional): If provided, the ground truth pose in [x,y] of the ego.
+                Defaults to np.empty(shape=(0,2))
+            ax (plt.Axes, optional): A set of axes to plot on. 
+                Defaults to None.
+            show (bool, optional): on True, shows the plot. 
+                Defaults to False.
+        """
+        
+        if not ax:
+            fig,ax = plt.subplots()
+        
+        #plot the map
+        map_points = self.map_handler.map_points
+        ax.scatter(
+            map_points[:,0],
+            map_points[:,1],
+            label="map",
+            marker=".",
+            s=0.5,
+            color="blue")
+
+        #plot the particles
+        dx = self.arrow_length * np.cos(particles[:,2])
+        dy = self.arrow_length * np.sin(particles[:,2])
+
+        # display particle locations
+        ax.scatter(
+            particles[:,0],
+            particles[:,1],
+            label="particles",
+            marker="D",
+            color="red",
+            s=self.particle_marker_size)
+        
+        if est_pose_m.shape[0] > 0:
+            ax.scatter(
+                est_pose_m[0],
+                est_pose_m[1],
+                marker="o",
+                color="cyan",
+                s=15.0,
+                label="est position"
+            )
+        
+        if gt_pose_m.shape[0] > 0:
+            ax.scatter(
+                gt_pose_m[0],
+                gt_pose_m[1],
+                marker="d",
+                color="green",
+                s=15.0,
+                label="gt position"
+            )
+
+        #add arrows
+        if display_arrows:
+            ax.quiver(
+                particles[:,0],
+                particles[:,1],
+                dx,
+                dy,
+                angles="xy",
+                scale_units="xy",
+                scale=0.5,
+                color="red",
+                width=0.005
+            )
+
+        ax.set_title("Particles: {}".format(
+            particles.shape[0]),
+            fontsize=self.font_size_title)
+        ax.set_xlim(
+            np.min(particles[:,0]) - self.particles_x_buffer,
+            np.max(particles[:,0]) + self.particles_x_buffer)
+        ax.set_xlabel("X",fontsize=self.font_size_axis_labels)
+        ax.set_ylim(
+            np.min(particles[:,1]) - self.particles_y_buffer,
+            np.max(particles[:,1]) + self.particles_y_buffer)
+        ax.set_ylabel("Y",fontsize=self.font_size_axis_labels)
+        ax.tick_params(labelsize=self.font_size_ticks)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.grid("True")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:4], labels[1:4], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return
+
+    def plot_weights(
+            self,
+            weights:np.ndarray,
+            ax:plt.Axes=None,
+            show=False
+    ):
+        """Plots a point cloud onto the known map
+
+        Args:
+            weights (np.ndarray): current particle filter weights
+            ax (plt.Axes, optional): A set of axes to plot on. 
+                Defaults to None.
+            show (bool, optional): on True, shows the plot. 
+                Defaults to False.
+        """
+        
+        if not ax:
+            fig,ax = plt.subplots()
+
+        #plot the aligned_detections
+        ax.plot(
+            weights,
+            color="green",
+            label="truth")
+        
+
+        ax.set_title("Measurement model weights: {}",fontsize=self.font_size_title)
+        ax.set_xlabel("particle index",fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("Weight value",fontsize=self.font_size_axis_labels)
+        ax.grid("False")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return
 
     def plot_heading_history(self,
                          history_heading_deg:list,

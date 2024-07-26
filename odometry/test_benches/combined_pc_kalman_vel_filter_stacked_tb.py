@@ -67,8 +67,8 @@ class combinedPCVelFilteringStackedTB:
         self.point_cloud_stacker = pcStacker()
         self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
-            clustering_eps = 0.5,
-            clustering_min_samples= 15
+            clustering_eps = 1.0, #long duration 0.5
+            clustering_min_samples= 12 #long duration 15
         )
         self.vel_filtering_enabled = vel_filter_enabled
         self.vel_filtering = VelFiltering(
@@ -509,8 +509,8 @@ class combinedPCVelFilteringStackedTB:
             #a combined point cloud
 
             #rel distance was o.5
-            if (self.point_cloud_stacker.get_rel_distance_m() > 3.0) or \
-                (self.point_cloud_stacker.get_rel_heading_deg() > 180) or \
+            if (self.point_cloud_stacker.get_rel_distance_m() > 0.75) or \
+                (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 
                 #print(self.dataset.get_vehicle_vel_data(i)[0][1])

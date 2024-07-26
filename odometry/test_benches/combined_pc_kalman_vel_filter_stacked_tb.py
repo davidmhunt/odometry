@@ -67,8 +67,8 @@ class combinedPCVelFilteringStackedTB:
         self.point_cloud_stacker = pcStacker()
         self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
-            clustering_eps = 1.0,
-            clustering_min_samples= 12
+            clustering_eps = 1.0, #long duration 0.5
+            clustering_min_samples= 12 #long duration 15
         )
         self.vel_filtering_enabled = vel_filter_enabled
         self.vel_filtering = VelFiltering(

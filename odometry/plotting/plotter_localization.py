@@ -264,6 +264,242 @@ class PlotterLocalization:
 
         return
     
+    def plot_dynamic_and_static_detections_on_map(
+            self,
+            static_points:np.ndarray,
+            dynamic_points:np.ndarray,
+            heading_rad,
+            pose_m,
+            ax:plt.Axes=None,
+            show=False
+    ):
+        """Plots a point cloud onto the known map
+
+        Args:
+            current_points (np.ndarray): point cloud in agent frame
+            heading_rad (_type_): the heading of the vehicle in the
+                global frame
+            pose_m (_type_): the position of the vehicle in the 
+                global frame
+            ax (plt.Axes, optional): A set of axes to plot on. 
+                Defaults to None.
+            show (bool, optional): on True, shows the plot. 
+                Defaults to False.
+        """
+        if len(static_points > 0):
+            static_aligned_points = \
+                rotation_functions.apply_rot_trans(
+                    points=static_points,
+                    rot_angle_rad=heading_rad,
+                    trans=pose_m
+                )
+
+        if len(dynamic_points > 0):
+            dynamic_aligned_points = \
+                rotation_functions.apply_rot_trans(
+                    points=dynamic_points,
+                    rot_angle_rad=heading_rad,
+                    trans=pose_m
+                )
+                
+        if not ax:
+            fig,ax = plt.subplots()
+        
+        #plot the map
+        map_points = self.map_handler.map_points
+        ax.scatter(
+            map_points[:,0],
+            map_points[:,1],
+            label="map",
+            marker=".",
+            s=0.5,
+            color="blue")
+
+        #plot the aligned_detections
+        if len(static_points > 0):
+            ax.scatter(
+                static_aligned_points[:,0],
+                static_aligned_points[:,1],
+                label="static detections",
+                marker="D",
+                color="red",
+                s=self.marker_size)
+        
+        if len(dynamic_points > 0):
+            ax.scatter(
+                dynamic_aligned_points[:,0],
+                dynamic_aligned_points[:,1],
+                label="dynamic detections",
+                marker="D",
+                color="green",
+                s=self.marker_size)
+        
+        #plot the pose estimate
+        ax.scatter(
+            pose_m[0],
+            pose_m[1],
+            marker="o",
+            color="cyan",
+            s=15.0,
+            label="est position"
+        )
+
+        #ax.set_title("Point cloud Detections: {}".format(static_aligned_points.shape[0]),fontsize=self.font_size_title)
+        ax.set_xlim(
+            pose_m[0] - self.plot_x_max,
+            pose_m[0] + self.plot_x_max)
+        ax.set_xlabel("X",fontsize=self.font_size_axis_labels)
+        ax.set_ylim(
+            pose_m[1] - self.plot_y_max,
+            pose_m[1] + self.plot_y_max)
+        ax.set_ylabel("Y",fontsize=self.font_size_axis_labels)
+        ax.tick_params(labelsize=self.font_size_ticks)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.grid("True")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return
+    def plot_dynamic_and_static_detection_clusters_on_map(
+            self,
+            static_points:np.ndarray,
+            dynamic_points:np.ndarray,
+            labels:np.ndarray,
+            dynamic_labels:np.ndarray,
+            heading_rad,
+            pose_m,
+            ax:plt.Axes=None,
+            plot_raw_detections:bool = False,
+            show=False
+    ):
+        """Plots a point cloud onto the known map
+
+        Args:
+            current_points (np.ndarray): point cloud in agent frame
+            labels (np.ndarray): the cluster label for each point
+            heading_rad (_type_): the heading of the vehicle in the
+                global frame
+            pose_m (_type_): the position of the vehicle in the 
+                global frame
+            ax (plt.Axes, optional): A set of axes to plot on. 
+                Defaults to None.
+            plot_raw_detections (bool, optional): on True, plots the raw
+                detections. Defaults to False
+            show (bool, optional): on True, shows the plot. 
+                Defaults to False.
+        """
+        
+        static_aligned_points = \
+            rotation_functions.apply_rot_trans(
+                points=static_points,
+                rot_angle_rad=heading_rad,
+                trans=pose_m
+            )
+        dynamic_aligned_points = \
+            rotation_functions.apply_rot_trans(
+                points = dynamic_points,
+                rot_angle_rad=heading_rad,
+                trans = pose_m
+            )
+        
+        if not ax:
+            fig,ax = plt.subplots()
+        
+        #plot the map
+        map_points = self.map_handler.map_points
+        ax.scatter(
+            map_points[:,0],
+            map_points[:,1],
+            label="map",
+            marker=".",
+            s=0.5,
+            color="blue")
+        
+        #plot the pose estimate
+        ax.scatter(
+            pose_m[0],
+            pose_m[1],
+            marker="o",
+            color="cyan",
+            s=15.0,
+            label="est position"
+        )
+
+        if plot_raw_detections:
+            ax.scatter(
+                static_aligned_points[:,0],
+                static_aligned_points[:,1],
+                label="orig. detections",
+                marker="D",
+                color="red",
+                s=self.marker_size)
+            ax.scatter(
+                dynamic_aligned_points[:,0],
+                static_aligned_points[:,1],
+                label="dynamic detections",
+                marker = "D",
+                color = "green",
+                s=self.marker_size
+            )
+        
+        #determine the colors
+        unique_labels = np.unique(labels)
+        colors = plt.cm.Spectral(np.linspace(0,1,len(unique_labels)))
+
+        #plot each cluster
+        print("static")
+        for label, color in zip(unique_labels, colors):
+            if label != -1:
+                cluster_points = static_aligned_points[labels == label]
+                print(label)
+                ax.scatter(
+                    cluster_points[:, 0],
+                    cluster_points[:, 1],
+                    color=color,
+                    s=self.marker_size + 5,
+                    label=f"Cluster {label}")
+                
+
+        dynamic_unique_labels = np.unique(dynamic_labels)
+        colors = plt.cm.Spectral(np.linspace(0,1,len(dynamic_unique_labels)))
+        print("dynamic")
+        for label,color in zip(dynamic_unique_labels,colors):
+            if label != -1:
+                cluster_points = dynamic_aligned_points[dynamic_labels == label]
+                print(label)
+                ax.scatter(
+                    cluster_points[:, 0],
+                    cluster_points[:, 1],
+                    color="purple",
+                    s=self.marker_size + 5,
+                    label=f"Cluster {label}")
+
+        ax.set_title("Clusters: {}".format(unique_labels.shape[0] - 1),fontsize=self.font_size_title)
+        ax.set_xlim(
+            pose_m[0] - self.plot_x_max,
+            pose_m[0] + self.plot_x_max)
+        ax.set_xlabel("X",fontsize=self.font_size_axis_labels)
+        ax.set_ylim(
+            pose_m[1] - self.plot_y_max,
+            pose_m[1] + self.plot_y_max)
+        ax.set_ylabel("Y",fontsize=self.font_size_axis_labels)
+        ax.tick_params(labelsize=self.font_size_ticks)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.grid("True")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return
+
+
     def plot_lidar_points_on_map(self,
                                 idx,
                                 heading_rad,

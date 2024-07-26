@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.cluster import DBSCAN
+from sklearn.neighbors import NearestNeighbors
 
 
 class VelFiltering:
@@ -113,7 +114,7 @@ class VelFiltering:
 
         return detections[static_idxs,:]
     
-    def remove_dynamic_clusters_from_static_detections(
+    def remove_dynamic_clusters_from_static_detections_centroids(
             self,
             static_detections:np.ndarray,
             dynamic_detections:np.ndarray)->np.ndarray:
@@ -144,6 +145,38 @@ class VelFiltering:
                     moving_idxs = distances < self.min_static_rejection_radius
 
                     valid_idxs[moving_idxs] = False
+
+                return static_detections[valid_idxs,:]
+            else:
+                return static_detections
+
+
+        else:
+            return static_detections
+        
+    def remove_dynamic_clusters_from_static_detections_knn(
+            self,
+            static_detections:np.ndarray,
+            dynamic_detections:np.ndarray)->np.ndarray:
+
+
+        if dynamic_detections.shape[0] > 0:
+            labels = self.dbscan_clusterer.fit_predict(dynamic_detections[:,0:2])
+            
+            #get the unique cluster ids
+            unique_labels = np.unique(labels)
+            num_clusters = len(unique_labels) -1
+
+            #get only dynamic detections that were clustered
+            dynamic_detections = dynamic_detections[labels!=-1,0:2]
+
+            if num_clusters > 0:
+
+                nbrs = NearestNeighbors(n_neighbors=1,algorithm='kd_tree').fit(dynamic_detections)
+                    
+                distances,indicies = nbrs.kneighbors(static_detections[:,0:2])
+
+                valid_idxs = distances[:,0] >= self.min_static_rejection_radius
 
                 return static_detections[valid_idxs,:]
             else:

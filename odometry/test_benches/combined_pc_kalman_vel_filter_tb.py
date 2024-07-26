@@ -63,6 +63,7 @@ class combinedPCKalmanVelFiltering:
 
         #point cloud processing
         self.point_cloud_stacker = pcStacker()
+        self.dynamic_point_cloud_stacker = pcStacker()
         self.multipath = MultiPath(
             clustering_eps = 1.0,
             clustering_min_samples= 12
@@ -81,12 +82,14 @@ class combinedPCKalmanVelFiltering:
         self.history_pc_stacker_heading_rad:list = None
         self.history_pc_stacker_reset()
 
+        self.dynamic_points:list = None
+
+
         #kalman filter histories
         self.history_filter_est = None
         self.history_filter_g = None
         self.history_filter_y = None
         self.history_filter_p = None
-
         return
     
     ####################################################################
@@ -391,6 +394,34 @@ class combinedPCKalmanVelFiltering:
         self.history_filters_update_from_msmt()
         
 
+    def velreset(self):
+            if self.vel_filtering_enabled:
+                self.point_cloud_stacker.reset(
+                    initial_heading_rad=self.filter.x[2],
+                    initial_pose_m=np.array([
+                        self.filter.x[0],
+                        self.filter.x[1]
+                    ]),
+                    initial_time_s=self.filter_last_t
+                )
+
+                self.dynamic_point_cloud_stacker.reset(
+                    initial_heading_rad=self.filter.x[2],
+                    initial_pose_m=np.array([
+                        self.filter.x[0],
+                        self.filter.x[1]
+                    ]),
+                    initial_time_s=self.filter_last_t
+                )
+            else:
+                self.point_cloud_stacker.reset(
+                    initial_heading_rad=self.filter.x[2],
+                    initial_pose_m=np.array([
+                        self.filter.x[0],
+                        self.filter.x[1]
+                    ]),
+                    initial_time_s=self.filter_last_t
+                )
     ####################################################################
     #Running localization for the dataset
     ####################################################################
@@ -404,14 +435,7 @@ class combinedPCKalmanVelFiltering:
             max_frame = self.dataset.num_frames
 
         #TODO: improve to resent point cloud stacker
-        self.point_cloud_stacker.reset(
-            initial_heading_rad=self.filter.x[2],
-            initial_pose_m=np.array([
-                self.filter.x[0],
-                self.filter.x[1]
-            ]),
-            initial_time_s=self.filter_last_t
-        )
+        self.velreset()
 
         for i in tqdm(range(max_frame)):
             if gt_enabled:
@@ -448,10 +472,25 @@ class combinedPCKalmanVelFiltering:
                     ego_vel=np.array([self.filter.x[3],0.0])
                 )
 
-                radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections(
+                dynamic_points = self.localizer.remove_sensor_self_detections(dynamic_points[:,:2])
+
+                radar_points = self.vel_filtering.remove_dynamic_clusters_from_static_detections_centroids(
                     static_detections=static_points,
                     dynamic_detections=dynamic_points
                 )
+                
+
+                self.dynamic_point_cloud_stacker.add_points(
+                    current_points=dynamic_points,
+                    heading_rad=self.filter.x[2],
+                    pose_m= \
+                        np.array([
+                            self.filter.x[0],
+                            self.filter.x[1]
+                        ]),
+                    current_time_s=self.filter_last_t
+                )
+            
 
             #filter out ground detections, etc
             radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
@@ -469,7 +508,8 @@ class combinedPCKalmanVelFiltering:
 
             #check to see if the vehicle has moved a sufficient amount for using
             #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
+            dist=1.0
+            if (self.point_cloud_stacker.get_rel_distance_m() > dist) or \
                 (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
                 (self.point_cloud_stacker.get_elapsed_time() > 10):
 
@@ -506,22 +546,14 @@ class combinedPCKalmanVelFiltering:
                     )
                 
                 # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.filter_last_t
-                )
+                self.velreset()
             elif self.point_cloud_stacker.get_elapsed_time() > 10:
 
                 #if the vehicle hasn't moved significantly over the last 5 seconds,
                 #go ahead and reset the point cloud stacker to prevent 
                 #accumulation of false points
                 # reset the point cloud stacker
-                self.point_cloud_stacker.reset(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.filter_last_t
-                )
+                self.velreset()
 
             
             self.history_update_pose(
@@ -611,20 +643,22 @@ class combinedPCKalmanVelFiltering:
                 show=False
             )
             axs[1,1].set_title("Last Raytraced Point Cloud",
-                               fontsize=self.plotter_localization.font_size_title)
+                               fontsize=self.plotter_localization.font_size_legend)
             
         combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
-        if combined_pc.shape[0] > 0:
+        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_point_from_initial_pose()
+        if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
-            self.plotter_localization.plot_detections_on_map(
-                current_points=combined_pc,
+            self.plotter_localization.plot_dynamic_and_static_detections_on_map(
+                static_points=combined_pc,
+                dynamic_points=dynamic_combined_pc,
                 heading_rad=self.point_cloud_stacker.initial_heading_rad,
                 pose_m=self.point_cloud_stacker.initial_pose_m,
                 ax=axs[1,2],
                 show=False
             ) 
-            axs[1,2].set_title("Current Stacked Point Cloud: {}".format(len(combined_pc)),
-                               fontsize=self.plotter_localization.font_size_title)
+            axs[1,2].set_title("Current Stacked Point Cloud", #{}".format(len(combined_pc))
+                               fontsize=self.plotter_localization.font_size_legend)
         
         #reset the marker size
         self.plotter_localization.marker_size=10

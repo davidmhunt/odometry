@@ -7,44 +7,9 @@ from scipy.stats.distributions import chi2
 EPS = 1e-6
 
 
-class InertialIntegrator:
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.gyro_buffer = []
-        self.accel_buffer = []
-
-    def add_gyro(self, dt: float, gyro: Union[float, np.ndarray]):
-        """Gyro as angular rate in units of rad/sec"""
-        if gyro is not None:
-            self.gyro_buffer.append((dt, gyro))
-
-    def add_accel(self, dt: float, accel: Union[float, np.ndarray]):
-        """Accel as acceleration in units of m/sec^2"""
-        if accel is not None:
-            self.accel_buffer.append((dt, accel))
-
-    def integrate(self):
-        # HACK: only one dimensional for now and only on gyro data
-        # integrate gyro data
-        if len(self.gyro_buffer) > 0:
-            dt_all = sum([g[0] for g in self.gyro_buffer])
-            gyro = sum([g[0] * g[1] for g in self.gyro_buffer]) / dt_all
-        else:
-            gyro = None
-            raise NotImplementedError  # HACK
-
-        # integrate accel data
-        if len(self.accel_buffer) > 0:
-            raise NotImplementedError  # TODO
-        else:
-            accel = None
-
-        # reset the buffer and output the result
-        self.reset()
-        return dt_all, Inertial(gyro=gyro, accel=accel)
-
+####################################################################
+# Common Inertail class to specify inertial data
+####################################################################
 
 class Inertial:
     def __init__(
@@ -69,6 +34,9 @@ class Inertial:
     def __repr__(self) -> str:
         return self.__str__()
 
+####################################################################
+# KF and EKF Filters
+####################################################################
 
 class _ExtendedKalmanFilter:
     def __init__(self, t0, x0, P0, chi2_pct=0.95, do_chi2=True):
@@ -404,3 +372,69 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
         )
         # fmt: on
         return Q
+
+####################################################################
+# Inertial Integration (prediction with no "update")
+####################################################################
+
+class InertialIntegrator:
+
+    def __init__(self) -> None:
+        
+        #time tracking
+        self.t:float = 0.0
+
+        #state tracking
+        self.x:np.ndarray = None #minimum of [x,y,phi (rad), vel]
+        self.states_initialized:bool = False
+
+    def reset(self,
+              t0:float=0.0,
+              x0:np.ndarray=np.zeros(shape=4,dtype=float),
+              *args,**kwargs):
+        """Reset the inertial integrator
+
+        Args:
+            t0 (float): start time in seconds
+            x0 (np.ndarray): Initial state space
+                minimum of [x,y,phi,vel].
+        """
+
+        self.t = t0
+
+        #reset state matrix
+        self.x = x0
+
+        self.states_initialized = True
+
+    def predict(self, dt:float, inertial: Inertial):
+        """Predict the inertial integrator forward
+
+        Args:
+            dt (float): time since last measurement
+            inertial (Inertial): Inertial object with at least angular (rad/sec)
+            and linear velocity (m/s) measurements
+        """
+    
+        assert dt >= 0
+        
+        #get the angular and linear velocity from the inertial
+        omega = inertial.gyro
+        vel = inertial.sencode
+
+        # propagate omega and velocity with IMU/encoder
+        x_old = self.x.copy()
+        self.x[2] = self.x[2] + (omega * dt)
+        self.x[3] = vel
+
+        # propagate position
+        v_avg = (x_old[3] + self.x[3]) / 2
+        phi_avg = (x_old[2] + self.x[2]) / 2
+        self.x[0] = self.x[0] + dt * v_avg * np.cos(phi_avg)
+        self.x[1] = self.x[1] + dt * v_avg * np.sin(phi_avg)
+
+        #update the time
+        self.t += dt
+        
+        return
+    

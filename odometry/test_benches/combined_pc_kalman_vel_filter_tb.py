@@ -645,8 +645,8 @@ class combinedPCKalmanVelFiltering:
             axs[1,1].set_title("Last Raytraced Point Cloud",
                                fontsize=self.plotter_localization.font_size_legend)
             
-        combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
-        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_point_from_initial_pose()
+        combined_pc = self.point_cloud_stacker.get_points_from_initial_pose()
+        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_points_from_initial_pose()
         if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
             self.plotter_localization.plot_dynamic_and_static_detections_on_map(

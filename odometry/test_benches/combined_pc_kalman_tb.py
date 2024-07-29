@@ -583,7 +583,7 @@ class combinedPointCloudKalmanTB:
             axs[1,1].set_title("Last Raytraced Point Cloud",
                                fontsize=self.plotter_localization.font_size_title)
             
-        combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
+        combined_pc = self.point_cloud_stacker.get_points_from_initial_pose()
         if combined_pc.shape[0] > 0:
 
             self.plotter_localization.plot_detections_on_map(

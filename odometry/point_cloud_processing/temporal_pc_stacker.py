@@ -4,7 +4,14 @@ from sklearn.cluster import DBSCAN
 from odometry.supportFns import rotation_functions
 from odometry.supportFns import coordinate_systems
 
-class pcStacker:
+from odometry.estimators.estimators import InertialIntegrator,Inertial
+from odometry.point_cloud_processing.multipath import MultiPath
+
+from odometry.point_cloud_processing.vel_filtering import VelFiltering
+
+from odometry.point_cloud_processing.ground_detection_filtering import groundDetectionFiltering
+
+class temporalPcStacker:
     """Point Cloud stacker object which can be used to "stack" point clouds
     over time to obtained a "combined" point cloud for down-stream processing.
     Note that this object stores a quantized version of the point cloud 
@@ -13,8 +20,22 @@ class pcStacker:
 
     def __init__(
             self,
+            num_frames_static_history:int = 4,
+            num_frames_dynamic_history:int = 1,
+            refresh_distance_m:float = 3,
+            refresh_rot_deg:float = 180,
+            refresh_time_s:float = 10,
             resolution_m:float = 5e-2,
-            max_distance_m:float = 20) -> None:
+            max_distance_m:float = 20,
+            multi_path_clustering_eps:float = 0.25,
+            multi_path_clustering_min_samples:int = 10,
+            vel_filtering_enabled:bool = True,
+            vel_filtering_v_thresh:float = 1.0,
+            vel_filtering_min_static_rejection_radius:float = 2.0,
+            vel_filtering_dynamic_cluster_eps:float = 1.0,
+            vel_filtering_dynamic_cluster_min_samples = 7,
+            self_detection_radius_m = 0.25
+            ) -> None:
         """_summary_
 
         Args:
@@ -24,8 +45,38 @@ class pcStacker:
                 of the quantized point cloud in x,y. Defaults to 20.
         """
         
-        #keeping track of the initial/current pose
-        # (in the global reference frame)
+        #initialize and add in support modules
+        self.integrator:InertialIntegrator = InertialIntegrator()
+        self.integrator.reset()
+
+        self.multi_path:MultiPath = MultiPath(
+            clustering_eps=multi_path_clustering_eps,
+            clustering_min_samples=multi_path_clustering_min_samples
+        )
+
+        self.vel_filtering_enabled:bool = vel_filtering_enabled
+        self.vel_filtering:VelFiltering = VelFiltering(
+            v_thresh=vel_filtering_v_thresh,
+            min_static_rejection_radius=vel_filtering_min_static_rejection_radius,
+            dynamic_cluster_eps=vel_filtering_dynamic_cluster_eps,
+            dynamic_cluster_min_samples=vel_filtering_dynamic_cluster_min_samples
+        )
+
+        self.ground_detection_filtering:groundDetectionFiltering = groundDetectionFiltering(
+            self_detection_radius_m=self_detection_radius_m
+        )
+        
+        #history parameters
+        self.num_frames_static_history = num_frames_static_history
+        self.num_frames_dynamic_history = num_frames_dynamic_history
+
+        #refresh rates
+        self.refresh_distance_m = refresh_distance_m
+        self.refresh_rot_rad = np.deg2rad(refresh_rot_deg)
+        self.refresh_time_s = refresh_time_s
+
+        #keeping track of the initial/current pose between each refresh
+        # (in the inertial reference frame)
         self.initial_heading_rad:float = 0.0
         self.current_heading_rad:float = 0.0
         self.rel_heading_rad:float = 0.0
@@ -49,38 +100,45 @@ class pcStacker:
             stop=self.max_distance_m,
             step=self.resolution_m
         )
-        self.point_cloud_grid:np.ndarray = \
-            np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
+        self.pc_grid_static:np.ndarray = \
+            np.zeros(
+                shape =(num_frames_static_history + 1,
+                         self.range_bins.shape[0],
+                         self.range_bins.shape[0]),
+                     dtype=np.int8)
+        self.pc_grid_dynamic:np.ndarray = \
+            np.zeros(
+                shape =(num_frames_dynamic_history + 1,
+                         self.range_bins.shape[0],
+                         self.range_bins.shape[0]),
                      dtype=np.int8)
 
         return
-    
-    def reset_full(
+
+    ####################################################################
+    # resetting
+    ####################################################################
+
+    def reset(
             self,
-            initial_heading_rad:float=0.0,
-            initial_pose_m =np.array([0.0,0.0]),
             initial_time_s:float=0.0
             ):
         """Reset the point cloud stacker to start generating a new point cloud
 
         Args:
-            initial_heading_rad (float, optional): Initial heading for the
-                 stacked point clouds. Defaults to 0.0.
-            initial_pose_m (np.ndarray, optional): Initial position in (x,y)
-                of the stacked point clouds. Defaults to np.array([0.0,0.0]).
             initial_time_s (float, optional): If available, the start time
                 of the first frame in the stacked point cloud. Defaults to 
                 0.0 seconds
         """
 
         #reset the heading tracking
-        self.initial_heading_rad = initial_heading_rad
-        self.current_heading_rad = initial_heading_rad
+        self.initial_heading_rad = 0.0
+        self.current_heading_rad = 0.0
         self.rel_heading_rad = 0.0
 
         #reset the position tracking
-        self.initial_pose_m = initial_pose_m
-        self.current_pose_m = initial_pose_m
+        self.initial_pose_m = np.array([0.0,0.0])
+        self.current_pose_m = np.array([0.0,0.0])
         self.rel_pose_m = np.array([0.0,0.0])
 
         #reset time tracking
@@ -88,9 +146,25 @@ class pcStacker:
         self.current_time_s = initial_time_s
         self.elapsed_time_s = 0.0
 
-        self.point_cloud_grid = \
-            np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
+        #reset the point cloud grids
+        self.pc_grid_static:np.ndarray = \
+            np.zeros(
+                shape =(self.num_frames_static_history + 1,
+                         self.range_bins.shape[0],
+                         self.range_bins.shape[0]),
                      dtype=np.int8)
+        self.pc_grid_dynamic:np.ndarray = \
+            np.zeros(
+                shape =(self.num_frames_dynamic_history + 1,
+                         self.range_bins.shape[0],
+                         self.range_bins.shape[0]),
+                     dtype=np.int8)
+
+        #reset the inertial integrator
+        self.integrator.reset(
+            t0=initial_time_s,
+            x0 = np.zeros(shape=4,dtype=float)
+        )
 
         return
     
@@ -128,7 +202,7 @@ class pcStacker:
         
         
         #reset the grid
-        self.point_cloud_grid = \
+        self.pc_grid_static = \
             np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
                     dtype=np.int8)
             
@@ -151,7 +225,7 @@ class pcStacker:
         )
 
         #add points to the grid
-        self.point_cloud_grid[x_idx,y_idx] = 1
+        self.pc_grid_static[x_idx,y_idx] = 1
 
         #reset the heading tracking
         self.initial_heading_rad = initial_heading_rad
@@ -169,6 +243,32 @@ class pcStacker:
         self.elapsed_time_s = 0.0
 
         return
+
+    ####################################################################
+    # Predicting inertial integration forward
+    ####################################################################
+    def predict(self,dt:float,inertial:Inertial):
+        """Predict the inertial integrator forward
+
+        Args:
+            dt (float): time since last measurement
+            inertial (Inertial): Inertial object with at least angular (rad/sec)
+            and linear velocity (m/s) measurements
+        """
+
+        self.integrator.predict(dt,inertial)
+
+        #update the current position
+        self.current_heading_rad = self.integrator.x[2]
+        self.current_pose_m = self.integrator.x[0:2]
+
+        #compute the relative heading/pose from the initial point
+        self.rel_heading_rad = self.current_heading_rad - self.initial_heading_rad
+        self.rel_pose_m = self.current_pose_m - self.initial_pose_m
+
+        #update the time tracking
+        self.current_time_s = self.integrator.t
+        self.elapsed_time_s = self.current_time_s - self.initial_time_s
     
     ####################################################################
     #Compiling the point clouds
@@ -177,62 +277,80 @@ class pcStacker:
     def add_points(
             self,
             current_points:np.ndarray,
-            heading_rad:float,
-            pose_m:np.ndarray,
-            current_time_s:float = 0.0,
+            ego_vel:np.ndarray,
     ):
         
         """Moves the current point cloud into the initial reference frame
         and then appends the points to the current combined point cloud list
 
         Args:
-            current_points (np.ndarray): point cloud in agent frame
-            heading_rad (float): the heading of the vehicle
-                in the global frame
-            pose_m (np.ndarray): the (x,y) position of the vehicle
-                in the global frame
-            current_time_s (float,optional): the time at which the point 
-                cloud points were captured (i.e. current time) in seconds.
-                Defaults to 0.0 seconds
+            current_points (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel]
+            ego_vel (np.ndarray): Nx2 array corresponding to the velocity 
+                of the ego vehicle
         """
-        #update the current position
-        self.current_heading_rad = heading_rad
-        self.current_pose_m = pose_m
 
-        #compute the relative heading/pose from the initial point
-        self.rel_heading_rad = heading_rad - self.initial_heading_rad
-        self.rel_pose_m = pose_m - self.initial_pose_m
-
-        #update the time tracking
-        self.current_time_s = current_time_s
-        self.elapsed_time_s = current_time_s - self.initial_time_s
-        
-        #get rot/trans from sensor frame (at current position) to global
-        R_cur_to_global = rotation_functions.get_rot_matrix(heading_rad)
-
-        #get rot/trans from global to initial global pose
-
-        #(R from global -> initial sensor frame is inverse of sens -> global)
-        R_global_to_init = rotation_functions.get_rot_matrix(self.initial_heading_rad)
-
-        #compute transformation from current -> initial (in sensor frame)
-        R = R_cur_to_global.T @ R_global_to_init
-        trans = (pose_m - self.initial_pose_m) @ R_global_to_init
-
-        #apply the rotation and translation
-        aligned_points = (current_points @ R) + trans
-        
-        x_idx = np.argmin(np.abs(
-            self.range_bins[:,None] - aligned_points[:,0]),
-            axis=0
-        )
-        y_idx = np.argmin(np.abs(
-            self.range_bins[:,None] - aligned_points[:,1]),
-            axis=0
+        #filter out the ground detections
+        current_points = self.ground_detection_filtering.remove_sensor_self_detections(
+            points=current_points
         )
 
-        self.point_cloud_grid[x_idx,y_idx] = 1
+        #update the static and dynamic grids
+        if self.vel_filtering_enabled:
+            static_points = self.vel_filtering.get_static_detections(
+                detections=current_points,ego_vel=ego_vel
+            )
+            dynamic_points = self.vel_filtering.get_dynamic_detections(
+                detections=current_points,ego_vel=ego_vel
+            )
 
+            self._add_points_to_grid(
+                grid=self.pc_grid_dynamic,
+                current_points=dynamic_points
+            )
+        else:
+            static_points = current_points
+
+        self._add_points_to_grid(
+            grid=self.pc_grid_static,
+            current_points=static_points
+        )
+
+        #TODO: add functionality to check for refreshing
+
+
+
+    def _add_points_to_grid(self,grid:np.ndarray,current_points:np.ndarray):
+
+        if current_points.shape[0] > 0:
+        
+            #get rot/trans from sensor frame (at current position) to global
+            R_cur_to_global = rotation_functions.get_rot_matrix(self.current_heading_rad)
+
+            #get rot/trans from global to initial global pose
+
+            #(R from global -> initial sensor frame is inverse of sens -> global)
+            R_global_to_init = rotation_functions.get_rot_matrix(self.initial_heading_rad)
+
+            #compute transformation from current -> initial (in sensor frame)
+            R = R_cur_to_global.T @ R_global_to_init
+            trans = (self.current_pose_m - self.initial_pose_m) @ R_global_to_init
+
+            #apply the rotation and translation
+            aligned_points = (current_points @ R) + trans
+            
+            x_idx = np.argmin(np.abs(
+                self.range_bins[:,None] - aligned_points[:,0]),
+                axis=0
+            )
+            y_idx = np.argmin(np.abs(
+                self.range_bins[:,None] - aligned_points[:,1]),
+                axis=0
+            )
+
+            grid[0,x_idx,y_idx] = 1
+
+        return
     
     def get_points(self)->np.ndarray:
         """Obtain the currently stacked point cloud in the current sensor frame
@@ -243,7 +361,7 @@ class pcStacker:
         """
 
         #convert the grid to a point cloud
-        x_idxs,y_idxs = np.nonzero(self.point_cloud_grid)
+        x_idxs,y_idxs = np.nonzero(self.pc_grid_static)
 
         if x_idxs.shape[0] > 0:
         
@@ -280,7 +398,7 @@ class pcStacker:
         """
 
         #convert the grid to a point cloud
-        x_idxs,y_idxs = np.nonzero(self.point_cloud_grid)
+        x_idxs,y_idxs = np.nonzero(self.pc_grid_static)
 
         if x_idxs.shape[0] > 0:
         

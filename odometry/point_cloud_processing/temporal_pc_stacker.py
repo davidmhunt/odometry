@@ -563,7 +563,7 @@ class temporalPcStacker:
             axis=0
         )
 
-        grid[0,x_idx,y_idx] = 1
+        grid[x_idx,y_idx] = 1
 
         return grid
 

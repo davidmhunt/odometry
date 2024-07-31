@@ -173,11 +173,15 @@ class temporalPcStacker:
     def check_for_refresh(self)->bool:
         """_summary_
 
+        compares the refresh conditions of time, distance, and rotation with elapsed conditions
+
         Returns:
-            bool: _description_
+            bool: if a refresh is needed
         """
 
-        if self.get_elapsed_time > self.refresh_time_s:
+        if self.get_elapsed_time > self.refresh_time_s or \
+             self.get_rel_distance_m > self.refresh_distance_m or \
+            self.get_rel_heading_deg > self.refresh_rot_deg:
             return True
         else:
             return False

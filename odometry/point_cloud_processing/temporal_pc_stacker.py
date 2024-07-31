@@ -74,7 +74,7 @@ class temporalPcStacker:
 
         #refresh rates
         self.refresh_distance_m = refresh_distance_m
-        self.refresh_rot_rad = np.deg2rad(refresh_rot_deg)
+        self.refresh_rot_deg = refresh_rot_deg
         self.refresh_time_s = refresh_time_s
 
         #keeping track of the initial/current pose between each refresh
@@ -170,6 +170,18 @@ class temporalPcStacker:
 
         return
 
+    def check_for_refresh(self)->bool:
+        """_summary_
+
+        Returns:
+            bool: _description_
+        """
+
+        if self.get_elapsed_time > self.refresh_time_s:
+            return True
+        else:
+            return False
+    
     def refresh(
         self
     ):
@@ -182,15 +194,45 @@ class temporalPcStacker:
         Returns: None
         """
 
-        #refresh static pc's
-        self.pc_grid_static[1:] = self.recenter_pc_grids(
-            self.pc_grid_static[0:-1],
+        #recenter point clouds
+        self.pc_grid_static = self.recenter_pc_grids(
+            self.pc_grid_static,
             initial_heading_rad=self.initial_heading_rad,
             initial_pose_m=self.initial_pose_m,
             current_heading_rad=self.current_heading_rad,
             current_pose_m=self.current_pose_m
         )
 
+        if self.vel_filtering_enabled:
+            self.pc_grid_dynamic = self.recenter_pc_grids(
+                self.pc_grid_dynamic,
+                initial_heading_rad=self.initial_heading_rad,
+                initial_pose_m=self.initial_pose_m,
+                current_heading_rad=self.current_heading_rad,
+                current_pose_m=self.current_pose_m
+            )
+
+        #TODO: move to a function
+        
+        #get points from current stacked static grid
+        current_points = self._get_points_from_pc_grid(self.pc_grid_static[0])
+        dynamic_points = self._get_points_from_pc_grids(self.pc_grid_dynamic)
+        # remove dynamic clusters from static detections
+        current_points = \
+            self.vel_filtering.remove_dynamic_clusters_from_static_detections_knn(
+                current_points,
+                dynamic_points
+            )
+
+        #remove multipath
+        current_points = self.multi_path.remove_multipath(current_points)
+
+        # replace current grid with processed grid
+        self.pc_grid_static[0] = self._get_pc_grid_from_points(current_points)
+        
+
+        #start a new frame
+        self.pc_grid_static[1:] = self.pc_grid_static[0:-1]
         self.pc_grid_static[0] = np.zeros(
             shape=(
                 self.range_bins.shape[0],
@@ -201,14 +243,7 @@ class temporalPcStacker:
 
         #refresh dynamic pc's
         if self.vel_filtering_enabled:
-            self.pc_grid_dynamic[1:] = self.recenter_pc_grids(
-                self.pc_grid_dynamic[0:-1],
-                initial_heading_rad=self.initial_heading_rad,
-                initial_pose_m=self.initial_pose_m,
-                current_heading_rad=self.current_heading_rad,
-                current_pose_m=self.current_pose_m
-            )
-
+            self.pc_grid_dynamic[1:] = self.pc_grid_dynamic[0:-1]
             self.pc_grid_dynamic[0] = np.zeros(
                 shape=(
                     self.range_bins.shape[0],
@@ -221,7 +256,13 @@ class temporalPcStacker:
         self.initial_pose_m = self.current_pose_m
         self.initial_heading_rad = self.current_heading_rad
         self.initial_time_s = self.current_time_s
-        pass
+
+        #reset the relative variables
+        self.elapsed_time_s = 0.0
+        self.rel_heading_rad = 0
+        self.rel_pose_m = np.array([0.0,0.0])
+        
+        return
 
     def recenter_pc_grids(
         self,
@@ -528,6 +569,34 @@ class temporalPcStacker:
 
         #convert the grid to a point cloud
         x_idxs,y_idxs = np.nonzero(pc_grid)
+
+        if x_idxs.shape[0] > 0:
+
+            x_vals = self.range_bins[x_idxs]
+            y_vals = self.range_bins[y_idxs]
+
+            return np.column_stack((x_vals,y_vals))
+        else:
+            return np.empty(shape=(0,2))
+    
+    def _get_points_from_pc_grids(
+            self,
+            pc_grids:np.ndarray
+    )->np.ndarray:
+        """Obtain a point cloud from a current pc grid
+
+        Args:
+            pc_grid (np.ndarray): MxNxN array of M point cloud grids with indicies based on
+                self.range_bins where 1 indicates a point is at that location
+                and 0 indicates no point is at that location
+
+        Returns:
+            np.ndarray: Nx2 array of points in the initial sensor frame
+        """
+
+        #convert the grid to a point cloud
+        valid_idxs = np.sum(pc_grids,axis=0)
+        x_idxs,y_idxs = np.nonzero(valid_idxs)
 
         if x_idxs.shape[0] > 0:
 

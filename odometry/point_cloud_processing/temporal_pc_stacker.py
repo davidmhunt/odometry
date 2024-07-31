@@ -168,9 +168,30 @@ class temporalPcStacker:
 
         return
 
-    def reset(
-        self,
+    def refresh(
+        self
     ):
+        
+        #refresh dynamic pc's
+        if self.vel_filtering_enabled:
+            #TODO: check to make sure that the dimmensions are correct
+            self.pc_grid_dynamic[1:] = self.recenter_pc_grids(
+                self.pc_grid_dynamic[0:-1],
+                initial_heading_rad=self.initial_heading_rad,
+                initial_pose_m=self.initial_pose_m,
+                current_heading_rad=self.current_heading_rad,
+                current_pose_m=self.current_pose_m
+            )
+
+            self.pc_grid_dynamic[0] = np.zeros(
+                shape =( self.range_bins.shape[0],
+                         self.range_bins.shape[0]),
+                     dtype=np.int8)
+        
+        #TODO handle static points
+
+
+        
         recentered_grids = self.recenter(
             self.initial_heading_rad,
             self.initial_pose_m,
@@ -197,6 +218,19 @@ class temporalPcStacker:
         static_pcs: np.ndarray,
         dynamic_pcs: np.ndarray,
     ):
+        """_summary_
+
+        Args:
+            initial_heading_rad (float): _description_
+            initial_pose_m (np.ndarray): _description_
+            current_heading_rad (float): _description_
+            current_pose_m (np.ndarray): _description_
+            static_pcs (np.ndarray): _description_
+            dynamic_pcs (np.ndarray): _description_
+
+        Returns:
+            _type_: _description_
+        """
         recentered_static_pcs = self.recenter_pc_grids(
             static_pcs,
             initial_heading_rad,
@@ -226,11 +260,33 @@ class temporalPcStacker:
         current_heading_rad: float,
         current_pose_m: np.ndarray,
     ) -> np.ndarray:
-        recentered_grids = np.copy(grids)
+        """_summary_
 
-        for i in range(len(grids)):
+        Args:
+            grids (np.ndarray): _description_
+            initial_heading_rad (float): _description_
+            initial_pose_m (np.ndarray): _description_
+            current_heading_rad (float): _description_
+            current_pose_m (np.ndarray): _description_
+
+        Returns:
+            np.ndarray: _description_
+        """
+        
+        recentered_grids = np.zeros(
+                shape =( grids.shape[0],
+                         self.range_bins.shape[0],
+                         self.range_bins.shape[0]),
+                     dtype=np.int8)
+
+        
+        
+        for i in range(grids.shape[0]):
+            #get points from the grid (initial reference frame)
             grid_points = self._get_points_from_pc_grid(grids[i])
-            recentered_grids[i] = self._change_pc_reference_frame(
+
+            #change reference frame of the points to current frame
+            grid_points = self._change_pc_reference_frame(
                 initial_heading_rad,
                 initial_pose_m,
                 current_heading_rad,
@@ -238,7 +294,45 @@ class temporalPcStacker:
                 grid_points
             )
 
+            #filter out points that are out of the grid now
+            valid_x_idxs = np.abs(self.range_bins[:,None] - grid_points[:,0]) <= self.resolution_m
+            grid_points = grid_points[valid_x_idxs,:]
+
+            valid_y_idxs = np.abs(self.range_bins[:,None] - grid_points[:,1]) <= self.resolution_m
+            grid_points = grid_points[valid_y_idxs,:]
+
+            #convert points back to grid
+            recentered_grids[i] = self._get_pc_grid_from_points(
+                grid_points
+            )
+
         return recentered_grids
+    
+    def recenter_pc_grid(self):
+
+        #get points from the grid (initial reference frame)
+        grid_points = self._get_points_from_pc_grid(grids[i])
+
+        #change reference frame of the points to current frame
+        grid_points = self._change_pc_reference_frame(
+            initial_heading_rad,
+            initial_pose_m,
+            current_heading_rad,
+            current_pose_m,
+            grid_points
+        )
+
+        #filter out points that are out of the grid now
+        valid_x_idxs = np.abs(self.range_bins[:,None] - grid_points[:,0]) <= self.resolution_m
+        grid_points = grid_points[valid_x_idxs,:]
+
+        valid_y_idxs = np.abs(self.range_bins[:,None] - grid_points[:,1]) <= self.resolution_m
+        grid_points = grid_points[valid_y_idxs,:]
+
+        #convert points back to grid
+        recentered_grids[i] = self._get_pc_grid_from_points(
+            grid_points
+        )
 
 
     def reset_recenter(

@@ -168,6 +168,26 @@ class temporalPcStacker:
 
         return
     
+    def recenter(
+        self
+    ):
+        
+        #handle static point clouds
+
+        #handle dynamic point clouds
+
+        #update initial position to be current position and heading
+
+        #update initial time to be current time
+
+        pass
+
+    def recenter_pc_grids(
+        self,
+        grids
+    ) -> np.ndarray:
+        pass
+
     def recenter_point_cloud(
             self,
             initial_heading_rad:float,

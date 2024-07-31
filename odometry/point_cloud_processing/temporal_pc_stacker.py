@@ -289,6 +289,9 @@ class temporalPcStacker:
             A recentered ndarray of shape (N, M, M).
         """
 
+        
+        assert grids.ndim == 3, "recenter_pc_grids expects grids to be 3D cube of 2D grids"
+
         #creates base array of grids
         recentered_grids = np.zeros(
                 shape=(
@@ -298,7 +301,7 @@ class temporalPcStacker:
                 ),
                 dtype=np.int8
         )
-
+        
         #loops through all grids and recenters them, setting their respective array slot
         for i in range(grids.shape[0]):
             recentered_grids[i] = self.recenter_pc_grid(
@@ -337,25 +340,31 @@ class temporalPcStacker:
         grid_points = self._get_points_from_pc_grid(grid)
 
         #change reference frame of the points to current frame
-        grid_points = self._change_pc_reference_frame(
-            initial_heading_rad,
-            initial_pose_m,
-            current_heading_rad,
-            current_pose_m,
-            grid_points
-        )
+        if grid_points.shape[0] > 0:
+            grid_points = self._change_pc_reference_frame(
+                initial_heading_rad,
+                initial_pose_m,
+                current_heading_rad,
+                current_pose_m,
+                grid_points
+            )
 
-        #filter out points that are out of the grid now
-        valid_x_idxs = np.abs(self.range_bins[:,None] - grid_points[:,0]) <= self.resolution_m
-        grid_points = grid_points[valid_x_idxs,:]
+            #filter out points that are out of the grid now
+            valid_x_idxs = np.abs(self.range_bins[:,None] - grid_points[:,0]) <= self.resolution_m
+            grid_points = grid_points[valid_x_idxs,:]
 
-        valid_y_idxs = np.abs(self.range_bins[:,None] - grid_points[:,1]) <= self.resolution_m
-        grid_points = grid_points[valid_y_idxs,:]
+            valid_y_idxs = np.abs(self.range_bins[:,None] - grid_points[:,1]) <= self.resolution_m
+            grid_points = grid_points[valid_y_idxs,:]
 
-        #convert points back to grid
-        return self._get_pc_grid_from_points(
-            grid_points
-        )
+            #convert points back to grid
+            return self._get_pc_grid_from_points(
+                grid_points
+            )
+        else:
+            return np.zeros(
+                shape =( self.range_bins.shape[0],
+                    self.range_bins.shape[0]),
+                dtype=np.int8)
 
     def reset_recenter(
             self,

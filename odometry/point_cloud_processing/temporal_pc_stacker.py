@@ -116,7 +116,7 @@ class temporalPcStacker:
         return
 
     ####################################################################
-    # resetting
+    # resetting and recentering the point clouds
     ####################################################################
 
     def reset(
@@ -167,6 +167,17 @@ class temporalPcStacker:
         )
 
         return
+    
+    def recenter_point_cloud(
+            self,
+            initial_heading_rad:float,
+            initial_pose_m:np.ndarray,
+            current_heading_rad:float,
+            current_pose_m:np.ndarray,
+            initial_pc:np.ndarray = np.empty(shape=(0,2))
+    )->np.ndarray:
+        pass
+        
     
     def reset_recenter(
             self,
@@ -318,9 +329,129 @@ class temporalPcStacker:
 
         #TODO: add functionality to check for refreshing
 
+    
+    
+    ####################################################################
+    #Support functions for changing reference frames
+    ####################################################################
+
+    def _get_pc_grid_from_points(
+            self,
+            point_cloud:np.ndarray
+    ) -> np.ndarray:
+        """Get a point cloud grid from a given set of points
+
+        Args:
+            point_cloud (np.ndarray): Nx2 array of [x,y] point cloud points
+
+        Returns:
+            np.ndarray: MxM point cloud grid with indicies based on the range bins
+        """
+            
+        #create a new point cloud grid
+        grid = \
+            np.zeros(
+                shape =( self.range_bins.shape[0],
+                        self.range_bins.shape[0]),
+                    dtype=np.int8)
+
+        x_idx = np.argmin(np.abs(
+            self.range_bins[:,None] - point_cloud[:,0]),
+            axis=0
+        )
+        y_idx = np.argmin(np.abs(
+            self.range_bins[:,None] - point_cloud[:,1]),
+            axis=0
+        )
+
+        grid[0,x_idx,y_idx] = 1
+        
+        return grid
+    
+    def _get_points_from_pc_grid(
+            self,
+            pc_grid:np.ndarray
+    )->np.ndarray:
+        """Obtain a point cloud from a current pc grid
+
+        Args:
+            pc_grid (np.ndarray): NxN point cloud grid with indicies based on
+                self.range_bins where 1 indicates a point is at that location
+                and 0 indicates no point is at that location
+
+        Returns:
+            np.ndarray: Nx2 array of points in the initial sensor frame
+        """
+
+        #convert the grid to a point cloud
+        x_idxs,y_idxs = np.nonzero(pc_grid)
+
+        if x_idxs.shape[0] > 0:
+        
+            x_vals = self.range_bins[x_idxs]
+            y_vals = self.range_bins[y_idxs]
+
+            return np.column_stack((x_vals,y_vals))
+        else:
+            return np.empty(shape=(0,2))
+        
+    def _change_pc_reference_frame(
+        self,
+        initial_heading_rad:float,
+        initial_pose_m:np.ndarray,
+        current_heading_rad:float,
+        current_pose_m:np.ndarray,
+        current_points:np.ndarray
+    )->np.ndarray:
+        """Change the reference frame of a given point cloud
+
+        Args:
+            initial_heading_rad (float): the initial heading in radians
+                from the perspective of the "global" frame
+            initial_pose_m (np.ndarray): [x,y] initial position
+                from the perspective of the "global" frame
+            current_heading_rad (float): the current heading in radians
+                from the perspective of the "global" frame
+            current_pose_m (np.ndarray): [x,y] current position
+                from the perspective of the "global" frame
+            current_points (np.ndarray): Nx2 [x,y] point cloud in the initial 
+                reference frame.
+
+        Returns:
+            np.ndarray: Nx2 [x,y] point cloud in the new reference frame
+        """
+        
+        if current_points.shape[0] > 0:
+            
+            #get rot/trans from initial sensor frame (at current position) to global
+            R_init_to_global = rotation_functions.get_rot_matrix(initial_heading_rad)
+
+            #(R from global -> current sensor frame is inverse of sens -> global)
+            R_global_to_curr = rotation_functions.get_rot_matrix(current_heading_rad)
+
+            #compute transformation from current -> initial (in sensor frame)
+            R = R_init_to_global.T @ R_global_to_curr
+            trans = (initial_pose_m - current_pose_m) @ R_global_to_curr
+
+            #apply the rotation and translation
+            return (current_points @ R) + trans
+        
+        else:
+            return np.empty(shape=(0,2))
 
 
-    def _add_points_to_grid(self,grid:np.ndarray,current_points:np.ndarray):
+    def _add_points_to_grid(
+            self,
+            grid:np.ndarray,
+            current_points:np.ndarray):
+        """Add a given point cloud to a specified grid
+
+        Args:
+            grid (np.ndarray): MxM pc grid based on the range bins in the 
+                initial sensor frame
+            current_points (np.ndarray): Nx2 [x,y] point cloud points captured
+                from the current sensor frame
+        """
 
         if current_points.shape[0] > 0:
         
@@ -350,8 +481,14 @@ class temporalPcStacker:
 
             grid[0,x_idx,y_idx] = 1
 
-        return
+        return 
+
     
+    ####################################################################
+    # Functions used to access the point cloud from other classes
+    # TODO: Fix these
+    ####################################################################
+
     def get_points(self)->np.ndarray:
         """Obtain the currently stacked point cloud in the current sensor frame
         (translates points from the initial position to the current position)

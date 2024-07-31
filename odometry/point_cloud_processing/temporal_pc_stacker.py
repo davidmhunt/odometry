@@ -44,7 +44,7 @@ class temporalPcStacker:
             max_distance_m (float, optional): The maximum distance (+/-)
                 of the quantized point cloud in x,y. Defaults to 20.
         """
-        
+
         #initialize and add in support modules
         self.integrator:InertialIntegrator = InertialIntegrator()
         self.integrator.reset()
@@ -65,7 +65,7 @@ class temporalPcStacker:
         self.ground_detection_filtering:groundDetectionFiltering = groundDetectionFiltering(
             self_detection_radius_m=self_detection_radius_m
         )
-        
+
         #history parameters
         self.num_frames_static_history = num_frames_static_history
         self.num_frames_dynamic_history = num_frames_dynamic_history
@@ -167,38 +167,80 @@ class temporalPcStacker:
         )
 
         return
-    
-    def recenter(
-        self
+
+    def reset(
+        self,
     ):
-        
-        #handle static point clouds
+        recentered_grids = self.recenter(
+            self.initial_heading_rad,
+            self.initial_pose_m,
+            self.current_heading_rad,
+            self.current_pose_m,
+            self.pc_grid_static,
+            self.pc_grid_dynamic,
+        )
 
-        #handle dynamic point clouds
+        self.pc_grid_static = recentered_grids["static_pcs"]
+        self.pc_grid_dynamic = recentered_grids["dynamic_pcs"]
 
-        #update initial position to be current position and heading
-
-        #update initial time to be current time
-
+        self.initial_pose_m = self.current_pose_m
+        self.initial_heading_rad = self.current_heading_rad
+        self.initial_time_s = self.current_time_s
         pass
+
+    def recenter(
+        self,
+        initial_heading_rad: float,
+        initial_pose_m: np.ndarray,
+        current_heading_rad: float,
+        current_pose_m: np.ndarray,
+        static_pcs: np.ndarray,
+        dynamic_pcs: np.ndarray,
+    ):
+        recentered_static_pcs = self.recenter_pc_grids(
+            static_pcs,
+            initial_heading_rad,
+            initial_pose_m,
+            current_heading_rad,
+            current_pose_m
+        )
+
+        recentered_dynamic_pcs = self.recenter_pc_grids(
+            dynamic_pcs,
+            initial_heading_rad,
+            initial_pose_m,
+            current_heading_rad,
+            current_pose_m
+        )
+
+        return {
+            "static_pcs": recentered_static_pcs,
+            "dynamic_pcs": recentered_dynamic_pcs,
+        }
 
     def recenter_pc_grids(
         self,
-        grids
+        grids: np.ndarray,
+        initial_heading_rad: float,
+        initial_pose_m: np.ndarray,
+        current_heading_rad: float,
+        current_pose_m: np.ndarray,
     ) -> np.ndarray:
-        pass
+        recentered_grids = np.copy(grids)
 
-    def recenter_point_cloud(
-            self,
-            initial_heading_rad:float,
-            initial_pose_m:np.ndarray,
-            current_heading_rad:float,
-            current_pose_m:np.ndarray,
-            initial_pc:np.ndarray = np.empty(shape=(0,2))
-    )->np.ndarray:
-        pass
-        
-    
+        for i in range(len(grids)):
+            grid_points = self._get_points_from_pc_grid(grids[i])
+            recentered_grids[i] = self._change_pc_reference_frame(
+                initial_heading_rad,
+                initial_pose_m,
+                current_heading_rad,
+                current_pose_m,
+                grid_points
+            )
+
+        return recentered_grids
+
+
     def reset_recenter(
             self,
             initial_heading_rad:float=0.0,
@@ -230,14 +272,14 @@ class temporalPcStacker:
             #get the points in the new reference frame
             initial_pc = self.get_points()
 
-        
-        
+
+
         #reset the grid
         self.pc_grid_static = \
             np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
                     dtype=np.int8)
-            
-        
+
+
         #filter out points that are out of the grid now
         valid_x_idxs = np.abs(self.range_bins[:,None] - initial_pc[:,0]) <= self.resolution_m
         initial_pc = initial_pc[valid_x_idxs,:]
@@ -300,7 +342,7 @@ class temporalPcStacker:
         #update the time tracking
         self.current_time_s = self.integrator.t
         self.elapsed_time_s = self.current_time_s - self.initial_time_s
-    
+
     ####################################################################
     #Compiling the point clouds
     ####################################################################
@@ -310,7 +352,7 @@ class temporalPcStacker:
             current_points:np.ndarray,
             ego_vel:np.ndarray,
     ):
-        
+
         """Moves the current point cloud into the initial reference frame
         and then appends the points to the current combined point cloud list
 
@@ -349,8 +391,8 @@ class temporalPcStacker:
 
         #TODO: add functionality to check for refreshing
 
-    
-    
+
+
     ####################################################################
     #Support functions for changing reference frames
     ####################################################################
@@ -367,7 +409,7 @@ class temporalPcStacker:
         Returns:
             np.ndarray: MxM point cloud grid with indicies based on the range bins
         """
-            
+
         #create a new point cloud grid
         grid = \
             np.zeros(
@@ -385,9 +427,9 @@ class temporalPcStacker:
         )
 
         grid[0,x_idx,y_idx] = 1
-        
+
         return grid
-    
+
     def _get_points_from_pc_grid(
             self,
             pc_grid:np.ndarray
@@ -407,14 +449,14 @@ class temporalPcStacker:
         x_idxs,y_idxs = np.nonzero(pc_grid)
 
         if x_idxs.shape[0] > 0:
-        
+
             x_vals = self.range_bins[x_idxs]
             y_vals = self.range_bins[y_idxs]
 
             return np.column_stack((x_vals,y_vals))
         else:
             return np.empty(shape=(0,2))
-        
+
     def _change_pc_reference_frame(
         self,
         initial_heading_rad:float,
@@ -440,9 +482,9 @@ class temporalPcStacker:
         Returns:
             np.ndarray: Nx2 [x,y] point cloud in the new reference frame
         """
-        
+
         if current_points.shape[0] > 0:
-            
+
             #get rot/trans from initial sensor frame (at current position) to global
             R_init_to_global = rotation_functions.get_rot_matrix(initial_heading_rad)
 
@@ -455,7 +497,7 @@ class temporalPcStacker:
 
             #apply the rotation and translation
             return (current_points @ R) + trans
-        
+
         else:
             return np.empty(shape=(0,2))
 
@@ -474,7 +516,7 @@ class temporalPcStacker:
         """
 
         if current_points.shape[0] > 0:
-        
+
             #get rot/trans from sensor frame (at current position) to global
             R_cur_to_global = rotation_functions.get_rot_matrix(self.current_heading_rad)
 
@@ -489,7 +531,7 @@ class temporalPcStacker:
 
             #apply the rotation and translation
             aligned_points = (current_points @ R) + trans
-            
+
             x_idx = np.argmin(np.abs(
                 self.range_bins[:,None] - aligned_points[:,0]),
                 axis=0
@@ -501,9 +543,9 @@ class temporalPcStacker:
 
             grid[0,x_idx,y_idx] = 1
 
-        return 
+        return
 
-    
+
     ####################################################################
     # Functions used to access the point cloud from other classes
     # TODO: Fix these
@@ -521,7 +563,7 @@ class temporalPcStacker:
         x_idxs,y_idxs = np.nonzero(self.pc_grid_static)
 
         if x_idxs.shape[0] > 0:
-        
+
             x_vals = self.range_bins[x_idxs]
             y_vals = self.range_bins[y_idxs]
 
@@ -542,10 +584,10 @@ class temporalPcStacker:
 
             #apply the rotation and translation
             return (current_points @ R) + trans
-        
+
         else:
             return np.empty(shape=(0,2))
-    
+
 
     def get_points_from_initial_pose(self)->np.ndarray:
         """Obtain the currently stacked point cloud in the initial sensor frame 
@@ -558,14 +600,14 @@ class temporalPcStacker:
         x_idxs,y_idxs = np.nonzero(self.pc_grid_static)
 
         if x_idxs.shape[0] > 0:
-        
+
             x_vals = self.range_bins[x_idxs]
             y_vals = self.range_bins[y_idxs]
 
             return np.column_stack((x_vals,y_vals))
         else:
             return np.empty(shape=(0,2))
-    
+
     ####################################################################
     #Get final point cloud, check distance covered and rotation angle
     ####################################################################
@@ -578,7 +620,7 @@ class temporalPcStacker:
         """
 
         return np.linalg.norm(self.rel_pose_m)
-    
+
     def get_rel_heading_deg(self)->float:
         """Obtain the total rotation since the last reset
 
@@ -587,7 +629,7 @@ class temporalPcStacker:
         """
 
         return np.abs(np.rad2deg(self.rel_heading_rad))
-    
+
     def get_elapsed_time(self)->float:
         """Obtain the total time elapsed since the last reset
 

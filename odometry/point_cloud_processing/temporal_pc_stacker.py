@@ -189,7 +189,7 @@ class temporalPcStacker:
             initial_pose_m=self.initial_pose_m,
             current_heading_rad=self.current_heading_rad,
             current_pose_m=self.current_pose_m
-        )["static_pcs"]
+        )
 
         self.pc_grid_static[0] = np.zeros(
             shape=(
@@ -207,7 +207,7 @@ class temporalPcStacker:
                 initial_pose_m=self.initial_pose_m,
                 current_heading_rad=self.current_heading_rad,
                 current_pose_m=self.current_pose_m
-            )["dynamic_pcs"]
+            )
 
             self.pc_grid_dynamic[0] = np.zeros(
                 shape=(
@@ -222,50 +222,6 @@ class temporalPcStacker:
         self.initial_heading_rad = self.current_heading_rad
         self.initial_time_s = self.current_time_s
         pass
-
-    def recenter(
-        self,
-        initial_heading_rad: float,
-        initial_pose_m: np.ndarray,
-        current_heading_rad: float,
-        current_pose_m: np.ndarray,
-        static_pcs: np.ndarray,
-        dynamic_pcs: np.ndarray,
-    ):
-        """
-        Recenters the static and dynamic point clouds.
-
-        Args:
-            initial_heading_rad: A float representing the initial heading (in radians).
-            initial_pose_m: An ndarray of shape (2,) representing the initial pose (x, y) in meters.
-            current_heading_rad: A float representing the current heading (in radians).
-            current_pose_m: An ndarray of shape (2,) representing the current pose (x, y) in meters.
-            static_pcs (numpy.ndarray): The static point clouds.
-            dynamic_pcs (numpy.ndarray): The dynamic point clouds.
-
-        Returns:
-            dict: A dictionary containing the recentered static and dynamic point clouds.
-        """
-        #recenters the static and dynamic pc's
-        recentered_static_pcs = self.recenter_pc_grids(
-            static_pcs,
-            initial_heading_rad,
-            initial_pose_m,
-            current_heading_rad,
-            current_pose_m
-        )
-        recentered_dynamic_pcs = self.recenter_pc_grids(
-            dynamic_pcs,
-            initial_heading_rad,
-            initial_pose_m,
-            current_heading_rad,
-            current_pose_m
-        )
-
-        return {
-            "static_pcs": recentered_static_pcs,
-            "dynamic_pcs": recentered_dynamic_pcs,
-        }
 
     def recenter_pc_grids(
         self,

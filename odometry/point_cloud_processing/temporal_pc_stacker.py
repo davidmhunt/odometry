@@ -12,11 +12,13 @@ from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.point_cloud_processing.ground_detection_filtering import groundDetectionFiltering
 
 class temporalPcStacker:
-    """Point Cloud stacker object which can be used to "stack" point clouds
-    over time to obtained a "combined" point cloud for down-stream processing.
-    Note that this object stores a quantized version of the point cloud 
-    with a specified resolution and maximum distance
     """
+
+    Recenter the given point cloud grids based on the change in position and heading between two poses.
+
+    Args:
+        grids (np.ndarray): The point cloud grids to be recentered.
+        initial_heading_rad (float): The initial heading ("""
 
     def __init__(
             self,
@@ -171,39 +173,51 @@ class temporalPcStacker:
     def refresh(
         self
     ):
-        
+        """
+        Recenters the grid maps based on how far and in which direction the vehicle has traveled
+
+        Args:
+        - self: The instance of the class.
+
+        Returns: None
+        """
+
+        #refresh static pc's
+        self.pc_grid_static[1:] = self.recenter_pc_grids(
+            self.pc_grid_static[0:-1],
+            initial_heading_rad=self.initial_heading_rad,
+            initial_pose_m=self.initial_pose_m,
+            current_heading_rad=self.current_heading_rad,
+            current_pose_m=self.current_pose_m
+        )["static_pcs"]
+
+        self.pc_grid_static[0] = np.zeros(
+            shape=(
+                self.range_bins.shape[0],
+                self.range_bins.shape[0]
+                ),
+            dtype=np.int8
+        )
+
         #refresh dynamic pc's
         if self.vel_filtering_enabled:
-            #TODO: check to make sure that the dimmensions are correct
             self.pc_grid_dynamic[1:] = self.recenter_pc_grids(
                 self.pc_grid_dynamic[0:-1],
                 initial_heading_rad=self.initial_heading_rad,
                 initial_pose_m=self.initial_pose_m,
                 current_heading_rad=self.current_heading_rad,
                 current_pose_m=self.current_pose_m
-            )
+            )["dynamic_pcs"]
 
             self.pc_grid_dynamic[0] = np.zeros(
-                shape =( self.range_bins.shape[0],
-                         self.range_bins.shape[0]),
-                     dtype=np.int8)
-        
-        #TODO handle static points
+                shape=(
+                    self.range_bins.shape[0],
+                    self.range_bins.shape[0]
+                ),
+                dtype=np.int8
+            )
 
-
-        
-        recentered_grids = self.recenter(
-            self.initial_heading_rad,
-            self.initial_pose_m,
-            self.current_heading_rad,
-            self.current_pose_m,
-            self.pc_grid_static,
-            self.pc_grid_dynamic,
-        )
-
-        self.pc_grid_static = recentered_grids["static_pcs"]
-        self.pc_grid_dynamic = recentered_grids["dynamic_pcs"]
-
+        #reset initial variables for next refresh
         self.initial_pose_m = self.current_pose_m
         self.initial_heading_rad = self.current_heading_rad
         self.initial_time_s = self.current_time_s
@@ -218,19 +232,21 @@ class temporalPcStacker:
         static_pcs: np.ndarray,
         dynamic_pcs: np.ndarray,
     ):
-        """_summary_
+        """
+        Recenters the static and dynamic point clouds.
 
         Args:
-            initial_heading_rad (float): _description_
-            initial_pose_m (np.ndarray): _description_
-            current_heading_rad (float): _description_
-            current_pose_m (np.ndarray): _description_
-            static_pcs (np.ndarray): _description_
-            dynamic_pcs (np.ndarray): _description_
+            initial_heading_rad: A float representing the initial heading (in radians).
+            initial_pose_m: An ndarray of shape (2,) representing the initial pose (x, y) in meters.
+            current_heading_rad: A float representing the current heading (in radians).
+            current_pose_m: An ndarray of shape (2,) representing the current pose (x, y) in meters.
+            static_pcs (numpy.ndarray): The static point clouds.
+            dynamic_pcs (numpy.ndarray): The dynamic point clouds.
 
         Returns:
-            _type_: _description_
+            dict: A dictionary containing the recentered static and dynamic point clouds.
         """
+        #recenters the static and dynamic pc's
         recentered_static_pcs = self.recenter_pc_grids(
             static_pcs,
             initial_heading_rad,
@@ -238,7 +254,6 @@ class temporalPcStacker:
             current_heading_rad,
             current_pose_m
         )
-
         recentered_dynamic_pcs = self.recenter_pc_grids(
             dynamic_pcs,
             initial_heading_rad,
@@ -260,58 +275,66 @@ class temporalPcStacker:
         current_heading_rad: float,
         current_pose_m: np.ndarray,
     ) -> np.ndarray:
-        """_summary_
+        """
+        Iterates through multiple pc_grids and recenters them
 
         Args:
-            grids (np.ndarray): _description_
-            initial_heading_rad (float): _description_
-            initial_pose_m (np.ndarray): _description_
-            current_heading_rad (float): _description_
-            current_pose_m (np.ndarray): _description_
+            grids: An ndarray of shape (N, M, M) representing a collection of 2D grids.
+            initial_heading_rad: A float representing the initial heading (in radians).
+            initial_pose_m: An ndarray of shape (2,) representing the initial pose (x, y) in meters.
+            current_heading_rad: A float representing the current heading (in radians).
+            current_pose_m: An ndarray of shape (2,) representing the current pose (x, y) in meters.
 
         Returns:
-            np.ndarray: _description_
+            A recentered ndarray of shape (N, M, M).
         """
-        
+
+        #creates base array of grids
         recentered_grids = np.zeros(
-                shape =( grids.shape[0],
-                         self.range_bins.shape[0],
-                         self.range_bins.shape[0]),
-                     dtype=np.int8)
+                shape=(
+                    grids.shape[0],
+                    self.range_bins.shape[0],
+                    self.range_bins.shape[0]
+                ),
+                dtype=np.int8
+        )
 
-        
-        
+        #loops through all grids and recenters them, setting their respective array slot
         for i in range(grids.shape[0]):
-            #get points from the grid (initial reference frame)
-            grid_points = self._get_points_from_pc_grid(grids[i])
-
-            #change reference frame of the points to current frame
-            grid_points = self._change_pc_reference_frame(
+            recentered_grids[i] = self.recenter_pc_grid(
+                grids[i],
                 initial_heading_rad,
                 initial_pose_m,
                 current_heading_rad,
-                current_pose_m,
-                grid_points
-            )
-
-            #filter out points that are out of the grid now
-            valid_x_idxs = np.abs(self.range_bins[:,None] - grid_points[:,0]) <= self.resolution_m
-            grid_points = grid_points[valid_x_idxs,:]
-
-            valid_y_idxs = np.abs(self.range_bins[:,None] - grid_points[:,1]) <= self.resolution_m
-            grid_points = grid_points[valid_y_idxs,:]
-
-            #convert points back to grid
-            recentered_grids[i] = self._get_pc_grid_from_points(
-                grid_points
+                current_pose_m
             )
 
         return recentered_grids
-    
-    def recenter_pc_grid(self):
+
+    def recenter_pc_grid(
+        self,
+        grid: np.ndarray,
+        initial_heading_rad: float,
+        initial_pose_m: np.ndarray,
+        current_heading_rad: float,
+        current_pose_m: np.ndarray,
+    ):
+        """
+        Recenters a grid based upon vehicle movement and filers out any points that have left resolution
+
+        Args:
+            grid: An np.ndarray representing the initial grid.
+            initial_heading_rad: A float representing the initial heading (in radians).
+            initial_pose_m: An ndarray of shape (2,) representing the initial pose (x, y) in meters.
+            current_heading_rad: A float representing the current heading (in radians).
+            current_pose_m: An ndarray of shape (2,) representing the current pose (x, y) in meters.
+
+        Returns:
+            An np.ndarray representing the recentered grid.
+        """
 
         #get points from the grid (initial reference frame)
-        grid_points = self._get_points_from_pc_grid(grids[i])
+        grid_points = self._get_points_from_pc_grid(grid)
 
         #change reference frame of the points to current frame
         grid_points = self._change_pc_reference_frame(
@@ -330,10 +353,9 @@ class temporalPcStacker:
         grid_points = grid_points[valid_y_idxs,:]
 
         #convert points back to grid
-        recentered_grids[i] = self._get_pc_grid_from_points(
+        return self._get_pc_grid_from_points(
             grid_points
         )
-
 
     def reset_recenter(
             self,

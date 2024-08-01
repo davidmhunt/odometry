@@ -183,9 +183,9 @@ class temporalPcStacker:
             bool: if a refresh is needed
         """
 
-        if self.get_elapsed_time > self.refresh_time_s or \
-             self.get_rel_distance_m > self.refresh_distance_m or \
-            self.get_rel_heading_deg > self.refresh_rot_deg:
+        if self.get_elapsed_time() > self.refresh_time_s or \
+             self.get_rel_distance_m() > self.refresh_distance_m or \
+            self.get_rel_heading_deg() > self.refresh_rot_deg:
             return True
         else:
             return False
@@ -265,7 +265,7 @@ class temporalPcStacker:
             )
 
         #reset initial variables for next refresh
-        self.initial_pose_m = self.current_pose_m
+        self.initial_pose_m = self.current_pose_m.copy()
         self.initial_heading_rad = self.current_heading_rad
         self.initial_time_s = self.current_time_s
 
@@ -359,10 +359,14 @@ class temporalPcStacker:
             )
 
             #filter out points that are out of the grid now
-            valid_x_idxs = np.abs(self.range_bins[:,None] - grid_points[:,0]) <= self.resolution_m
+            valid_x_idxs = np.min(
+                np.abs(self.range_bins[:,None] - grid_points[:,0]),
+                 axis=0) <= self.resolution_m
             grid_points = grid_points[valid_x_idxs,:]
 
-            valid_y_idxs = np.abs(self.range_bins[:,None] - grid_points[:,1]) <= self.resolution_m
+            valid_y_idxs = np.min(
+                np.abs(self.range_bins[:,None] - grid_points[:,1]),
+                 axis=0) <= self.resolution_m
             grid_points = grid_points[valid_y_idxs,:]
 
             #convert points back to grid
@@ -523,9 +527,9 @@ class temporalPcStacker:
             current_points=static_points
         )
 
-        #TODO: add functionality to check for refreshing
         if self.check_for_refresh():
 
+            #TODO: differentiate between timing out and going for a specific distance
             self.refresh()
 
 
@@ -695,7 +699,7 @@ class temporalPcStacker:
             trans = (self.current_pose_m - self.initial_pose_m) @ R_global_to_init
 
             #apply the rotation and translation
-            aligned_points = (current_points @ R) + trans
+            aligned_points = (current_points[:,0:2] @ R) + trans
 
             x_idx = np.argmin(np.abs(
                 self.range_bins[:,None] - aligned_points[:,0]),

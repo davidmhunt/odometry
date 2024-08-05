@@ -240,7 +240,7 @@ class temporalPcStacker:
         
         #save the latest point cloud
         self.latest_pc = self._get_points_from_pc_grids(self.pc_grid_static)
-        self.latest_pc = self.multi_path.remove_multipath(self.latest_pc)
+        #self.latest_pc = self.multi_path.remove_multipath(self.latest_pc)
         self.new_pc_available = True
 
         #start a new frame

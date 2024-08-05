@@ -428,7 +428,6 @@ class temporalVelFilteringStackedTB:
             if self.point_cloud_stacker.new_pc_available:
 
                 pc = self.point_cloud_stacker.get_latest_pc()
-                print("pc refreshed at {}".format(i))
 
                 est_heading_rad,est_pose_m = self.localizer.update_odometry(
                     points=pc,

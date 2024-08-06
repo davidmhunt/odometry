@@ -393,7 +393,7 @@ class combinedPCVelFilteringStackedTB:
     
     def velreset(self):
         if self.vel_filtering_enabled:
-            self.dynamic_point_cloud_stacker.reset(
+            self.dynamic_point_cloud_stacker.reset_full(
                 initial_heading_rad=self.filter.x[2],
                 initial_pose_m=np.array([
                     self.filter.x[0],
@@ -402,7 +402,7 @@ class combinedPCVelFilteringStackedTB:
                 initial_time_s=self.filter_last_t
             )
      
-        self.point_cloud_stacker.reset(
+        self.point_cloud_stacker.reset_full(
             initial_heading_rad=self.filter.x[2],
             initial_pose_m=np.array([
                 self.filter.x[0],
@@ -449,7 +449,6 @@ class combinedPCVelFilteringStackedTB:
 
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
-
 
             #filter dynamic objects
             if self.vel_filtering_enabled:
@@ -646,8 +645,8 @@ class combinedPCVelFilteringStackedTB:
             axs[1,1].set_title("Last Raytraced Point Cloud",
                                fontsize=self.plotter_localization.font_size_title)
             
-        combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
-        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_point_from_initial_pose()
+        combined_pc = self.point_cloud_stacker.get_points_from_initial_pose()
+        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_points_from_initial_pose()
         if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
             self.plotter_localization.plot_dynamic_and_static_detections_on_map(

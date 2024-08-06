@@ -13,15 +13,17 @@ from odometry.estimators.estimators import (
     _ExtendedKalmanFilter,
     KalmanXYPhiSpeedGyroEncoder,
     Inertial)
-from odometry.point_cloud_processing.pc_stacker import pcStacker
+from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacker
 from odometry.point_cloud_processing.multipath import MultiPath
+from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
 
-class combinedPointCloudKalmanTB:
+class temporalVelFilteringStackedTB:
 
     def __init__(self,
                  localizer:icp2DLocalization,
                  gt_localizer:icp2DLocalization,
+                 pc_stacker:temporalPcStacker,
                  map_handler:MapHandler,
                  dataset:radnavDS) -> None:
         
@@ -55,12 +57,8 @@ class combinedPointCloudKalmanTB:
         self.history_heading_deg_gt = None
         self.history_localizers_reset()
 
-        #point cloud processing
-        self.point_cloud_stacker = pcStacker()
-        self.multipath = MultiPath(
-            clustering_eps = 1.0,
-            clustering_min_samples= 12
-        )
+        #point cloud stacker
+        self.point_cloud_stacker = pc_stacker
 
         #combined point cloud processing history
         self.history_pc_stacker_point_clouds:list = None
@@ -182,6 +180,10 @@ class combinedPointCloudKalmanTB:
         #reset filter time
         self.filter_last_t = \
             self.dataset.get_imu_full_data(idx=0)[0,0]
+        
+    def init_pc_stacker(self,start_time_s:float):
+
+        self.point_cloud_stacker.reset(start_time_s)
             
     ####################################################################
     #Histories (localizers)
@@ -314,7 +316,7 @@ class combinedPointCloudKalmanTB:
     ####################################################################
     #Filter Predictions and Updates
     ####################################################################
-    def filter_predict_from_frame_samples(self, idx = 0):
+    def filters_predict_from_frame_samples(self, idx = 0):
 
         imu_data = self.dataset.get_imu_full_data(idx)
         vel_data = self.dataset.get_vehicle_vel_data(idx)
@@ -340,11 +342,17 @@ class combinedPointCloudKalmanTB:
                 sencode=vel_data[i,1]
             )
 
-            #predict the filter forward
+            #predict the localization filter forward
             self.filter.predict(
                 dt=dt,
                 inertial=inertial,
                 check_P=False
+            )
+
+            #predict the pc stacker filter forward
+            self.point_cloud_stacker.predict(
+                dt=dt,
+                inertial=inertial
             )
 
             #save last time
@@ -376,7 +384,7 @@ class combinedPointCloudKalmanTB:
         #save the histories
         self.history_filters_update_state_history()
         self.history_filters_update_from_msmt()
-        
+    
 
     ####################################################################
     #Running localization for the dataset
@@ -389,16 +397,6 @@ class combinedPointCloudKalmanTB:
             movie_generator:MovieGenerator = None):
         if max_frame == -1:
             max_frame = self.dataset.num_frames
-
-        #TODO: improve to resent point cloud stacker
-        self.point_cloud_stacker.reset_full(
-            initial_heading_rad=self.filter.x[2],
-            initial_pose_m=np.array([
-                self.filter.x[0],
-                self.filter.x[1]
-            ]),
-            initial_time_s=self.filter_last_t
-        )
 
         for i in tqdm(range(max_frame)):
             if gt_enabled:
@@ -415,43 +413,22 @@ class combinedPointCloudKalmanTB:
                     idx = i
                 )
 
-            #perform localization with the EKF
-
             #predict the states forward
-            self.filter_predict_from_frame_samples(idx=i)
+            self.filters_predict_from_frame_samples(idx=i)
 
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
 
-            #filter out ground detections, etc
-            radar_points = self.localizer.remove_sensor_self_detections(radar_points[:,:2])
-
+            #update the pc stacker
             self.point_cloud_stacker.add_points(
                 current_points=radar_points,
-                heading_rad=self.filter.x[2],
-                pose_m= \
-                    np.array([
-                        self.filter.x[0],
-                        self.filter.x[1]
-                    ]),
-                current_time_s=self.filter_last_t
+                ego_vel=np.array([self.filter.x[3],0.0])
             )
 
-            #check to see if the vehicle has moved a sufficient amount for using
-            #a combined point cloud
-            if (self.point_cloud_stacker.get_rel_distance_m() > 0.5) or \
-                (self.point_cloud_stacker.get_rel_heading_deg() > 90) or \
-                (self.point_cloud_stacker.get_elapsed_time() > 10):
+            if self.point_cloud_stacker.new_pc_available:
 
-                #print(self.dataset.get_vehicle_vel_data(i)[0][1])
-                #print(val_dist_calc)
+                pc = self.point_cloud_stacker.get_latest_pc()
 
-                #get the stacked point cloud
-                pc = self.point_cloud_stacker.get_points()
-
-                #remove multipath detections
-                pc = self.multipath.remove_multipath(pc)
-            
                 est_heading_rad,est_pose_m = self.localizer.update_odometry(
                     points=pc,
                     estimated_heading_rad=self.filter.x[2],
@@ -474,24 +451,6 @@ class combinedPointCloudKalmanTB:
                         icp_position_m=est_pose_m,
                         icp_heading_rad=est_heading_rad
                     )
-                
-                # reset the point cloud stacker
-                self.point_cloud_stacker.reset_full(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.filter_last_t
-                )
-            elif self.point_cloud_stacker.get_elapsed_time() > 10:
-
-                #if the vehicle hasn't moved significantly over the last 5 seconds,
-                #go ahead and reset the point cloud stacker to prevent 
-                #accumulation of false points
-                # reset the point cloud stacker
-                self.point_cloud_stacker.reset_full(
-                    initial_heading_rad=self.filter.x[2],
-                    initial_pose_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                    initial_time_s=self.filter_last_t
-                )
 
             
             self.history_update_pose(
@@ -583,18 +542,21 @@ class combinedPointCloudKalmanTB:
             axs[1,1].set_title("Last Raytraced Point Cloud",
                                fontsize=self.plotter_localization.font_size_title)
             
-        combined_pc = self.point_cloud_stacker.get_points_from_initial_pose()
-        if combined_pc.shape[0] > 0:
+        combined_pc = self.point_cloud_stacker.get_current_stacked_pc_static()
+        dynamic_combined_pc = self.point_cloud_stacker.get_current_stacked_pc_dynamic()
+        if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
-            self.plotter_localization.plot_detections_on_map(
-                current_points=combined_pc,
-                heading_rad=self.point_cloud_stacker.initial_heading_rad,
-                pose_m=self.point_cloud_stacker.initial_pose_m,
+            self.plotter_localization.plot_dynamic_and_static_detections_on_map(
+                static_points=combined_pc,
+                dynamic_points=dynamic_combined_pc,
+                heading_rad=self.filter.x[2],
+                pose_m=self.filter.x[0:2],
                 ax=axs[1,2],
                 show=False
             ) 
-            axs[1,2].set_title("Current Stacked Point Cloud: {}".format(len(combined_pc)),
-                               fontsize=self.plotter_localization.font_size_title)
+            axs[1,2].set_title("Current Stacked Point Cloud", #{}".format(len(combined_pc))
+                               fontsize=self.plotter_localization.font_size_legend)
+        
         
         #reset the marker size
         self.plotter_localization.marker_size=10

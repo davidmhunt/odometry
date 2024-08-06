@@ -396,7 +396,7 @@ class combinedPCKalmanVelFiltering:
 
     def velreset(self):
             if self.vel_filtering_enabled:
-                self.point_cloud_stacker.reset(
+                self.point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([
                         self.filter.x[0],
@@ -405,7 +405,7 @@ class combinedPCKalmanVelFiltering:
                     initial_time_s=self.filter_last_t
                 )
 
-                self.dynamic_point_cloud_stacker.reset(
+                self.dynamic_point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([
                         self.filter.x[0],
@@ -414,7 +414,7 @@ class combinedPCKalmanVelFiltering:
                     initial_time_s=self.filter_last_t
                 )
             else:
-                self.point_cloud_stacker.reset(
+                self.point_cloud_stacker.reset_full(
                     initial_heading_rad=self.filter.x[2],
                     initial_pose_m=np.array([
                         self.filter.x[0],
@@ -645,8 +645,8 @@ class combinedPCKalmanVelFiltering:
             axs[1,1].set_title("Last Raytraced Point Cloud",
                                fontsize=self.plotter_localization.font_size_legend)
             
-        combined_pc = self.point_cloud_stacker.get_point_from_initial_pose()
-        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_point_from_initial_pose()
+        combined_pc = self.point_cloud_stacker.get_points_from_initial_pose()
+        dynamic_combined_pc = self.dynamic_point_cloud_stacker.get_points_from_initial_pose()
         if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
             self.plotter_localization.plot_dynamic_and_static_detections_on_map(

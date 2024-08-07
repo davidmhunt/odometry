@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from odometry.supportFns import rotation_functions
 
-from odometry.point_cloud_processing.ground_detection_filtering import groundDetectionFiltering
+from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
 
 class icp2D:
     """Class that performs icp point cloud matching and computes the optimal rotation
@@ -26,8 +26,8 @@ class icp2D:
         self.current_valid_points = np.empty(shape=(0,2))
         
         #icp and related parameters
-        self.ground_detection_filtering:groundDetectionFiltering = \
-            groundDetectionFiltering(self_detection_radius_m)
+        self.ground_detection_filtering:pcRangeFilter = \
+            pcRangeFilter(self_detection_radius_m)
         
         #icp paramters
         self.icp_matching_distance_threshold = icp_matching_distance_threshold
@@ -111,7 +111,7 @@ class icp2D:
             np.ndarray: current detection list without the points where
             the sensor detected itself
         """
-        return self.ground_detection_filtering.remove_sensor_self_detections(points)
+        return self.ground_detection_filtering.get_points_in_detection_range(points)
 
     
     def compute_optimal_rot_trans(self,points:np.ndarray,reference:np.ndarray):

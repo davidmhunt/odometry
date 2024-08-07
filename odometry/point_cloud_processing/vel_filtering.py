@@ -35,6 +35,9 @@ class VelFiltering:
         Returns:
             _type_: Nx1 array of predicted velocity measurement for each detection
         """
+        # NOTE: detected velocity is opposite of actual velocity of vehicle
+        environment_vel = -1 * ego_vel
+
         #get target positions
         P = detections[:,0:2]
 
@@ -42,7 +45,7 @@ class VelFiltering:
         H = np.divide(P,np.linalg.norm(P, axis=1).reshape(-1,1))
 
         #estimate the velocity that each detection would have been measured at
-        return H @ ego_vel
+        return H @ environment_vel
     
     def square_error_loss(self,v_true:np.ndarray, v_pred:np.ndarray)->np.ndarray:
         """Compute the square error loss between the predicted and actual velocity

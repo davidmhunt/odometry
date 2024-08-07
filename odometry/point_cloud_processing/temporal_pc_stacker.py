@@ -9,7 +9,7 @@ from odometry.point_cloud_processing.multipath import MultiPath
 
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
 
-from odometry.point_cloud_processing.ground_detection_filtering import groundDetectionFiltering
+from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
 
 class temporalPcStacker:
     """
@@ -27,8 +27,8 @@ class temporalPcStacker:
             refresh_distance_m:float = 3,
             refresh_rot_deg:float = 180,
             refresh_time_s:float = 10,
-            resolution_m:float = 5e-2,
-            max_distance_m:float = 20,
+            grid_resolution_m:float = 5e-2,
+            grid_max_distance_m:float = 20,
             multi_path_clustering_eps:float = 0.25,
             multi_path_clustering_min_samples:int = 10,
             vel_filtering_enabled:bool = True,
@@ -36,7 +36,8 @@ class temporalPcStacker:
             vel_filtering_min_static_rejection_radius:float = 2.0,
             vel_filtering_dynamic_cluster_eps:float = 1.0,
             vel_filtering_dynamic_cluster_min_samples = 7,
-            self_detection_radius_m = 0.25
+            min_detection_radius_m = 0.25,
+            max_detection_range_m = 5.0
             ) -> None:
         """_summary_
 
@@ -64,9 +65,11 @@ class temporalPcStacker:
             dynamic_cluster_min_samples=vel_filtering_dynamic_cluster_min_samples
         )
 
-        self.ground_detection_filtering:groundDetectionFiltering = groundDetectionFiltering(
-            self_detection_radius_m=self_detection_radius_m
+        self.ground_detection_filtering:pcRangeFilter = pcRangeFilter(
+            min_detection_radius_m=min_detection_radius_m,
+            max_detection_radius_m=max_detection_range_m
         )
+        
 
         #history parameters
         self.num_frames_static_history = num_frames_static_history
@@ -93,8 +96,8 @@ class temporalPcStacker:
         self.elapsed_time_s:float = 0.0
 
         #keeping track of the resolution of the stored point cloud
-        self.resolution_m:float = resolution_m
-        self.max_distance_m:float = max_distance_m
+        self.resolution_m:float = grid_resolution_m
+        self.max_distance_m:float = grid_max_distance_m
 
         #the quantized grid to store
         self.range_bins:np.ndarray = np.arange(
@@ -379,82 +382,6 @@ class temporalPcStacker:
                     self.range_bins.shape[0]),
                 dtype=np.int8)
 
-    # def reset_recenter(
-    #         self,
-    #         initial_heading_rad:float=0.0,
-    #         initial_pose_m =np.array([0.0,0.0]),
-    #         initial_time_s:float=0.0,
-    #         initial_pc:np.ndarray = np.empty(shape=(0,2))
-    #         ):
-    #     """Reset the point cloud stacker to be centered around a new location
-
-    #     Args:
-    #         initial_heading_rad (float, optional): Initial heading for the
-    #              stacked point clouds. Defaults to 0.0.
-    #         initial_pose_m (np.ndarray, optional): Initial position in (x,y)
-    #             of the stacked point clouds. Defaults to np.array([0.0,0.0]).
-    #         initial_time_s (float, optional): If available, the start time
-    #             of the first frame in the stacked point cloud. Defaults to 
-    #             0.0 seconds
-    #         initial_pc (np.ndarray,optional): The initial point cloud (in the global frame) #TODO: check which frame to actually put these in
-    #             to use if avaialble. If none provided, will translate 
-    #             previous stacked point cloud into the new reference frame. Defaults to
-    #             np.empty(shape=(0,2))
-    #     """
-
-    #     if (initial_pc.shape[0] == 0):
-    #         #get the previous stacked points in new sensor frame
-    #         self.current_heading_rad = initial_heading_rad
-    #         self.current_pose_m = initial_pose_m
-
-    #         #get the points in the new reference frame
-    #         initial_pc = self.get_points()
-
-
-
-    #     #reset the grid
-    #     self.pc_grid_static = \
-    #         np.zeros((self.range_bins.shape[0],self.range_bins.shape[0]),
-    #                 dtype=np.int8)
-
-
-    #     #filter out points that are out of the grid now
-    #     valid_x_idxs = np.abs(self.range_bins[:,None] - initial_pc[:,0]) <= self.resolution_m
-    #     initial_pc = initial_pc[valid_x_idxs,:]
-
-    #     valid_y_idxs = np.abs(self.range_bins[:,None] - initial_pc[:,1]) <= self.resolution_m
-    #     initial_pc = initial_pc[valid_y_idxs,:]
-
-    #     #add the points into the grid
-    #     x_idx = np.argmin(np.abs(
-    #         self.range_bins[:,None] - initial_pc[:,0]),
-    #         axis=0
-    #     )
-    #     y_idx = np.argmin(np.abs(
-    #         self.range_bins[:,None] - initial_pc[:,1]),
-    #         axis=0
-    #     )
-
-    #     #add points to the grid
-    #     self.pc_grid_static[x_idx,y_idx] = 1
-
-    #     #reset the heading tracking
-    #     self.initial_heading_rad = initial_heading_rad
-    #     self.current_heading_rad = initial_heading_rad
-    #     self.rel_heading_rad = 0.0
-
-    #     #reset the position tracking
-    #     self.initial_pose_m = initial_pose_m
-    #     self.current_pose_m = initial_pose_m
-    #     self.rel_pose_m = np.array([0.0,0.0])
-
-    #     #reset time tracking
-    #     self.initial_time_s = initial_time_s
-    #     self.current_time_s = initial_time_s
-    #     self.elapsed_time_s = 0.0
-
-    #     return
-
     ####################################################################
     # Predicting inertial integration forward
     ####################################################################
@@ -502,7 +429,7 @@ class temporalPcStacker:
         """
 
         #filter out the ground detections
-        current_points = self.ground_detection_filtering.remove_sensor_self_detections(
+        current_points = self.ground_detection_filtering.get_points_in_detection_range(
             points=current_points
         )
 
@@ -758,62 +685,6 @@ class temporalPcStacker:
 
         return pc
     
-    # def get_points(self)->np.ndarray:
-    #     """Obtain the currently stacked point cloud in the current sensor frame
-    #     (translates points from the initial position to the current position)
-
-    #     Returns:
-    #         np.ndarray: Nx2 array of points in the current sensor frame
-    #     """
-
-    #     #convert the grid to a point cloud
-    #     x_idxs,y_idxs = np.nonzero(self.pc_grid_static)
-
-    #     if x_idxs.shape[0] > 0:
-
-    #         x_vals = self.range_bins[x_idxs]
-    #         y_vals = self.range_bins[y_idxs]
-
-    #         #return the point cloud in the reference frame of the current
-    #         #location of the vehicle (from the current position, not the 
-    #         #initial position)
-
-    #         current_points = np.column_stack((x_vals,y_vals))
-    #         #get rot/trans from initial sensor frame (at current position) to global
-    #         R_init_to_global = rotation_functions.get_rot_matrix(self.initial_heading_rad)
-
-    #         #(R from global -> current sensor frame is inverse of sens -> global)
-    #         R_global_to_curr = rotation_functions.get_rot_matrix(self.current_heading_rad)
-
-    #         #compute transformation from current -> initial (in sensor frame)
-    #         R = R_init_to_global.T @ R_global_to_curr
-    #         trans = (self.initial_pose_m - self.current_pose_m) @ R_global_to_curr
-
-    #         #apply the rotation and translation
-    #         return (current_points @ R) + trans
-
-    #     else:
-    #         return np.empty(shape=(0,2))
-
-
-    # def get_points_from_initial_pose(self)->np.ndarray:
-    #     """Obtain the currently stacked point cloud in the initial sensor frame 
-
-    #     Returns:
-    #         np.ndarray: Nx2 array of points in the initial sensor frame
-    #     """
-
-    #     #convert the grid to a point cloud
-    #     x_idxs,y_idxs = np.nonzero(self.pc_grid_static)
-
-    #     if x_idxs.shape[0] > 0:
-
-    #         x_vals = self.range_bins[x_idxs]
-    #         y_vals = self.range_bins[y_idxs]
-
-    #         return np.column_stack((x_vals,y_vals))
-    #     else:
-    #         return np.empty(shape=(0,2))
 
     ####################################################################
     #Get final point cloud, check distance covered and rotation angle

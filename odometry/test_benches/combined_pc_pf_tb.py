@@ -14,7 +14,7 @@ from odometry.analyzers.analyzer import Analyzer
 from odometry.point_cloud_processing.pc_stacker import pcStacker
 from odometry.point_cloud_processing.multipath import MultiPath
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
-from odometry.point_cloud_processing.ground_detection_filtering import groundDetectionFiltering
+from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
 from odometry.plotting.movies import MovieGenerator
 
 class combinedPCPFTb:
@@ -72,7 +72,7 @@ class combinedPCPFTb:
             dynamic_cluster_eps=dynamic_cluster_eps,
             dynamic_cluster_min_samples=dynamic_cluster_min_samples
         )
-        self.ground_detection_filtering = groundDetectionFiltering(
+        self.ground_detection_filtering = pcRangeFilter(
             self_detection_radius_m
         )
 
@@ -469,7 +469,7 @@ class combinedPCPFTb:
 
             #filter out ground detections, etc
             radar_points = \
-                self.ground_detection_filtering.remove_sensor_self_detections(
+                self.ground_detection_filtering.get_points_in_detection_range(
                     radar_points[:,:2])
 
             self.point_cloud_stacker.add_points(

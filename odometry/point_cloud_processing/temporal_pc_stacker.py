@@ -31,6 +31,7 @@ class temporalPcStacker:
             grid_max_distance_m:float = 20,
             multi_path_clustering_eps:float = 0.25,
             multi_path_clustering_min_samples:int = 10,
+            multi_path_num_frames_history:int = 0,
             vel_filtering_enabled:bool = True,
             vel_filtering_v_thresh:float = 1.0,
             vel_filtering_min_static_rejection_radius:float = 2.0,
@@ -56,6 +57,7 @@ class temporalPcStacker:
             clustering_eps=multi_path_clustering_eps,
             clustering_min_samples=multi_path_clustering_min_samples
         )
+        self.multi_path_num_frames_history = multi_path_num_frames_history
 
         self.vel_filtering_enabled:bool = vel_filtering_enabled
         self.vel_filtering:VelFiltering = VelFiltering(
@@ -235,15 +237,27 @@ class temporalPcStacker:
                 dynamic_points
             )
 
-        #remove multipath
-        current_points = self.multi_path.remove_multipath(current_points)
-
-        # replace current grid with processed grid
+        #update the current static point grid with the vel detections removed
         self.pc_grid_static[0] = self._get_pc_grid_from_points(current_points)
+
+
+        #remove multipath (incorporate previous data to aid in multipath rejection)
+        current_points = self._get_points_from_pc_grids(
+            self.pc_grid_static[
+                0:self.multi_path_num_frames_history+1
+            ]
+        )
+        current_points = self.multi_path.remove_multipath(current_points)
+        grid = self._get_pc_grid_from_points(current_points)
+
+        #update the current grid with multipath removed
+        self.pc_grid_static[0] = np.logical_and(
+            grid, self.pc_grid_static[0]
+        )
         
         #save the latest point cloud
         self.latest_pc = self._get_points_from_pc_grids(self.pc_grid_static)
-        #self.latest_pc = self.multi_path.remove_multipath(self.latest_pc)
+        # self.latest_pc = self.multi_path.remove_multipath(self.latest_pc)
         self.new_pc_available = True
 
         #start a new frame

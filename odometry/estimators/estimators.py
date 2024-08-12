@@ -42,8 +42,8 @@ class _ExtendedKalmanFilter:
     def __init__(self, t0, x0, P0, chi2_pct=0.95, do_chi2=True):
         self.t0 = t0
         self.t = t0
-        self.x = x0
-        self.P = P0
+        self.x:np.ndarray = x0
+        self.P:np.ndarray = P0
         self._x_p = x0  # for debugging
         self._P_p = P0  # for debugging
         self.do_chi2 = do_chi2

@@ -161,12 +161,12 @@ class temporalVelFilteringStackedTB:
             est_start_position_m[1],
             est_start_heading_rad,
             0,
-            0,
+            -0.0025,
             0
         ])
 
-        #declare initial state covariance matrix
-        P0 = np.diag([5,5,0.1,1,1e-2,1e-2])
+        #declare initial state covariance matrix originally [5,5,0.1,1,1e-2,1e-2])
+        P0 = np.diag([5,5,0.1,1,1e-7,1e-2])
 
         self.filter = KalmanXYPhiSpeedGyroEncoder(
             t0=start_time_s,
@@ -177,8 +177,8 @@ class temporalVelFilteringStackedTB:
         )
 
         #define the observation noise
-        # self.filter_R = np.diag([0.02,0.02,0.005]) ** 2 #original values
-        self.filter_R = np.diag([0.1,0.1,0.05]) ** 2
+        # self.filter_R = np.diag([0.1,0.1,0.05]) ** 2 #original values
+        self.filter_R = np.diag([0.5,1.0,1.0]) ** 2
         self.filter_msmt_component = ["x","y","phi"]
 
         #reset filter histories

@@ -259,7 +259,7 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
 
             # propagate omega and velocity with IMU/encoder
             x_old = x.copy()
-            x[2] = x[2] + (omega - x[4]) * dt
+            x[2] = x[2] + (omega - x[4]) * dt #x[4]
             x[3] = sencode - x[5] * dt
 
             # propagate position
@@ -303,11 +303,11 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
     def get_Q_matrix(
         x: np.ndarray,
         dt: float,
-        sigma_x=0.001, #originally .001
-        sigma_h=0.005, #originally 0.005
+        sigma_x=0.0001, #originally .001
+        sigma_h=0.0005, #originally 0.005
         sigma_s=0.01, #originally 0.01
-        sigma_g=1e-5,
-        sigma_e=1e-5,
+        sigma_g=1e-10, #was 1e-5
+        sigma_e=1e-5, #was 1e-5
         **kwargs,
     ):
         """Process noise matrix
@@ -424,7 +424,7 @@ class InertialIntegrator:
 
         # propagate omega and velocity with IMU/encoder
         x_old = self.x.copy()
-        self.x[2] = self.x[2] + (omega * dt)
+        self.x[2] = self.x[2] + (omega - -.0025) * dt #x[4]
         self.x[3] = vel
 
         # propagate position
@@ -446,7 +446,7 @@ class InertialIntegratorGyroEncoder(InertialIntegrator):
         super().__init__()
     
     def reset(self, 
-              t0: np.float = 0,
+              t0: float = 0.0, #added change here no such thing as np.float
               x0: np.ndarray = np.zeros(shape=6, dtype=float),
               *args, **kwargs):
         """Reset the inertial integrator
@@ -476,7 +476,7 @@ class InertialIntegratorGyroEncoder(InertialIntegrator):
 
         # propagate omega and velocity with IMU/encoder
         x_old = self.x.copy()
-        self.x[2] = self.x[2] + (omega -self.x[4]) * dt
+        self.x[2] = self.x[2] + (omega - self.x[4]) * dt #self.x[4]
         self.x[3] = vel - self.x[5] * dt
 
         # propagate position

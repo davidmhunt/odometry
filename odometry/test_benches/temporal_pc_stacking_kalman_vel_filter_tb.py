@@ -153,7 +153,8 @@ class temporalVelFilteringStackedTB:
     def init_filter(self,
                     est_start_heading_rad:float,
                     est_start_position_m:np.ndarray,
-                    start_time_s:float):
+                    start_time_s:float,
+                    gyro_bias:float = 0.0):
         
         #declare initial state [x,y,phi,speed,gyro bias, encoder bias]
         x0 = np.array([
@@ -161,7 +162,7 @@ class temporalVelFilteringStackedTB:
             est_start_position_m[1],
             est_start_heading_rad,
             0,
-            -0.0025,
+            gyro_bias,
             0
         ])
 

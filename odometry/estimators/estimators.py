@@ -303,10 +303,10 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
     def get_Q_matrix(
         x: np.ndarray,
         dt: float,
-        sigma_x=0.0001, #originally .001
-        sigma_h=0.0005, #originally 0.005
-        sigma_s=0.01, #originally 0.01
-        sigma_g=1e-10, #was 1e-5
+        sigma_x=0.03, #originally .001
+        sigma_h=0.02, #originally 0.005
+        sigma_s=0.1, #originally 0.01
+        sigma_g=1e-5, #was 1e-5
         sigma_e=1e-5, #was 1e-5
         **kwargs,
     ):
@@ -320,13 +320,13 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
         assert dt >= 0
         # TODO: tune the process noise parameters
         # row 0
-        q00 = dt * sigma_x
+        q00 = dt * sigma_x**2
         q02 = 0
         q03 = 0
         q04 = 0
         q05 = 0
         # row 1
-        q11 = dt * sigma_x
+        q11 = dt * sigma_x**2
         q12 = 0
         q13 = 0
         q14 = 0
@@ -334,7 +334,7 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
         # row 2
         q20 = 0
         q21 = 0
-        q22 = dt * sigma_h
+        q22 = dt * sigma_h**2
         q23 = 0
         q24 = 0
         q25 = 0
@@ -342,7 +342,7 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
         q30 = 0
         q31 = 0
         q32 = 0
-        q33 = dt * sigma_s
+        q33 = dt * sigma_s**2
         q34 = 0
         q35 = 0
         # row 4
@@ -350,7 +350,7 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
         q41 = 0
         q42 = 0
         q43 = 0
-        q44 = dt * sigma_g
+        q44 = dt * sigma_g**2
         q45 = 0
         # row 5
         q50 = 0
@@ -358,7 +358,7 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
         q52 = 0
         q53 = 0
         q54 = 0
-        q55 = dt * sigma_e
+        q55 = dt * sigma_e**2
         # fmt: off
         Q = np.array(
             [
@@ -379,10 +379,13 @@ class KalmanXYPhiSpeedGyroEncoder(_KalmanXYPhiSpeed):
 
 class InertialIntegrator:
 
-    def __init__(self) -> None:
+    def __init__(self,gyro_bias=0.0) -> None:
         
         #time tracking
         self.t:float = 0.0
+
+        #gyro bias
+        self.gyro_bias = gyro_bias
 
         #state tracking
         self.x:np.ndarray = None
@@ -391,6 +394,7 @@ class InertialIntegrator:
     def reset(self,
               t0:float=0.0,
               x0:np.ndarray=np.zeros(shape=4,dtype=float),
+              
               *args,**kwargs):
         """Reset the inertial integrator
 
@@ -424,7 +428,7 @@ class InertialIntegrator:
 
         # propagate omega and velocity with IMU/encoder
         x_old = self.x.copy()
-        self.x[2] = self.x[2] + (omega - -.0025) * dt #x[4]
+        self.x[2] = self.x[2] + (omega - self.gyro_bias) * dt #x[4]
         self.x[3] = vel
 
         # propagate position
@@ -437,59 +441,3 @@ class InertialIntegrator:
         self.t += dt
         
         return
-    
-
-class InertialIntegratorGyroEncoder(InertialIntegrator):
-
-    def __init__(self) -> None:
-
-        super().__init__()
-    
-    def reset(self, 
-              t0: float = 0.0, #added change here no such thing as np.float
-              x0: np.ndarray = np.zeros(shape=6, dtype=float),
-              *args, **kwargs):
-        """Reset the inertial integrator
-
-        Args:
-            t0 (float): start time in seconds
-            x0 (np.ndarray): Initial state space
-                minimum of [x,y,phi,vel, gyro_bias, encoder_bias].
-        """
-
-        return super().reset(t0, x0, *args, **kwargs)
-    
-    def predict(self, dt:float, inertial: Inertial):
-        """Predict the inertial integrator forward
-
-        Args:
-            dt (float): time since last measurement
-            inertial (Inertial): Inertial object with at least angular (rad/sec)
-            and linear velocity (m/s) measurements
-        """
-    
-        assert dt >= 0
-        
-        #get the angular and linear velocity from the inertial
-        omega = inertial.gyro
-        vel = inertial.sencode
-
-        # propagate omega and velocity with IMU/encoder
-        x_old = self.x.copy()
-        self.x[2] = self.x[2] + (omega - self.x[4]) * dt #self.x[4]
-        self.x[3] = vel - self.x[5] * dt
-
-        # propagate position
-        v_avg = (x_old[3] + self.x[3]) / 2
-        phi_avg = (x_old[2] + self.x[2]) / 2
-        self.x[0] = self.x[0] + dt * v_avg * np.cos(phi_avg)
-        self.x[1] = self.x[1] + dt * v_avg * np.sin(phi_avg)
-
-        #update the time
-        self.t += dt
-        
-        return
-    
-    def zero_vel_update(self):
-
-        raise NotImplementedError

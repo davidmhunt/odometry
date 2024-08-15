@@ -659,7 +659,6 @@ class temporalPcStacker:
 
     ####################################################################
     # Functions used to access the point cloud from other classes
-    # TODO: Fix these
     ####################################################################
 
     def get_latest_pc(self) ->np.ndarray:

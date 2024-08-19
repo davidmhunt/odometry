@@ -178,8 +178,8 @@ class temporalVelFilteringStackedTB:
         )
 
         #define the observation noise
-        # self.filter_R = np.diag([0.1,0.1,0.05]) ** 2 #original values
-        self.filter_R = np.diag([0.5,1.0,1.0]) ** 2
+        # self.filter_R = np.diag([1.0,1.0,1.0]) ** 2 #original values
+        self.filter_R = np.diag([0.5,0.5,0.25]) ** 2
         self.filter_msmt_component = ["x","y","phi"]
 
         #reset filter histories

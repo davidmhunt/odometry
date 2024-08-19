@@ -401,7 +401,7 @@ class InertialIntegrator:
         Args:
             t0 (float): start time in seconds
             x0 (np.ndarray): Initial state space
-                minimum of [x,y,phi,vel, gyro_bias, encoder_bias].
+                minimum of [x,y,phi,vel].
         """
 
         self.t = t0

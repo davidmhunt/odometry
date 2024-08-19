@@ -454,7 +454,8 @@ class OdometryMM(MotionModel):
             a1=0.01,
             a2=0.01,
             a3=0.01,
-            a4=0.01) -> None:
+            a4=0.01,
+            gyro_bias=0.0) -> None:
         """initialize odometry motion model
         NOTE: states defined as [x,y,z,phi,vel]
 
@@ -481,6 +482,8 @@ class OdometryMM(MotionModel):
         self.a2 = a2
         self.a3 = a3
         self.a4 = a4
+
+        self.gyro_bias = 0.0
 
         self.reset()
         
@@ -529,7 +532,7 @@ class OdometryMM(MotionModel):
 
         # propagate omega and velocity with IMU/encoder
         x_old = self.x.copy()
-        self.x[2] = self.x[2] + (omega * dt)
+        self.x[2] = self.x[2] + (omega - self.gyro_bias) * dt
         self.x[3] = vel
 
         # propagate position
@@ -537,6 +540,8 @@ class OdometryMM(MotionModel):
         phi_avg = (x_old[2] + self.x[2]) / 2
         self.x[0] = self.x[0] + dt * v_avg * np.cos(phi_avg)
         self.x[1] = self.x[1] + dt * v_avg * np.sin(phi_avg)
+
+        self.t += dt
         
         return
     

@@ -517,14 +517,6 @@ class particleFilter:
             self.weights,self.weights.shape[0])
         
         self.particles = self.particles[resampled_idxs,:]
-
-        # self.particles = self.rng.choice(
-        #     a=self.particles,
-        #     replace=True,
-        #     axis=0,
-        #     size=self.max_particles,
-        #     p=np.float64(self.weights[:,0])
-        # )
     
     ####################################################################
     # odometry updating

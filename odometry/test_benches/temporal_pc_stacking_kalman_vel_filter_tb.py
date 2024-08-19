@@ -31,6 +31,13 @@ class temporalVelFilteringStackedTB:
         self.localizer:icp2DLocalization = localizer
         self.gt_localizer:icp2DLocalization = gt_localizer
 
+        #vehicle_movement_flag
+        self.vehicle_moving = False
+
+        #last pose and heading
+        self.latest_pose_m:np.ndarray = None
+        self.latest_heading_rad:float = None
+
         #filter parameters
         self.filter:KalmanXYPhiSpeedGyroEncoder = None
         self.filter_R:np.ndarray = None
@@ -146,7 +153,8 @@ class temporalVelFilteringStackedTB:
     def init_filter(self,
                     est_start_heading_rad:float,
                     est_start_position_m:np.ndarray,
-                    start_time_s:float):
+                    start_time_s:float,
+                    gyro_bias:float = 0.0):
         
         #declare initial state [x,y,phi,speed,gyro bias, encoder bias]
         x0 = np.array([
@@ -154,12 +162,12 @@ class temporalVelFilteringStackedTB:
             est_start_position_m[1],
             est_start_heading_rad,
             0,
-            0,
+            gyro_bias,
             0
         ])
 
-        #declare initial state covariance matrix
-        P0 = np.diag([5,5,0.1,1,1e-2,1e-2])
+        #declare initial state covariance matrix originally [5,5,0.1,1,1e-2,1e-2])
+        P0 = np.diag([5,5,0.1,1,1e-7,1e-2])
 
         self.filter = KalmanXYPhiSpeedGyroEncoder(
             t0=start_time_s,
@@ -170,8 +178,8 @@ class temporalVelFilteringStackedTB:
         )
 
         #define the observation noise
-        # self.filter_R = np.diag([0.02,0.02,0.005]) ** 2 #original values
-        self.filter_R = np.diag([0.1,0.1,0.05]) ** 2
+        # self.filter_R = np.diag([1.0,1.0,1.0]) ** 2 #original values
+        self.filter_R = np.diag([0.5,0.5,0.25]) ** 2
         self.filter_msmt_component = ["x","y","phi"]
 
         #reset filter histories
@@ -180,6 +188,10 @@ class temporalVelFilteringStackedTB:
         #reset filter time
         self.filter_last_t = \
             self.dataset.get_imu_full_data(idx=0)[0,0]
+
+        #reset the last heading and pose
+        self.latest_pose_m = est_start_position_m
+        self.latest_heading_rad = est_start_heading_rad
         
     def init_pc_stacker(self,start_time_s:float):
 
@@ -316,6 +328,14 @@ class temporalVelFilteringStackedTB:
     ####################################################################
     #Filter Predictions and Updates
     ####################################################################
+    def vehicle_vel_check_for_movement(self,vel_data:np.ndarray):
+
+        if vel_data[1] == 0.0 and vel_data[2] == 0.0:
+
+            self.vehicle_moving = False
+        else:
+            self.vehicle_moving = True
+    
     def filters_predict_from_frame_samples(self, idx = 0):
 
         imu_data = self.dataset.get_imu_full_data(idx)
@@ -360,6 +380,9 @@ class temporalVelFilteringStackedTB:
 
             #update histories
             self.history_filters_update_state_history()
+
+            #update vehicle moving flag
+            self.vehicle_vel_check_for_movement(vel_data[i])
 
         return
     
@@ -419,39 +442,52 @@ class temporalVelFilteringStackedTB:
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
 
+            #TODO: implement behavior for vehicle not moving with point cloud stacker
+
             #update the pc stacker
             self.point_cloud_stacker.add_points(
                 current_points=radar_points,
                 ego_vel=np.array([self.filter.x[3],0.0])
             )
 
-            if self.point_cloud_stacker.new_pc_available:
+            if self.vehicle_moving:
+                if self.point_cloud_stacker.new_pc_available:
 
-                pc = self.point_cloud_stacker.get_latest_pc()
+                    pc = self.point_cloud_stacker.get_latest_pc()
 
-                est_heading_rad,est_pose_m = self.localizer.update_odometry(
-                    points=pc,
-                    estimated_heading_rad=self.filter.x[2],
-                    estimated_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
+                    est_heading_rad,est_pose_m = self.localizer.update_odometry(
+                        points=pc,
+                        estimated_heading_rad=self.filter.x[2],
+                        estimated_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
+                    )
+
+                    if ((est_heading_rad is not None) and
+                        (est_pose_m is not None)):
+
+                        # #perform a measurement
+                        self.filter_perform_update(
+                            estimated_position_m=est_pose_m,
+                            estimated_heading_rad=est_heading_rad,
+                            t = self.filter_last_t
+                        )
+
+                        #save the measurement and point cloud
+                        self.history_pc_stacker_update(
+                            valid_stacked_point_cloud=pc,
+                            icp_position_m=est_pose_m,
+                            icp_heading_rad=est_heading_rad
+                        )
+                
+                self.latest_pose_m = self.filter.x[0:2]
+                self.latest_heading_rad = self.filter.x[2]
+            
+            else:
+
+                self.filter_perform_update(
+                    estimated_position_m=self.latest_pose_m,
+                    estimated_heading_rad=self.latest_heading_rad,
+                    t = self.filter_last_t
                 )
-
-                if ((est_heading_rad is not None) and
-                    (est_pose_m is not None)):
-
-                    # #perform a measurement
-                    self.filter_perform_update(
-                        estimated_position_m=est_pose_m,
-                        estimated_heading_rad=est_heading_rad,
-                        t = self.filter_last_t
-                    )
-
-                    #save the measurement and point cloud
-                    self.history_pc_stacker_update(
-                        valid_stacked_point_cloud=pc,
-                        icp_position_m=est_pose_m,
-                        icp_heading_rad=est_heading_rad
-                    )
-
             
             self.history_update_pose(
                 position_m=np.array([self.filter.x[0],self.filter.x[1]]),

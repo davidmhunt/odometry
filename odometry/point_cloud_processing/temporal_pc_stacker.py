@@ -38,7 +38,8 @@ class temporalPcStacker:
             vel_filtering_dynamic_cluster_eps:float = 1.0,
             vel_filtering_dynamic_cluster_min_samples = 7,
             min_detection_radius_m = 0.25,
-            max_detection_range_m = 5.0
+            max_detection_range_m = 5.0,
+            gyro_bias=0.0
             ) -> None:
         """_summary_
 
@@ -50,7 +51,7 @@ class temporalPcStacker:
         """
 
         #initialize and add in support modules
-        self.integrator:InertialIntegrator = InertialIntegrator()
+        self.integrator:InertialIntegrator = InertialIntegrator(gyro_bias=gyro_bias)
         self.integrator.reset()
 
         self.multi_path:MultiPath = MultiPath(
@@ -658,7 +659,6 @@ class temporalPcStacker:
 
     ####################################################################
     # Functions used to access the point cloud from other classes
-    # TODO: Fix these
     ####################################################################
 
     def get_latest_pc(self) ->np.ndarray:

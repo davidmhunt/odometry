@@ -1,0 +1,127 @@
+import sys
+import os
+
+
+sys.path.append("D:/Odometry-dynamic")
+
+
+# print(sys.path)
+import numpy as np
+import matplotlib.pyplot as plt
+
+#load the necessary odometry modules
+from odometry.datasets.map_handler import MapHandler
+from odometry.datasets.radnav_ds import radnavDS
+from odometry.test_benches.temporal_pc_stacking_kalman_vel_filter_tb import temporalVelFilteringStackedTB
+from odometry.localization.icp2D_localization import icp2DLocalization
+from odometry.plotting.plotter_kalman import PlotterKalman
+from odometry.plotting.movies import MovieGenerator
+from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacker
+
+from dotenv import load_dotenv
+import os
+
+#loading enviroment variables
+load_dotenv()
+DATASET_PATH=os.getenv("DATASET_DIRECTORY")
+MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
+
+#setup the datasets
+dataset = radnavDS(
+    dataset_path=DATASET_PATH + "/WILK/WILK_vel_cfg_1",
+    radar_folder="radar_combined",
+    lidar_folder="lidar",
+    camera_folder="camera",
+    imu_orientation_folder="imu_data",
+    imu_full_folder="imu_data_full",
+    vehicle_vel_folder="vehicle_vel"
+)
+
+map_handler = MapHandler(
+    maps_folder=MAP_DIRECTORY,
+    map_file="wilkinson.yaml"
+)
+
+#initialize the localizers
+radar_odometry = icp2DLocalization(
+    icp_matching_distance_threshold=0.5,#originally 0.1
+    icp_best_points_percentile=80, #originally 65
+    icp_convergence_translation_threshold=1e-3,
+    icp_convergence_rotation_threshold=1e-4,
+    icp_point_pairs_threshold=7, #originally 5
+    icp_max_iterations=20,
+    self_detection_radius_m=0 #originally 1.5
+)
+
+lidar_odometry = icp2DLocalization(
+    icp_matching_distance_threshold=0.6, #originally 0.6
+    icp_best_points_percentile=50,
+    icp_convergence_translation_threshold=1e-3,
+    icp_convergence_rotation_threshold=1e-4,
+    icp_point_pairs_threshold=10,
+    icp_max_iterations=20,
+    self_detection_radius_m=0.25
+)
+
+
+#initialize the point cloud stacker
+pc_stacker = temporalPcStacker(
+    num_frames_static_history = 4,
+    num_frames_dynamic_history = 0,
+    refresh_distance_m = 3,
+    refresh_rot_deg = 90,
+    refresh_time_s = 10,
+    grid_resolution_m = 5e-2,
+    grid_max_distance_m = 20,
+    multi_path_clustering_eps = 0.5, #was 0.5
+    multi_path_clustering_min_samples = 15, #was 15
+    multi_path_num_frames_history=4,
+    vel_filtering_enabled = True,
+    vel_filtering_v_thresh = 0.05,
+    vel_filtering_min_static_rejection_radius = 0.25, #was 0.5
+    vel_filtering_dynamic_cluster_eps = 0.5, #was 1.0
+    vel_filtering_dynamic_cluster_min_samples = 15,
+    min_detection_radius_m=1.5,
+    max_detection_range_m=20
+)
+
+test_bench = temporalVelFilteringStackedTB(
+    localizer=radar_odometry,
+    gt_localizer=lidar_odometry,
+    map_handler=map_handler,
+    dataset=dataset,
+    pc_stacker=pc_stacker
+)
+
+start_heading = np.deg2rad(0)
+start_pose = np.array([0.03,0.11])
+
+#initialize the localization
+new_heading_rad,new_pose_m = test_bench.init_localization(
+    est_start_heading_rad=start_heading,
+    est_start_pose_m=start_pose,
+    show=False
+)
+
+#initialize the filter
+test_bench.init_filter(
+    est_start_heading_rad=start_heading,
+    est_start_position_m=start_pose,
+    start_time_s=test_bench.get_dataset_start_time(idx=0)
+)
+
+#initialize the point cloud stacker
+test_bench.init_pc_stacker(
+    start_time_s=test_bench.get_dataset_start_time(idx=0)
+)
+
+end_idx = dataset.num_frames
+save_name = file_name + "radar_combined"
+test_bench.run(
+    max_frame=end_idx,
+    gt_enabled=True,
+    movie_generator=None)#=movie_generator)
+
+
+save_path = "D:/temporal_pc_stacker_" + file_name + ".csv"
+test_bench.analyze_to_csv(save_path)

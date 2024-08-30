@@ -1,8 +1,7 @@
 import sys
 import os
 
-
-sys.path.append("D:/Odometry-dynamic")
+sys.path.append("../")
 
 
 # print(sys.path)
@@ -27,8 +26,9 @@ DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
 #setup the datasets
+file_name = "WILK_Multipath_Test_1"
 dataset = radnavDS(
-    dataset_path=DATASET_PATH + "/WILK/WILK_vel_cfg_1",
+    dataset_path=DATASET_PATH + file_name,
     radar_folder="radar_combined",
     lidar_folder="lidar",
     camera_folder="camera",
@@ -120,8 +120,8 @@ save_name = file_name + "radar_combined"
 test_bench.run(
     max_frame=end_idx,
     gt_enabled=True,
-    movie_generator=None)#=movie_generator)
+    movie_generator=None)
 
 
-save_path = "D:/temporal_pc_stacker_" + file_name + ".csv"
+save_path = file_name + ".csv"
 test_bench.analyze_to_csv(save_path)

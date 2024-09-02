@@ -23,6 +23,18 @@ pandas = "^2.1.4"
 opencv-python = "^4.9.0.80"
 poetry-dotenv-plugin = "^0.2.0"
 
+[tool.poetry.group.submodules.dependencies]
+cpsl_datasets = {path="./submodules/cpsl_datasets/", develop = true}
+mmwave_radar_processing = {path="./submodules/mmwave_radar_processing/", develop = true}
+radcloud = {path="./submodules/radcloud/", develop = true}
+radarhd = {path="./submodules/radarhd/", develop=true}
+
+[tool.poetry.group.torch.dependencies]
+torch = "^2.4.0"
+torchvision = "^0.19.0"
+torchaudio = "^2.4.0"
+torchsummary = "^1.5.1"
+
 [tool.poetry.group.dev.dependencies]
 ipywidgets = "^8.1.1"
 jupyter = "^1.0.0"

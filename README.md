@@ -45,7 +45,11 @@ conda create -n odometry python=3.10
 ```
 git clone https://github.com/davidmhunt/Odometry.git
 ```
-
+Initialize the submodules
+```
+cd odometry
+git submodule update --init
+```
 ### 3. Install CPSL_TI_Radar using Poetry
 
 #### Installing Poetry:
@@ -59,12 +63,11 @@ git clone https://github.com/davidmhunt/Odometry.git
 ```
 curl -sSL https://install.python-poetry.org | python3 -
 ```
-
-#### Installing Odometry
-Navigate to the Odometry foler (this folder) and execute the following command
+### Installing odometry (with torch)
+If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
 
 ```
-poetry install
+poetry install --with submodules,torch
 ```
 
 If you get an an error saying: "Failed to unlock the collection!", execute the following command in the terminal:
@@ -72,6 +75,40 @@ If you get an an error saying: "Failed to unlock the collection!", execute the f
 export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 ```
 
+### Installing odometry (with torch separately)
+If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
+
+```
+poetry install --with submodules
+```
+
+If you get an an error saying: "Failed to unlock the collection!", execute the following command in the terminal:
+```
+export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
+```
+
+Follow the following instructions to install the correct version of pytorch for your system.
+
+1. Navigate to the [pytorch installation page](https://pytorch.org/get-started/locally/). Select the requirements for your system. However, under the "package" select the "Pip" option. Once you have specified the options for your system, you'll get a command similar to this
+```
+pip3 install torch torchvision torchaudio torchsummary
+```
+2. Navigate to the odometry folder
+```
+cd odometry
+```
+3. Start a poetry shell
+```
+poetry shell
+```
+4. run the command given by the pytorch website
+```
+pip3 install torch torchvision torchaudio
+```
+5. If this runs normally, you should now be good to exit the poetry shell
+```
+exit
+```
 #### Updating Odometry
 If the pyproject.toml file is updated, the poetry installation must also be updated. Use the following commands to update the version of poetry
 ```

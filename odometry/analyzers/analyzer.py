@@ -176,3 +176,63 @@ class Analyzer:
         display(df)
 
         return
+    
+    
+    def record_error_statistics(
+            self,
+            history_position_m:np.ndarray,
+            history_position_m_gt:np.ndarray,
+            history_heading_deg:list,
+            history_heading_deg_gt:list,
+            save_path:str
+    ):
+        """Generate csv file of errors between estimates and gt
+
+        Args:
+            history_position_m (np.ndarray): Nx2 estimated position array
+            history_position_m_gt (np.ndarray): Nx2 gt position array
+            history_heading_deg (list): est heading for each frame in degrees
+            history_heading_deg_gt (list): gt heading for each frame in degrees
+            save_path (str): path to save the csv file
+        """
+        print("starting to calculate errors")
+        
+        #compute euclidian error
+        euclidian_errors = self.compute_euclidian_errors(
+            history_position_m,
+            history_position_m_gt
+        )
+        
+        print("finished calculating euclidian errors")
+        
+        #compute heading state errors
+        heading_errors_rad = self.compute_heading_state_estimate_errors(
+            history_heading_deg,
+            history_heading_deg_gt
+        )
+        
+        print("finished calculating heading errors")
+        
+        # compute position state errors
+        x_errors,y_errors = self.compute_position_state_estimate_errors(
+            history_position_m,
+            history_position_m_gt
+        )
+    
+        print("finished calculating position errors")
+
+        # create the table
+        dict = {
+            "Euclidian": euclidian_errors,
+            "x_errors": x_errors,
+            "y_errors": y_errors,
+            "Heading": heading_errors_rad,
+        }
+
+        print("finished creating dictionary")
+
+        df = pd.DataFrame(dict)
+        
+        df.to_csv(save_path, index=False)
+        
+        print("finished saving csv file")

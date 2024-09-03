@@ -10,3 +10,6 @@
 [submodule "submodules/radarhd"]
 	path = submodules/radarhd
 	url = https://github.com/davidmhunt/radarhd.git
+[submodule "submodules/mmwave_model_integrator"]
+	path = submodules/mmwave_model_integrator
+	url = https://github.com/davidmhunt/mmwave_model_integrator.git

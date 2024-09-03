@@ -126,5 +126,13 @@ In order to use any datasets in your computer's directory, you must first create
 DATASET_DIRECTORY=/example/your_directory
 MAP_DIRECTORY=/example/your_directory
 MOVIE_TEMP_DIRECTORY=/example/your_directory
+RADCLOUD_MODEL_STATE_DICT_PATH=/example/model.pth
+RADARHD_MODEL_STATE_DICT_PATH=/example/model.pth
 ```
 3. Replace the example text with the path to your directory
+
+## Loading the radarHD model
+
+```
+https://drive.google.com/file/d/1JorZEkDCIcQDSaMAabvkQX4scvwj0wzn/view?usp=sharing
+```

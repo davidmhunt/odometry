@@ -509,7 +509,10 @@ class temporalVelFilteringStackedTB:
     ####################################################################
     #Performing Analysis
     ####################################################################
-    def analyze(self):
+    def analyze(self,
+                save_folder_path:str="Results",
+                file_name:str="summary",
+                export_to_csv=False):
 
         self.analyzer.show_summary_statistics(
             self.history_position_m,
@@ -517,6 +520,16 @@ class temporalVelFilteringStackedTB:
             self.history_heading_deg,
             self.history_heading_deg_gt
         )
+
+        if export_to_csv:
+            self.analyzer.record_error_statistics(
+                self.history_position_m,
+                self.history_position_m_gt,
+                self.history_heading_deg,
+                self.history_heading_deg_gt,
+                save_folder=save_folder_path,
+                file_name=file_name
+            )
         
     ####################################################################
     #Import Analysis to a CSV File

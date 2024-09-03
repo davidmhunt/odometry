@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from IPython.display import display
+import os
 
 class Analyzer:
 
@@ -27,7 +28,7 @@ class Analyzer:
 
         return sorted_data[idx]
     
-    def compute_euclidian_errors(self,
+    def compute_absolute_errors_position(self,
                                  history_position_m:np.ndarray,
                                  history_position_m_gt:np.ndarray)->np.ndarray:
         """Compute the euclidian distance errors between estimated position
@@ -38,14 +39,35 @@ class Analyzer:
             history_position_m_gt (np.ndarray): Nx2 gt position array
 
         Returns:
-            np.ndarray: _description_
+            np.ndarray: N element euclidian absolute position error
         """
         return np.linalg.norm(
             history_position_m - history_position_m_gt,
             axis=-1
         )
     
-    def compute_position_state_estimate_errors(
+    def compute_relative_errors_position(self,
+                                     history_position_m:np.ndarray,
+                                     history_position_m_gt:np.ndarray)->np.ndarray:
+        """Compute the relative trajectory errors from one frame to the next
+
+        Args:
+            history_position_m (np.ndarray): Nx2 estimated position array
+            history_position_m_gt (np.ndarray): Nx2 gt position array
+
+        Returns:
+            np.ndarray: N-1 element euclidian relative trajectory error
+        """
+        
+        est_relative_trajectories = history_position_m[1:,:] - history_position_m[0:-1,:]
+        gt_relative_trajectories = history_position_m_gt[1:,:] - history_position_m_gt[0:-1,:]
+
+        return np.linalg.norm(
+            est_relative_trajectories - gt_relative_trajectories,
+            axis=-1
+        )
+    
+    def compute_x_y_state_estimate_errors(
             self,
             history_position_m,
             history_position_m_gt
@@ -73,26 +95,69 @@ class Analyzer:
 
         return x_errors,y_errors
     
-    def compute_heading_state_estimate_errors(
+    def compute_absolute_errors_heading(
             self,
             history_heading_deg:list,
             history_heading_deg_gt:list
     )->np.ndarray:
-        """Compute the heading error (in radians) between the estimated heading
-        at each frame and the gt heading.
+        """Compute the heading absolute value of the error (in degrees) 
+        between the estimated heading at each frame and the gt heading.
 
         Args:
             history_heading_deg (list): est heading for each frame in degrees
             history_heading_deg_gt (list): gt heading for each frame in degrees
 
         Returns:
-            np.ndarray: heading errors in radians
+            np.ndarray: N element array of heading errors in degrees
         """
         
-        estimated_heading_rad = np.deg2rad(np.array(history_heading_deg))
-        gt_heading_rad = np.deg2rad(np.array(history_heading_deg_gt))
+        estimated_heading_deg = np.array(history_heading_deg)
+        gt_heading_deg = np.array(history_heading_deg_gt)
 
-        return estimated_heading_rad - gt_heading_rad
+        return np.abs(estimated_heading_deg - gt_heading_deg)
+    
+    def compute_relative_errors_heading(
+            self,
+            history_heading_deg:list,
+            history_heading_deg_gt:list
+    )->np.ndarray:
+        """Compute the absolute value of the heading error (in degrees) 
+        between the estimated and ground truth relative heading update 
+        between subsequent frames.
+
+        Args:
+            history_heading_deg (list): est heading for each frame in degrees
+            history_heading_deg_gt (list): gt heading for each frame in degrees
+
+        Returns:
+            np.ndarray: heading errors in degrees (absolute value)
+        """
+        
+        estimated_heading_deg = np.array(history_heading_deg)
+        gt_heading_deg = np.array(history_heading_deg_gt)
+
+        est_relative_trajectories = estimated_heading_deg[1:] - estimated_heading_deg[:-1]
+        gt_relative_trajectories = gt_heading_deg[1:] - gt_heading_deg[:-1]
+
+        return np.absolute(est_relative_trajectories - gt_relative_trajectories)
+    
+    def compute_total_distance_traveled(self,history_pose_gt:np.ndarray):
+        """Compute the total distance for a given trial
+
+        Args:
+            history_pose_gt (np.ndarray): Nx2 array of gt positions
+
+        Returns:
+            float: total distance traveled
+        """
+        dist = 0
+        for i in range(len(history_pose_gt)-1):
+            dist += np.linalg.norm(
+                history_pose_gt[i+1] -\
+                history_pose_gt[i]
+            )
+
+        return dist
     
     def show_summary_statistics(
             self,
@@ -112,46 +177,45 @@ class Analyzer:
             percentile (float, optional): Tail error percentile. Defaults to 0.90.
         """
         
-        #compute euclid
-        # compute euclidian error
-        euclidian_errors = self.compute_euclidian_errors(
+        #Absolute position
+        absolute_errors_pos = self.compute_absolute_errors_position(
             history_position_m,
             history_position_m_gt
         )
-        euclidian_mean = np.mean(euclidian_errors)
-        euclidian_variance = np.var(euclidian_errors)
-        euclidian_median = np.median(euclidian_errors)
-        euclidian_tail = self.get_percentile(euclidian_errors, percentile)
+        absolute_errors_pose_mean = np.mean(absolute_errors_pos)
+        absolute_errors_pose_var = np.var(absolute_errors_pos)
+        absolute_errors_pose_median = np.median(absolute_errors_pos)
+        absolute_errors_pose_tail = self.get_percentile(absolute_errors_pos, percentile)
 
-        # compute position state errors
-        x_errors,y_errors = self.compute_position_state_estimate_errors(
+        #relative position
+        relative_errors_pos = self.compute_relative_errors_position(
             history_position_m,
             history_position_m_gt
         )
+        relative_errors_pose_mean = np.mean(relative_errors_pos)
+        relative_errors_pose_var = np.var(relative_errors_pos)
+        relative_errors_pose_median = np.median(relative_errors_pos)
+        relative_errors_pose_tail = self.get_percentile(relative_errors_pos, percentile)
 
-        # x errors
-        x_mean = np.mean(x_errors)
-        x_variance = np.var(x_errors)
-        x_median = np.median(x_errors)
-        x_tail = self.get_percentile(x_errors, percentile)
-
-        # y errors
-        y_mean = np.mean(y_errors)
-        y_variance = np.var(y_errors)
-        y_median = np.median(y_errors)
-        y_tail = self.get_percentile(y_errors, percentile)
-
-        #compute heading state errors
-        heading_errors_rad = self.compute_heading_state_estimate_errors(
+        #absolute heading
+        absolute_errors_heading = self.compute_absolute_errors_heading(
             history_heading_deg,
             history_heading_deg_gt
         )
+        absolute_errors_heading_mean = np.mean(absolute_errors_heading)
+        absolute_errors_heading_variance = np.var(absolute_errors_heading)
+        absolute_errors_heading_median = np.median(absolute_errors_heading)
+        absolute_errors_heading_tail = self.get_percentile(absolute_errors_heading, percentile)
 
-        # heading errors
-        heading_mean = np.mean(heading_errors_rad)
-        heading_variance = np.var(heading_errors_rad)
-        heading_median = np.median(heading_errors_rad)
-        heading_tail = self.get_percentile(heading_errors_rad, percentile)
+        # relative heading
+        relative_errors_heading = self.compute_relative_errors_heading(
+            history_heading_deg,
+            history_heading_deg_gt
+        )
+        relative_errors_heading_mean = np.mean(relative_errors_heading)
+        relative_errors_heading_variance = np.var(relative_errors_heading)
+        relative_errors_heading_median = np.median(relative_errors_heading)
+        relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
         # create the table
         dict = {
@@ -161,15 +225,29 @@ class Analyzer:
                 "Median",
                 "{}th percentile".format(percentile),
             ],
-            "Euclidian": [
-                euclidian_mean,
-                euclidian_variance,
-                euclidian_median,
-                euclidian_tail,
+            "Absolute position (m)": [
+                absolute_errors_pose_mean,
+                absolute_errors_pose_var,
+                absolute_errors_pose_median,
+                absolute_errors_pose_tail,
             ],
-            "x": [x_mean, x_variance, x_median, x_tail],
-            "y": [y_mean, y_variance, y_median, y_tail],
-            "phi": [heading_mean, heading_variance, heading_median, heading_tail],
+            "Relative position (m)": [
+                relative_errors_pose_mean,
+                relative_errors_pose_var,
+                relative_errors_pose_median,
+                relative_errors_pose_tail,
+            ],
+            "Absolute heading (deg)": [
+                absolute_errors_heading_mean,
+                absolute_errors_heading_variance,
+                absolute_errors_heading_median,
+                absolute_errors_heading_tail
+            ],
+            "Relative heading (deg)": [
+                relative_errors_heading_mean,
+                relative_errors_heading_variance,
+                relative_errors_heading_median,
+                relative_errors_heading_tail],
         }
 
         df = pd.DataFrame(dict)
@@ -184,7 +262,8 @@ class Analyzer:
             history_position_m_gt:np.ndarray,
             history_heading_deg:list,
             history_heading_deg_gt:list,
-            save_path:str
+            save_folder:str,
+            file_name:str
     ):
         """Generate csv file of errors between estimates and gt
 
@@ -195,44 +274,58 @@ class Analyzer:
             history_heading_deg_gt (list): gt heading for each frame in degrees
             save_path (str): path to save the csv file
         """
-        print("starting to calculate errors")
-        
-        #compute euclidian error
-        euclidian_errors = self.compute_euclidian_errors(
+       
+        #compute absolute position error
+        absolute_errors_position = self.compute_absolute_errors_position(
             history_position_m,
             history_position_m_gt
         )
-        
-        print("finished calculating euclidian errors")
-        
-        #compute heading state errors
-        heading_errors_rad = self.compute_heading_state_estimate_errors(
+                
+        #compute absolute heading errors
+        absolute_errors_heading = self.compute_absolute_errors_heading(
             history_heading_deg,
             history_heading_deg_gt
         )
-        
-        print("finished calculating heading errors")
-        
-        # compute position state errors
-        x_errors,y_errors = self.compute_position_state_estimate_errors(
+        dict = {
+            "Position": absolute_errors_position,
+            "Heading": absolute_errors_heading,
+        }
+        df = pd.DataFrame(dict)
+        path = os.path.join(save_folder,file_name + "_absolute.csv")
+        df.to_csv(path,index=False)
+
+        #compute relative position error
+        relative_errors_position = self.compute_relative_errors_position(
             history_position_m,
             history_position_m_gt
+        )        
+        #compute relative heading errors
+        relative_errors_heading = self.compute_relative_errors_heading(
+            history_heading_deg,
+            history_heading_deg_gt
         )
-    
-        print("finished calculating position errors")
-
-        # create the table
         dict = {
-            "Euclidian": euclidian_errors,
-            "x_errors": x_errors,
-            "y_errors": y_errors,
-            "Heading": heading_errors_rad,
+            "Position": relative_errors_position,
+            "Heading": relative_errors_heading,
         }
-
-        print("finished creating dictionary")
-
         df = pd.DataFrame(dict)
+        path = os.path.join(save_folder,file_name + "_relative.csv")
+        df.to_csv(path,index=False)
         
-        df.to_csv(save_path, index=False)
-        
+
+        total_distance = self.compute_total_distance_traveled(
+            history_pose_gt=history_position_m_gt
+        )
+        dict = {
+            "total_distance":[total_distance],
+            "final_position_error":[absolute_errors_position[-1]],
+            "final_heading_error_deg":[absolute_errors_heading[-1]],
+            "num_frames":[absolute_errors_position.shape[0]]
+        }
+        df = pd.DataFrame(dict)
+        path = os.path.join(save_folder,file_name + "_summary.csv")
+        df.to_csv(path,index=False)
+
         print("finished saving csv file")
+
+        return

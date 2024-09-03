@@ -16,6 +16,9 @@ from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
 from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacker
 
+#analyzer
+from odometry.analyzers.analyzer import Analyzer
+
 from dotenv import load_dotenv
 import os
 
@@ -29,7 +32,7 @@ datasets_to_test = {
      "WILK":{
           "map":"wilkinson.yaml",
           "datasets":[
-            #    'WILK_Path_1_With_Dynamic',
+               'WILK_Path_1_With_Dynamic',
                 'WILK_Multipath_Test_4',
                 'WILK_Multipath_Test_5',
                 'WILK_Slow_4',
@@ -39,7 +42,7 @@ datasets_to_test = {
                 'WILK_Path_1_With_Dynamic_2',
                 'WILK_Path_1_No_Dynamic',
                 'WILK_Slow_Walk_Test_2',
-                # 'WILK_Path_1_Slow_Dynamic_1_bad',
+                'WILK_Path_1_Slow_Dynamic_1',
                 'WILK_Multipath_Test_1',
                 'WILK_Multipath_Test_3',
                 'WILK_Slow_1',
@@ -112,13 +115,13 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
     )
 
     lidar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.6, #originally 0.6
-        icp_best_points_percentile=50,
+        icp_matching_distance_threshold=0.1, #originally 0.6
+        icp_best_points_percentile=75, #was 50
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
         icp_max_iterations=20,
-        self_detection_radius_m=0.25
+        self_detection_radius_m=1.0 #was 0.25
     )
 
     #initialize the point cloud stacker
@@ -199,7 +202,10 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         movie_generator=movie_generator)
     
     if generate_movie:
-        movie_generator.save_movie(video_file_name="{}.mp4".format(file_name),fps=20)
+        movie_folder="Movies"
+        create_dir(result_folder)
+        movie_generator.save_movie(video_file_name="{}/{}.mp4".format(
+            movie_folder,file_name),fps=20)
     
     #save the analysis
     result_folder="Results"
@@ -236,3 +242,8 @@ if __name__ == "__main__":
                 map_file=map_name,
                 generate_movie=False
             )
+    
+    analyzer = Analyzer()
+    analyzer.show_cumulative_summary_from_csvs(
+        save_folder="Results"
+    )

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from IPython.display import display
 import os
+import fnmatch
 
 class Analyzer:
 
@@ -329,3 +330,215 @@ class Analyzer:
         print("finished saving csv file")
 
         return
+    
+    def find_files_in_directory(self,directory:str,keywords:str)->list:
+        """Find files in a given directory that contain a set of keywords
+
+        Args:
+            directory (str): path to the directory
+            keywords (str): keywords to search for using '*keyword1*keyword2*'
+
+        Returns:
+            list: list of files containing the specified keywords
+        """
+        matches = []
+        for root, dirnames, filenames in os.walk(directory):
+            for filename in fnmatch.filter(filenames, keywords):
+                matches.append(os.path.join(root, filename))
+        return matches
+    
+    def get_absolute_errors_from_csvs(self,save_folder:str):
+        """Get the absolute  errors from a folder containing .csv files
+        with absolute error computations from multiple datasets
+
+        Args:
+            save_folder (str): path to the results directory
+
+        Returns:
+            (np.ndarray,np.ndarray): absolute_errors_position,absolute_errors_heading_deg
+        """
+        #get absolute errors first
+        absolute_errors_position = []
+        absolute_errors_heading_deg = []
+        
+        absolute_error_files = self.find_files_in_directory(save_folder,'*_absolute*')
+        for file_path in absolute_error_files:
+
+            df = pd.read_csv(file_path)
+            absolute_errors_position.extend(
+                df["Position"].astype(float).tolist()
+            )
+            absolute_errors_heading_deg.extend(
+                df["Heading"].astype(float).tolist()
+            )
+        absolute_errors_position = np.array(absolute_errors_position)
+        absolute_errors_heading_deg = np.array(absolute_errors_heading_deg)
+
+        return absolute_errors_position,absolute_errors_heading_deg
+    
+    def get_relative_errors_from_csvs(self,save_folder:str):
+        """Get the relative errors from a folder containing .csv files
+        with relative error computations from multiple datasets
+
+        Args:
+            save_folder (str): path to the results directory
+
+        Returns:
+            (np.ndarray,np.ndarray): relative_errors_position,relative_errors_heading_deg
+        """
+        #get absolute errors first
+        relative_errors_position = []
+        relative_errors_heading_deg = []
+        
+        relative_error_files = self.find_files_in_directory(save_folder,'*_relative*')
+        for file_path in relative_error_files:
+
+            df = pd.read_csv(file_path)
+            relative_errors_position.extend(
+                df["Position"].astype(float).tolist()
+            )
+            relative_errors_heading_deg.extend(
+                df["Heading"].astype(float).tolist()
+            )
+        relative_errors_position = np.array(relative_errors_position)
+        relative_errors_heading_deg = np.array(relative_errors_heading_deg)
+
+        return relative_errors_position,relative_errors_heading_deg
+    
+    def get_summary_statistics_from_csvs(self,save_folder:str)->dict:
+        total_distance = 0
+        trial_distances = []
+        final_position_errors = []
+        final_heading_errors_deg = []
+        num_frames = 0
+        trial_frames = []
+
+        summary_files = self.find_files_in_directory(save_folder,'*_summary*')
+        for file_path in summary_files:
+
+            df = pd.read_csv(file_path)
+            total_distance += float(df.at[0,"total_distance"])
+            trial_distances.append(float(df.at[0,"total_distance"]))
+            final_position_errors.append(float(df.at[0,"final_position_error"]))
+            final_heading_errors_deg.append(float(df.at[0,"final_heading_error_deg"]))
+            num_frames += float(df.at[0,"num_frames"])
+            trial_frames.append(float(df.at[0,"num_frames"]))
+        
+        out_dict = {
+            "total_distance":total_distance,
+            "trial_distances":np.array(trial_distances),
+            "final_position_errors":np.array(final_position_errors),
+            "final_heading_errors_deg":np.array(final_heading_errors_deg),
+            "num_frames":num_frames,
+            "trial_frames":np.array(trial_frames),
+        }
+
+        return out_dict
+    
+    def show_cumulative_summary_from_csvs(self,save_folder:str):
+
+        percentile = 0.9
+
+        #get absolute errors first
+        absolute_errors_pos,absolute_errors_heading = \
+            self.get_absolute_errors_from_csvs(save_folder)
+
+        absolute_errors_pose_mean = np.mean(absolute_errors_pos)
+        absolute_errors_pose_var = np.var(absolute_errors_pos)
+        absolute_errors_pose_median = np.median(absolute_errors_pos)
+        absolute_errors_pose_tail = self.get_percentile(absolute_errors_pos, percentile)
+
+        absolute_errors_heading_mean = np.mean(absolute_errors_heading)
+        absolute_errors_heading_variance = np.var(absolute_errors_heading)
+        absolute_errors_heading_median = np.median(absolute_errors_heading)
+        absolute_errors_heading_tail = self.get_percentile(absolute_errors_heading, percentile)
+        
+        #get relative errors next
+        relative_errors_pos,relative_errors_heading = \
+            self.get_relative_errors_from_csvs(save_folder)
+        relative_errors_pose_mean = np.mean(relative_errors_pos)
+        relative_errors_pose_var = np.var(relative_errors_pos)
+        relative_errors_pose_median = np.median(relative_errors_pos)
+        relative_errors_pose_tail = self.get_percentile(relative_errors_pos, percentile)
+
+        relative_errors_heading_mean = np.mean(relative_errors_heading)
+        relative_errors_heading_variance = np.var(relative_errors_heading)
+        relative_errors_heading_median = np.median(relative_errors_heading)
+        relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
+
+        #get summary statistics
+        summary_dict = self.get_summary_statistics_from_csvs(save_folder)
+        
+        #final errors
+        final_position_errors = summary_dict["final_position_errors"]
+        final_position_errors_mean = np.mean(final_position_errors)
+        final_position_errors_variance = np.var(final_position_errors)
+        final_position_errors_median = np.median(final_position_errors)
+        final_position_errors_tail = self.get_percentile(final_position_errors, percentile)
+
+        final_heading_errors = summary_dict["final_heading_errors_deg"]
+        final_heading_errors_mean = np.mean(final_heading_errors)
+        final_heading_errors_variance = np.var(final_heading_errors)
+        final_heading_errors_median = np.median(final_heading_errors)
+        final_heading_errors_tail = self.get_percentile(final_heading_errors, percentile)
+
+        # create the table
+        dict = {
+            "Metric": [
+                "Mean",
+                "Variance",
+                "Median",
+                "{}th percentile".format(percentile),
+            ],
+            "Absolute position (m)": [
+                absolute_errors_pose_mean,
+                absolute_errors_pose_var,
+                absolute_errors_pose_median,
+                absolute_errors_pose_tail,
+            ],
+            "Relative position (m)": [
+                relative_errors_pose_mean,
+                relative_errors_pose_var,
+                relative_errors_pose_median,
+                relative_errors_pose_tail,
+            ],
+            "Final position (m)": [
+                final_position_errors_mean,
+                final_position_errors_variance,
+                final_position_errors_median,
+                final_position_errors_tail,
+            ],
+            "Absolute heading (deg)": [
+                absolute_errors_heading_mean,
+                absolute_errors_heading_variance,
+                absolute_errors_heading_median,
+                absolute_errors_heading_tail
+            ],
+            "Relative heading (deg)": [
+                relative_errors_heading_mean,
+                relative_errors_heading_variance,
+                relative_errors_heading_median,
+                relative_errors_heading_tail],
+            "Final heading (deg)": [
+                final_heading_errors_mean,
+                final_heading_errors_variance,
+                final_heading_errors_median,
+                final_heading_errors_tail],
+        }
+
+        df = pd.DataFrame(dict)
+        display(df)
+
+        print("total distance: {}".format(summary_dict["total_distance"]))
+        print("average trial distance: {}".format(
+            np.average(summary_dict["trial_distances"])
+        ))
+        print("total frames: {}".format(summary_dict["num_frames"]))
+        print("average frames per trial: {}".format(
+            np.average(summary_dict["trial_frames"])
+        ))
+
+        return
+        
+
+

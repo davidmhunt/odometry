@@ -120,19 +120,19 @@ class temporalVelFilteringStackedTB:
         init_points = self.dataset.get_radar_detections(idx=0)
         init_points = init_points[:,:2]
 
-        new_heading_rad,new_pose_m = self.localizer.update_odometry(
-            points=init_points,
-            estimated_heading_rad=est_start_heading_rad,
-            estimated_pose_m=est_start_pose_m
-        )
+        # new_heading_rad,new_pose_m = self.localizer.update_odometry(
+        #     points=init_points,
+        #     estimated_heading_rad=est_start_heading_rad,
+        #     estimated_pose_m=est_start_pose_m
+        # # )
 
-        if new_heading_rad is None:
-            new_heading_rad = est_start_heading_rad
-            new_pose_m = est_start_pose_m
-            print("radar icp failed to find initial location, using est start pose")
+        # if new_heading_rad is None:
+        #     new_heading_rad = est_start_heading_rad
+        #     new_pose_m = est_start_pose_m
+        #     print("radar icp failed to find initial location, using est start pose")
 
-        print("radar icp estimated heading:{} deg, pose:{}".format(
-            np.rad2deg(new_heading_rad),new_pose_m))
+        # print("radar icp estimated heading:{} deg, pose:{}".format(
+        #     np.rad2deg(new_heading_rad),new_pose_m))
         
         self.localizer.reset_odometry(
             pose=new_pose_m,

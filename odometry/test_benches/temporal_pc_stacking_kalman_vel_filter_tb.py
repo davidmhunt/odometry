@@ -517,6 +517,18 @@ class temporalVelFilteringStackedTB:
             self.history_heading_deg,
             self.history_heading_deg_gt
         )
+        
+    ####################################################################
+    #Import Analysis to a CSV File
+    ####################################################################
+    def analyze_to_csv(self, save_path:str):
+        self.analyzer.record_error_statistics(
+            self.history_position_m,
+            self.history_position_m_gt,
+            self.history_heading_deg,
+            self.history_heading_deg_gt,
+            save_path
+        )
     
     ####################################################################
     #Plot compilation of data

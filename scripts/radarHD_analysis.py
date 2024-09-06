@@ -7,14 +7,20 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
+from cpsl_datasets.cpsl_ds import CpslDS
+from cpsl_datasets.map_handler import MapHandler
+
+from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
+
+from mmwave_model_integrator.encoders.radarhd_encoder import RadarHDEncoder
+from mmwave_model_integrator.model_runner.radarhd_runner import RadarHDRunner
+from mmwave_model_integrator.decoders.radarhd_decoder import RadarHDDecoder
+
 #load the necessary odometry modules
-from odometry.datasets.map_handler import MapHandler
-from odometry.datasets.radnav_ds import radnavDS
-from odometry.test_benches.radnav_stacked_pc_tb import RadnavStackedPCTB
+from odometry.test_benches.radar_model_ekf_tb import RadarModelEKFTB
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
-from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacker
 
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
@@ -24,59 +30,35 @@ import os
 
 #loading enviroment variables
 load_dotenv()
-DATASET_PATH=os.getenv("DATASET_DIRECTORY")
+DATASET_PATH=os.getenv("MODEL_DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
+RADARHD_MODEL_STATE_DICT_PATH=os.getenv("RADARHD_MODEL_STATE_DICT_PATH")
+CONFIG_DIRECTORY = os.getenv("CONFIG_DIRECTORY")
 
-results_parent_folder = "Radnav09032024"
+results_parent_folder = "radarHD09042024"
+model_dataset_folder_name = "radarHD_comp_datasets"
 
 datasets_to_test = {
      "WILK":{
           "map":"wilkinson.yaml",
           "datasets":[
-               'WILK_Path_1_With_Dynamic',
-                'WILK_Multipath_Test_4',
-                'WILK_Multipath_Test_5',
-                'WILK_Slow_4',
-                'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
-                'WILK_Path_1_Slow_No_Dynamic_1',
-                'WILK_Slow_Walk_Test_1',
-                'WILK_Path_1_With_Dynamic_2',
-                'WILK_Path_1_No_Dynamic',
-                'WILK_Slow_Walk_Test_2',
-                'WILK_Path_1_Slow_Dynamic_1',
-                'WILK_Multipath_Test_1',
-                'WILK_Multipath_Test_3',
-                'WILK_Slow_1',
-                'WILK_vel_cfg_1',
-                'WILK_Slow_2',
-                'WILK_Path_1_Same_Side_Dynamic_1',
-                'WILK_vel_cfg_2',
-                'WILK_Multipath_Test_1_spin_recal',
-                'WILK_Multipath_Test_2',
-                'WILK_Slow_3'
+               'WILK_1',
+               'WILK_2',
+               'WILK_3'
           ]
      },
      "CPSL":{
          "map":"cpsl_full.yaml",
          "datasets":[
-             'CPSL_Walk_1',
-             'CPSL_Vel_2',
-             'CPSL_NoVel_2',
-             'CPSL_Walk_2',
-             'CPSL_Vel_1',
-             'CPSL_NoVel_1',
-            #  'CONFIG_TEST',
-             'CPSL_Vel_3',
-            #  'CPSL_No_Move',
-             'CPSL_Lidar_Test',
-             'CPSL_vel_cfg_1']
+             'cpsl_RadarHD',
+              'CPSL_3',
+              'CPSL_1',
+              'CPSL_2'
+             ]
      },
      "WILK_BASEMENT":{
          "map":"wilk_basement.yaml",
-         "datasets":[
-             'wilk_basement_1',
-             'wilk_basement_2',
-             'wilk_basement_0905_1']
+         "datasets":[]
      }
 }
 
@@ -89,9 +71,9 @@ def create_dir(path):
 def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
 
     #initialize the dataset
-    dataset = radnavDS(
-        dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
-        radar_folder="radar_combined",
+    dataset = CpslDS(
+        dataset_path=os.path.join(DATASET_PATH,model_dataset_folder_name,folder_name,file_name),
+        radar_folder="radar_0",
         lidar_folder="lidar",
         camera_folder="camera",
         imu_orientation_folder="imu_data",
@@ -105,6 +87,12 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         map_file=map_file
     )
 
+    #radar config manager
+    cfg_manager = ConfigManager()
+    cfg_path = os.path.join(CONFIG_DIRECTORY,"RadarHD.cfg")
+    cfg_manager.load_cfg(cfg_path)
+    cfg_manager.compute_radar_perforance(profile_idx=0)
+
     #initialize the localizers
     radar_odometry = icp2DLocalization(
         icp_matching_distance_threshold=0.5,#originally 0.1
@@ -113,7 +101,7 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=7, #originally 5
         icp_max_iterations=20,
-        self_detection_radius_m=0 #originally 1.5
+        self_detection_radius_m=1.5 #originally 1.5
     )
 
     lidar_odometry = icp2DLocalization(
@@ -126,37 +114,36 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
-    #initialize the point cloud stacker
-    pc_stacker = temporalPcStacker(
-        num_frames_static_history = 4, # originally 4
-        num_frames_dynamic_history = 0, # originally 0
-        refresh_distance_m = 3, #originally 3
-        refresh_rot_deg = 90, #originally 90
-        refresh_time_s = 5, #originally 5
-        grid_resolution_m = 5e-2, #originally 5e-2
-        grid_max_distance_m = 20, #originally 20
-        multi_path_clustering_eps = 0.5, #originally 0.5
-        multi_path_clustering_min_samples = 15,  #originally 15
-        multi_path_num_frames_history=4, # originally 4
-        vel_filtering_enabled = True,
-        vel_filtering_v_thresh = 0.05, # originally 0.05
-        vel_filtering_min_static_rejection_radius = 0.25, #originally 0.25
-        vel_filtering_dynamic_cluster_eps = 0.5, #originally 0.5
-        vel_filtering_dynamic_cluster_min_samples = 15, #originally 15
-        min_detection_radius_m=1.5, #originally 1.5
-        max_detection_range_m=20, #originally 20
-        gyro_bias=-0.0024 #originally -0.0024
+    #initialize model encoder, runner, and decoder
+    encoder = RadarHDEncoder(
+        config_manager=cfg_manager,
+        range_max=10.8,
+        num_range_bins=256,
+        mag_threshold=0.05,
+        num_az_angle_bins=64
     )
 
-    #initialize the test bench
-    test_bench = RadnavStackedPCTB(
+    runner = RadarHDRunner(
+        state_dict_path=RADARHD_MODEL_STATE_DICT_PATH,
+        cuda_device="cuda:0"
+    )
+
+    decoder = RadarHDDecoder(
+        max_range_m=10.8,
+        num_range_bins=256,
+        num_angle_bins=512
+    )
+
+    test_bench = RadarModelEKFTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
         dataset=dataset,
-        pc_stacker=pc_stacker
+        encoder=encoder,
+        runner=runner,
+        decoder=decoder
     )
-
+    
     start_heading = np.deg2rad(0)
     start_pose = np.array([0.00,0.00])
 
@@ -173,11 +160,6 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         est_start_position_m=new_pose_m,
         start_time_s=test_bench.get_dataset_start_time(idx=0),
         gyro_bias=-0.0024
-    )
-
-    #initialize the point cloud stacker
-    test_bench.init_pc_stacker(
-        start_time_s=test_bench.get_dataset_start_time(idx=0)
     )
 
     if generate_movie:

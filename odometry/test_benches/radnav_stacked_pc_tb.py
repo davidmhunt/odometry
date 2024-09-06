@@ -2,16 +2,10 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from cpsl_datasets.cpsl_ds import CpslDS
-from cpsl_datasets.map_handler import MapHandler
-
-from mmwave_model_integrator.encoders._radar_range_az_encoder import _RadarRangeAzEncoder
-from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
-from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
-from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
-
 from odometry.supportFns import rotation_functions
 from odometry.localization.icp2D_localization import icp2DLocalization
+from odometry.datasets.radnav_ds import radnavDS
+from odometry.datasets.map_handler import MapHandler
 from odometry.plotting.plotter_localization import PlotterLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.analyzers.analyzer import Analyzer
@@ -24,25 +18,18 @@ from odometry.point_cloud_processing.multipath import MultiPath
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
 
-class RadarModelEKFTB:
+class RadnavStackedPCTB:
 
     def __init__(self,
                  localizer:icp2DLocalization,
                  gt_localizer:icp2DLocalization,
-                 encoder:_RadarRangeAzEncoder,
-                 runner:_ModelRunner,
-                 decoder:_lidarPCPolarDecoder,
+                 pc_stacker:temporalPcStacker,
                  map_handler:MapHandler,
-                 dataset:CpslDS) -> None:
+                 dataset:radnavDS) -> None:
         
         #initialize the localizer
         self.localizer:icp2DLocalization = localizer
         self.gt_localizer:icp2DLocalization = gt_localizer
-
-        #model components
-        self.encoder:_RadarRangeAzEncoder = encoder
-        self.runner:_ModelRunner = runner
-        self.decoder:_lidarPCPolarDecoder = decoder
 
         #vehicle_movement_flag
         self.vehicle_moving = False
@@ -63,13 +50,10 @@ class RadarModelEKFTB:
 
         #load the datasets
         self.map_handler:MapHandler = map_handler
-        self.dataset:CpslDS = dataset
+        self.dataset:radnavDS = dataset
 
-        #initialize a plotter (with revised x and y maximums)
+        #initialize a plotter
         self.plotter_localization = PlotterLocalization(dataset,map_handler)
-        self.plotter_localization.plot_x_max = 10
-        self.plotter_localization.plot_y_max = 10
-        self.plotter_model = PlotterRngAzToPC()
         self.plotter_kalman = PlotterKalman()
         #initialize an analyzer class
         self.analyzer = Analyzer()
@@ -80,6 +64,15 @@ class RadarModelEKFTB:
         self.history_position_m_gt = None
         self.history_heading_deg_gt = None
         self.history_localizers_reset()
+
+        #point cloud stacker
+        self.point_cloud_stacker = pc_stacker
+
+        #combined point cloud processing history
+        self.history_pc_stacker_point_clouds:list = None
+        self.history_pc_stacker_position_m:list = None
+        self.history_pc_stacker_heading_rad:list = None
+        self.history_pc_stacker_reset()
 
         #kalman filter histories
         self.history_filter_est = None
@@ -125,33 +118,22 @@ class RadarModelEKFTB:
         )
 
         #get the first points in the localizer point cloud
-        idx = 0
-        while not self.encoder.full_encoding_ready:
-            adc_cube = self.dataset.get_radar_data(idx=idx)
-            encoded_data = self.encoder.encode(adc_cube)
-            idx += 1
-        
-        pred = self.runner.make_prediction(encoded_data)
-        init_points = self.decoder.convert_polar_to_cartesian(
-            self.decoder.decode(pred)
-        )
+        init_points = self.dataset.get_radar_detections(idx=0)
+        init_points = init_points[:,:2]
 
         # new_heading_rad,new_pose_m = self.localizer.update_odometry(
         #     points=init_points,
         #     estimated_heading_rad=est_start_heading_rad,
         #     estimated_pose_m=est_start_pose_m
-        # )
+        # # )
 
-        #reset the encoder
-        self.encoder.reset_history()
+        # if new_heading_rad is None:
+        #     new_heading_rad = est_start_heading_rad
+        #     new_pose_m = est_start_pose_m
+        #     print("radar icp failed to find initial location, using est start pose")
 
-        if new_heading_rad is None:
-            new_heading_rad = est_start_heading_rad
-            new_pose_m = est_start_pose_m
-            print("radar icp failed to find initial location, using est start pose")
-
-        print("radar icp estimated heading:{} deg, pose:{}".format(
-            np.rad2deg(new_heading_rad),new_pose_m))
+        # print("radar icp estimated heading:{} deg, pose:{}".format(
+        #     np.rad2deg(new_heading_rad),new_pose_m))
         
         self.localizer.reset_odometry(
             pose=new_pose_m,
@@ -196,7 +178,7 @@ class RadarModelEKFTB:
             chi2_pct=0.95, #originally 0.95
             do_chi2=True
         )
-        
+
         #filter for radar
         self.filter = KalmanXYPhiSpeedGyroEncoder(
             t0=start_time_s,
@@ -221,6 +203,10 @@ class RadarModelEKFTB:
         #reset the last heading and pose
         self.latest_pose_m = est_start_position_m
         self.latest_heading_rad = est_start_heading_rad
+        
+    def init_pc_stacker(self,start_time_s:float):
+
+        self.point_cloud_stacker.reset(start_time_s)
             
     ####################################################################
     #Histories (localizers)
@@ -285,6 +271,39 @@ class RadarModelEKFTB:
 
         self.history_filter_g.append(self.filter.g)
         self.history_filter_y.append(self.filter.y)
+    
+    ####################################################################
+    #Histories (point cloud stacking)
+    ####################################################################
+    def history_pc_stacker_reset(self):
+
+        self.history_pc_stacker_point_clouds = []
+        self.history_pc_stacker_position_m = []
+        self.history_pc_stacker_heading_rad = []
+
+        return
+
+    def history_pc_stacker_update(
+            self,
+            valid_stacked_point_cloud:np.ndarray,
+            icp_position_m:np.ndarray,
+            icp_heading_rad:float):
+        """Save the most recently computed stacked point cloud and its
+        estimated position and heading
+
+        Args:
+            valid_stacked_point_cloud (np.ndarray): Nx2 array of valid points
+                corresponding to the most recent stacked point cloud after
+                ray tracing/multi-path rejection
+            icp_position_m (np.ndarray): Nx2 array corresponding to the
+                position from the most recent icp estimate
+            icp_heading_rad (float): heading corresponding to the icp position
+                estimate using the most recent stacked point cloud
+        """
+        
+        self.history_pc_stacker_point_clouds.append(valid_stacked_point_cloud)
+        self.history_pc_stacker_position_m.append(icp_position_m)
+        self.history_pc_stacker_heading_rad.append(icp_heading_rad)
 
     ####################################################################
     #Handling time
@@ -328,7 +347,7 @@ class RadarModelEKFTB:
         else:
             self.vehicle_moving = True
     
-    def filters_predict_from_frame_samples(self, idx = 0,gt_enabled=False):
+    def filters_predict_from_frame_samples(self, idx = 0, gt_enabled=False):
 
         imu_data = self.dataset.get_imu_full_data(idx)
         vel_data = self.dataset.get_vehicle_vel_data(idx)
@@ -368,6 +387,12 @@ class RadarModelEKFTB:
                     check_P=False
                 )
 
+            #predict the pc stacker filter forward
+            self.point_cloud_stacker.predict(
+                dt=dt,
+                inertial=inertial
+            )
+
             #save last time
             self.filter_last_t = imu_data[i,0]
 
@@ -400,7 +425,7 @@ class RadarModelEKFTB:
         #save the histories
         self.history_filters_update_state_history()
         self.history_filters_update_from_msmt()
-    
+
     def filter_gt_perform_update(self,
                               estimated_position_m:np.ndarray,
                               estimated_heading_rad:np.ndarray,
@@ -418,7 +443,6 @@ class RadarModelEKFTB:
             R=self.filter_R,
             msmt_components=self.filter_msmt_component
         )
-    
 
     ####################################################################
     #Running localization for the dataset
@@ -432,15 +456,13 @@ class RadarModelEKFTB:
         if max_frame == -1:
             max_frame = self.dataset.num_frames
 
-        
-        
         for i in tqdm(range(max_frame)):
 
             #predict the states forward
             self.filters_predict_from_frame_samples(
                 idx=i,
                 gt_enabled=gt_enabled)
-            
+
             if gt_enabled:
                 # update the lidar ground truth
                 gt_points = self.dataset.get_lidar_point_cloud(idx=i)
@@ -467,17 +489,21 @@ class RadarModelEKFTB:
                     idx = i
                 )
 
-            adc_cube = self.dataset.get_radar_data(idx=i)
-            rng_az_resp = self.encoder.encode(adc_cube)
             
 
-            if self.vehicle_moving:
-                if self.encoder.full_encoding_ready:
+            #generate combined point cloud
+            radar_points = self.dataset.get_radar_detections(idx=i)
+            
+            #update the pc stacker
+            self.point_cloud_stacker.add_points(
+                current_points=radar_points,
+                ego_vel=np.array([self.filter.x[3],0.0])
+            )
 
-                    pred = self.runner.make_prediction(rng_az_resp)
-                    pc = self.decoder.convert_polar_to_cartesian(
-                        self.decoder.decode(pred)
-                    )
+            if self.vehicle_moving:
+                if self.point_cloud_stacker.new_pc_available:
+
+                    pc = self.point_cloud_stacker.get_latest_pc()
 
                     est_heading_rad,est_pose_m = self.localizer.update_odometry(
                         points=pc,
@@ -493,6 +519,13 @@ class RadarModelEKFTB:
                             estimated_position_m=est_pose_m,
                             estimated_heading_rad=est_heading_rad,
                             t = self.filter_last_t
+                        )
+
+                        #save the measurement and point cloud
+                        self.history_pc_stacker_update(
+                            valid_stacked_point_cloud=pc,
+                            icp_position_m=est_pose_m,
+                            icp_heading_rad=est_heading_rad
                         )
                 
                 self.latest_pose_m = self.filter.x[0:2]
@@ -526,9 +559,6 @@ class RadarModelEKFTB:
     ####################################################################
     #Performing Analysis
     ####################################################################
-    ####################################################################
-    #Performing Analysis
-    ####################################################################
     def analyze(self,
                 save_folder_path:str="Results",
                 file_name:str="summary",
@@ -550,6 +580,18 @@ class RadarModelEKFTB:
                 save_folder=save_folder_path,
                 file_name=file_name
             )
+        
+    ####################################################################
+    #Import Analysis to a CSV File
+    ####################################################################
+    def analyze_to_csv(self, save_path:str):
+        self.analyzer.record_error_statistics(
+            self.history_position_m,
+            self.history_position_m_gt,
+            self.history_heading_deg,
+            self.history_heading_deg_gt,
+            save_path
+        )
     
     ####################################################################
     #Plot compilation of data
@@ -589,7 +631,7 @@ class RadarModelEKFTB:
             )
             axs[0,2].set_title("Camera View")
 
-        #bottom row (prediced point cloud) and kalman filtering
+        #bottom row (combined point cloud) and kalman filtering
         if len(self.history_filter_g) > 0:
             self.plotter_kalman.plot_chi_2_resp(
                 g_thresh=self.filter.g_thresh[2],
@@ -599,34 +641,36 @@ class RadarModelEKFTB:
                 show=False
             )
 
-
-        if self.encoder.full_encoding_ready:
-
-            rng_az_to_plot = self.encoder.get_rng_az_resp_from_encoding(
-                rng_az_resp=self.encoder.encoded_data
-            )
-            self.plotter_model.plot_range_az_resp_cart(
-                resp=rng_az_to_plot,
-                range_az_encoder=self.encoder,
-                cmap="gray",
+        self.plotter_localization.marker_size = 0.5
+        if len(self.history_pc_stacker_point_clouds) > 0:
+            self.plotter_localization.plot_detections_on_map(
+                current_points=self.history_pc_stacker_point_clouds[-1],
+                heading_rad=self.history_pc_stacker_heading_rad[-1],
+                pose_m=self.history_pc_stacker_position_m[-1],
                 ax=axs[1,1],
                 show=False
             )
+            axs[1,1].set_title("Last Raytraced Point Cloud",
+                               fontsize=self.plotter_localization.font_size_title)
+            
+        combined_pc = self.point_cloud_stacker.get_current_stacked_pc_static()
+        dynamic_combined_pc = self.point_cloud_stacker.get_current_stacked_pc_dynamic()
+        if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
-            pred = self.runner.make_prediction(
-                input=self.encoder.encoded_data
-            )
-            pc = self.decoder.convert_polar_to_cartesian(
-                points_polar=self.decoder.decode(pred)
-            )
-
-            self.plotter_localization.plot_detections_on_map(
-                current_points=pc,
-                heading_rad=self.latest_heading_rad,
-                pose_m=self.latest_pose_m,
+            self.plotter_localization.plot_dynamic_and_static_detections_on_map(
+                static_points=combined_pc,
+                dynamic_points=dynamic_combined_pc,
+                heading_rad=self.filter.x[2],
+                pose_m=self.filter.x[0:2],
                 ax=axs[1,2],
                 show=False
-            )
+            ) 
+            axs[1,2].set_title("Current Stacked Point Cloud", #{}".format(len(combined_pc))
+                               fontsize=self.plotter_localization.font_size_legend)
+        
+        
+        #reset the marker size
+        self.plotter_localization.marker_size=10
 
         if show:
             plt.show()

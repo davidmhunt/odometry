@@ -184,7 +184,7 @@ class Analyzer:
             history_position_m_gt
         )
         absolute_errors_pose_mean = np.mean(absolute_errors_pos)
-        absolute_errors_pose_var = np.var(absolute_errors_pos)
+        absolute_errors_pose_var = np.std(absolute_errors_pos)
         absolute_errors_pose_median = np.median(absolute_errors_pos)
         absolute_errors_pose_tail = self.get_percentile(absolute_errors_pos, percentile)
 
@@ -194,7 +194,7 @@ class Analyzer:
             history_position_m_gt
         )
         relative_errors_pose_mean = np.mean(relative_errors_pos)
-        relative_errors_pose_var = np.var(relative_errors_pos)
+        relative_errors_pose_var = np.std(relative_errors_pos)
         relative_errors_pose_median = np.median(relative_errors_pos)
         relative_errors_pose_tail = self.get_percentile(relative_errors_pos, percentile)
 
@@ -204,7 +204,7 @@ class Analyzer:
             history_heading_deg_gt
         )
         absolute_errors_heading_mean = np.mean(absolute_errors_heading)
-        absolute_errors_heading_variance = np.var(absolute_errors_heading)
+        absolute_errors_heading_stdev = np.std(absolute_errors_heading)
         absolute_errors_heading_median = np.median(absolute_errors_heading)
         absolute_errors_heading_tail = self.get_percentile(absolute_errors_heading, percentile)
 
@@ -214,7 +214,7 @@ class Analyzer:
             history_heading_deg_gt
         )
         relative_errors_heading_mean = np.mean(relative_errors_heading)
-        relative_errors_heading_variance = np.var(relative_errors_heading)
+        relative_errors_heading_stdev = np.std(relative_errors_heading)
         relative_errors_heading_median = np.median(relative_errors_heading)
         relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
@@ -222,7 +222,7 @@ class Analyzer:
         dict = {
             "Metric": [
                 "Mean",
-                "Variance",
+                "stdev",
                 "Median",
                 "{}th percentile".format(percentile),
             ],
@@ -240,13 +240,13 @@ class Analyzer:
             ],
             "Absolute heading (deg)": [
                 absolute_errors_heading_mean,
-                absolute_errors_heading_variance,
+                absolute_errors_heading_stdev,
                 absolute_errors_heading_median,
                 absolute_errors_heading_tail
             ],
             "Relative heading (deg)": [
                 relative_errors_heading_mean,
-                relative_errors_heading_variance,
+                relative_errors_heading_stdev,
                 relative_errors_heading_median,
                 relative_errors_heading_tail],
         }
@@ -444,12 +444,12 @@ class Analyzer:
             self.get_absolute_errors_from_csvs(save_folder)
 
         absolute_errors_pose_mean = np.mean(absolute_errors_pos)
-        absolute_errors_pose_var = np.var(absolute_errors_pos)
+        absolute_errors_pose_var = np.std(absolute_errors_pos)
         absolute_errors_pose_median = np.median(absolute_errors_pos)
         absolute_errors_pose_tail = self.get_percentile(absolute_errors_pos, percentile)
 
         absolute_errors_heading_mean = np.mean(absolute_errors_heading)
-        absolute_errors_heading_variance = np.var(absolute_errors_heading)
+        absolute_errors_heading_stdev = np.std(absolute_errors_heading)
         absolute_errors_heading_median = np.median(absolute_errors_heading)
         absolute_errors_heading_tail = self.get_percentile(absolute_errors_heading, percentile)
         
@@ -457,12 +457,12 @@ class Analyzer:
         relative_errors_pos,relative_errors_heading = \
             self.get_relative_errors_from_csvs(save_folder)
         relative_errors_pose_mean = np.mean(relative_errors_pos)
-        relative_errors_pose_var = np.var(relative_errors_pos)
+        relative_errors_pose_var = np.std(relative_errors_pos)
         relative_errors_pose_median = np.median(relative_errors_pos)
         relative_errors_pose_tail = self.get_percentile(relative_errors_pos, percentile)
 
         relative_errors_heading_mean = np.mean(relative_errors_heading)
-        relative_errors_heading_variance = np.var(relative_errors_heading)
+        relative_errors_heading_stdev = np.std(relative_errors_heading)
         relative_errors_heading_median = np.median(relative_errors_heading)
         relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
@@ -472,13 +472,13 @@ class Analyzer:
         #final errors
         final_position_errors = summary_dict["final_position_errors"]
         final_position_errors_mean = np.mean(final_position_errors)
-        final_position_errors_variance = np.var(final_position_errors)
+        final_position_errors_stdev = np.std(final_position_errors)
         final_position_errors_median = np.median(final_position_errors)
         final_position_errors_tail = self.get_percentile(final_position_errors, percentile)
 
         final_heading_errors = summary_dict["final_heading_errors_deg"]
         final_heading_errors_mean = np.mean(final_heading_errors)
-        final_heading_errors_variance = np.var(final_heading_errors)
+        final_heading_errors_stdev = np.std(final_heading_errors)
         final_heading_errors_median = np.median(final_heading_errors)
         final_heading_errors_tail = self.get_percentile(final_heading_errors, percentile)
 
@@ -486,7 +486,7 @@ class Analyzer:
         dict = {
             "Metric": [
                 "Mean",
-                "Variance",
+                "stdev",
                 "Median",
                 "{}th percentile".format(percentile),
             ],
@@ -504,24 +504,24 @@ class Analyzer:
             ],
             "Final position (m)": [
                 final_position_errors_mean,
-                final_position_errors_variance,
+                final_position_errors_stdev,
                 final_position_errors_median,
                 final_position_errors_tail,
             ],
             "Absolute heading (deg)": [
                 absolute_errors_heading_mean,
-                absolute_errors_heading_variance,
+                absolute_errors_heading_stdev,
                 absolute_errors_heading_median,
                 absolute_errors_heading_tail
             ],
             "Relative heading (deg)": [
                 relative_errors_heading_mean,
-                relative_errors_heading_variance,
+                relative_errors_heading_stdev,
                 relative_errors_heading_median,
                 relative_errors_heading_tail],
             "Final heading (deg)": [
                 final_heading_errors_mean,
-                final_heading_errors_variance,
+                final_heading_errors_stdev,
                 final_heading_errors_median,
                 final_heading_errors_tail],
         }

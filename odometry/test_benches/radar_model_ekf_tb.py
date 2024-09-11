@@ -11,6 +11,8 @@ from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPol
 from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
 
 from odometry.supportFns import rotation_functions
+from sklearn.neighbors import NearestNeighbors
+
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_localization import PlotterLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
@@ -80,6 +82,13 @@ class RadarModelEKFTB:
         self.history_position_m_gt = None
         self.history_heading_deg_gt = None
         self.history_localizers_reset()
+
+        #point cloud quality history
+        self.pc_quality_dist_thresh_m = 0.5
+        self.history_pc_quality_distances:list = None
+        self.history_pc_quality_num_quality_points:list = None
+        self.pc_quality_clusterer:NearestNeighbors = None
+        self.history_pc_quality_reset()
 
         #kalman filter histories
         self.history_filter_est = None
@@ -287,6 +296,56 @@ class RadarModelEKFTB:
         self.history_filter_y.append(self.filter.y)
 
     ####################################################################
+    #Histories (point cloud quality)
+    ####################################################################
+    def history_pc_quality_reset(self):
+
+        self.history_pc_quality_num_quality_points = []
+        self.history_pc_quality_distances = []
+        self.pc_quality_clusterer = NearestNeighbors(
+            n_neighbors=1,
+            algorithm='kd_tree'
+        ).fit(
+            self.map_handler.map_points
+        )
+
+        return
+
+    def history_pc_quality_update(
+            self,
+            point_cloud:np.ndarray,
+            gt_position_m:np.ndarray,
+            gt_heading_rad:float):
+        """Save the most recently computed stacked point cloud and its
+        estimated position and heading
+
+        Args:
+            point_cloud (np.ndarray): Nx2 array of corresponding
+                to the most recent sensed point cloud in the sensor
+                frame
+            gt_position_m (np.ndarray): Nx2 array corresponding to the
+                position of the agent in the map
+            gt_heading_rad (float): heading corresponding to the
+                orientation of the agent in the map
+        """
+        
+        #align the points with the map
+        if point_cloud.shape[0] > 0:
+            aligned_points = rotation_functions.apply_rot_trans(
+                points=point_cloud,
+                rot_angle_rad=gt_heading_rad,
+                trans=gt_position_m
+            )
+
+            #compute the distances
+            distances,_ = self.pc_quality_clusterer.kneighbors(aligned_points)
+
+            self.history_pc_quality_distances.extend(distances[:,0])
+            self.history_pc_quality_num_quality_points.append(
+                np.sum(distances[:,0] < self.pc_quality_dist_thresh_m)
+            )
+    
+    ####################################################################
     #Handling time
     #################################################################### 
     def get_dataset_start_time(self,idx=0)->float:
@@ -485,6 +544,13 @@ class RadarModelEKFTB:
                         estimated_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
                     )
 
+                    if gt_enabled:
+                        self.history_pc_quality_update(
+                            point_cloud=pc,
+                            gt_position_m=self.filter_gt.x[0:2],
+                            gt_heading_rad=self.filter_gt.x[2]
+                        )
+
                     if ((est_heading_rad is not None) and
                         (est_pose_m is not None)):
 
@@ -526,9 +592,6 @@ class RadarModelEKFTB:
     ####################################################################
     #Performing Analysis
     ####################################################################
-    ####################################################################
-    #Performing Analysis
-    ####################################################################
     def analyze(self,
                 save_folder_path:str="Results",
                 file_name:str="summary",
@@ -538,7 +601,9 @@ class RadarModelEKFTB:
             self.history_position_m,
             self.history_position_m_gt,
             self.history_heading_deg,
-            self.history_heading_deg_gt
+            self.history_heading_deg_gt,
+            self.history_pc_quality_distances,
+            self.history_pc_quality_num_quality_points
         )
 
         if export_to_csv:
@@ -547,6 +612,8 @@ class RadarModelEKFTB:
                 self.history_position_m_gt,
                 self.history_heading_deg,
                 self.history_heading_deg_gt,
+                self.history_pc_quality_distances,
+                self.history_pc_quality_num_quality_points,
                 save_folder=save_folder_path,
                 file_name=file_name
             )

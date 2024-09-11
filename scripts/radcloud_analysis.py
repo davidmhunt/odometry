@@ -35,7 +35,7 @@ MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 RADCLOUD_MODEL_STATE_DICT_PATH=os.getenv("RADCLOUD_MODEL_STATE_DICT_PATH")
 CONFIG_DIRECTORY = os.getenv("CONFIG_DIRECTORY")
 
-results_parent_folder = "radCloud09042024"
+results_parent_folder = "radCloud09112024"
 model_dataset_folder_name = "radCloud_comp_datasets"
 
 datasets_to_test = {
@@ -58,7 +58,11 @@ datasets_to_test = {
      },
      "WILK_BASEMENT":{
          "map":"wilk_basement.yaml",
-         "datasets":[]
+         "datasets":[
+             "WILK_BASEMENT_1",
+            #  "WILK_BASEMENT_2",
+             "WILK_BASEMENT_3"
+         ]
      }
 }
 
@@ -228,7 +232,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True
+                generate_movie=False
             )
     
     analyzer = Analyzer()

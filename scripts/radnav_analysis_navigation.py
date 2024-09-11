@@ -8,13 +8,14 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 #load the necessary odometry modules
-#load the necessary odometry modules
 from odometry.datasets.map_handler import MapHandler
 from odometry.datasets.radnav_ds import radnavDS
-from odometry.test_benches.radar_ICP_only_tb import RadarICPOnlyTB
+from odometry.test_benches.radnav_stacked_pc_tb import RadnavStackedPCTB
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
+from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacker
+
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
 
@@ -26,56 +27,38 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "RadarICPOnly09042024"
+results_parent_folder = "radnav_trajectories_09092024"
 
 datasets_to_test = {
-     "WILK":{
+     "WILK_nav":{
           "map":"wilkinson.yaml",
           "datasets":[
-               'WILK_Path_1_With_Dynamic',
-                'WILK_Multipath_Test_4',
-                'WILK_Multipath_Test_5',
-                'WILK_Slow_4',
-                'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
-                'WILK_Path_1_Slow_No_Dynamic_1',
-                'WILK_Slow_Walk_Test_1',
-                'WILK_Path_1_With_Dynamic_2',
-                'WILK_Path_1_No_Dynamic',
-                'WILK_Slow_Walk_Test_2',
-                'WILK_Path_1_Slow_Dynamic_1',
-                'WILK_Multipath_Test_1',
-                'WILK_Multipath_Test_3',
-                'WILK_Slow_1',
-                'WILK_vel_cfg_1',
-                'WILK_Slow_2',
-                'WILK_Path_1_Same_Side_Dynamic_1',
-                'WILK_vel_cfg_2',
-                'WILK_Multipath_Test_1_spin_recal',
-                'WILK_Multipath_Test_2',
-                'WILK_Slow_3'
+            # 'wilk_nav_1',
+            # 'wilk_nav_2',
+            # 'wilk_nav_3',
+            'wilk_nav_4'
+            # 'wilk_nav_5',
           ]
      },
-     "CPSL":{
+     "CPSL_nav":{
          "map":"cpsl_full.yaml",
          "datasets":[
-             'CPSL_Walk_1',
-             'CPSL_Vel_2',
-             'CPSL_NoVel_2',
-             'CPSL_Walk_2',
-             'CPSL_Vel_1',
-             'CPSL_NoVel_1',
-            #  'CONFIG_TEST',
-             'CPSL_Vel_3',
-            #  'CPSL_No_Move',
-             'CPSL_Lidar_Test',
-             'CPSL_vel_cfg_1']
+             'cpsl_nav_1',
+             'cpsl_nav_2',
+             'cpsl_nav_3',
+             'cpsl_nav_4'
+            #  'cpsl_nav_5'
+            ]
      },
-     "WILK_BASEMENT":{
-         "map":"wilk_basement.yaml",
+     "WILK_BASEMENT_nav":{
+         "map":"wilk_basement_revB.yaml",
          "datasets":[
-             'wilk_basement_1',
-             'wilk_basement_2',
-             'wilk_basement_0905_1']
+             'wilk_basement_nav_1',
+             'wilk_basement_nav_2',
+             'wilk_basement_nav_3',
+             'wilk_basement_nav_4'
+            #  'wilk_basement_nav_5'
+            ]
      }
 }
 
@@ -85,7 +68,7 @@ def create_dir(path):
             os.makedirs(path)
         return
 
-def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
+def compute_trajectories(folder_name,file_name,map_file,generate_movie=False):
 
     #initialize the dataset
     dataset = radnavDS(
@@ -112,7 +95,7 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=7, #originally 5
         icp_max_iterations=20,
-        self_detection_radius_m=1.5 #originally 1.5
+        self_detection_radius_m=0 #originally 1.5
     )
 
     lidar_odometry = icp2DLocalization(
@@ -125,12 +108,35 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
+    #initialize the point cloud stacker
+    pc_stacker = temporalPcStacker(
+        num_frames_static_history = 4, # originally 4
+        num_frames_dynamic_history = 0, # originally 0
+        refresh_distance_m = 3, #originally 3
+        refresh_rot_deg = 90, #originally 90
+        refresh_time_s = 5, #originally 5
+        grid_resolution_m = 5e-2, #originally 5e-2
+        grid_max_distance_m = 20, #originally 20
+        multi_path_clustering_eps = 0.5, #originally 0.5
+        multi_path_clustering_min_samples = 15,  #originally 15
+        multi_path_num_frames_history=4, # originally 4
+        vel_filtering_enabled = True,
+        vel_filtering_v_thresh = 0.05, # originally 0.05
+        vel_filtering_min_static_rejection_radius = 0.25, #originally 0.25
+        vel_filtering_dynamic_cluster_eps = 0.5, #originally 0.5
+        vel_filtering_dynamic_cluster_min_samples = 15, #originally 15
+        min_detection_radius_m=1.5, #originally 1.5
+        max_detection_range_m=20, #originally 20
+        gyro_bias=-0.0024 #originally -0.0024
+    )
+
     #initialize the test bench
-    test_bench = RadarICPOnlyTB(
+    test_bench = RadnavStackedPCTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
-        dataset=dataset
+        dataset=dataset,
+        pc_stacker=pc_stacker
     )
 
     start_heading = np.deg2rad(0)
@@ -149,6 +155,11 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         est_start_position_m=new_pose_m,
         start_time_s=test_bench.get_dataset_start_time(idx=0),
         gyro_bias=-0.0024
+    )
+
+    #initialize the point cloud stacker
+    test_bench.init_pc_stacker(
+        start_time_s=test_bench.get_dataset_start_time(idx=0)
     )
 
     if generate_movie:
@@ -180,14 +191,18 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         movie_generator.save_movie(video_file_name="{}/{}.mp4".format(
             movie_folder,file_name),fps=20)
     
-    #save the analysis
-    result_folder="{}/Results".format(results_parent_folder)
+    # save the ground truth trajectories
+    result_folder="{}/gt_trajectories".format(results_parent_folder)
     create_dir(result_folder)
-    test_bench.analyze(
-        save_folder_path=result_folder,
-        file_name=file_name,
-        export_to_csv=True
-    )
+    np.save("{}/{}.npy".format(result_folder,file_name),
+            test_bench.history_position_m_gt)
+    
+    #save the estimated trajectories
+    result_folder="{}/est_trajectories".format(results_parent_folder)
+    create_dir(result_folder)
+    np.save("{}/{}.npy".format(result_folder,file_name),
+            test_bench.history_position_m)
+
 
     #save the position history plot for checking
     position_history_folder = \
@@ -210,14 +225,9 @@ if __name__ == "__main__":
          map_name = datasets_to_test[folder_name]["map"]
          for file_name in datasets_to_test[folder_name]["datasets"]:
             print("analyzing: {}".format(file_name))
-            analyze_dataset(
+            compute_trajectories(
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
                 generate_movie=False
             )
-    
-    analyzer = Analyzer()
-    analyzer.show_cumulative_summary_from_csvs(
-        save_folder="{}/Results".format(results_parent_folder)
-    )

@@ -26,7 +26,7 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "OdomOnly09042024"
+results_parent_folder = "OdomOnly09112024"
 
 datasets_to_test = {
      "WILK":{
@@ -71,11 +71,11 @@ datasets_to_test = {
              'CPSL_vel_cfg_1']
      },
      "WILK_BASEMENT":{
-         "map":"wilk_basement.yaml",
+         "map":"wilk_basement_revB.yaml",
          "datasets":[
              'wilk_basement_1',
              'wilk_basement_2',
-             'wilk_basement_0905_1']
+             'wilk_basement_3']
      }
 }
 

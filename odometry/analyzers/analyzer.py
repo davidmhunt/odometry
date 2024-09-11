@@ -4,6 +4,8 @@ from IPython.display import display
 import os
 import fnmatch
 
+from odometry.plotting.plotter_analyzer import PlotterAnalyzer
+
 class Analyzer:
 
     def __init__(self) -> None:
@@ -166,6 +168,8 @@ class Analyzer:
             history_position_m_gt:np.ndarray,
             history_heading_deg:list,
             history_heading_deg_gt:list,
+            pc_quality_distances:list,
+            num_quality_points:list,
             percentile=0.90
     ):
         """Generate a tabular summary of errors between estimates and gt
@@ -175,6 +179,10 @@ class Analyzer:
             history_position_m_gt (np.ndarray): Nx2 gt position array
             history_heading_deg (list): est heading for each frame in degrees
             history_heading_deg_gt (list): gt heading for each frame in degrees
+            pc_quality_distances (list): list of distances for each frame's 
+                point cloud point to nearest point in the map
+            num_quality_points (list): list of number of quality points for each
+                point cloud frame
             percentile (float, optional): Tail error percentile. Defaults to 0.90.
         """
         
@@ -184,7 +192,7 @@ class Analyzer:
             history_position_m_gt
         )
         absolute_errors_pose_mean = np.mean(absolute_errors_pos)
-        absolute_errors_pose_var = np.std(absolute_errors_pos)
+        absolute_errors_pose_stdev = np.std(absolute_errors_pos)
         absolute_errors_pose_median = np.median(absolute_errors_pos)
         absolute_errors_pose_tail = self.get_percentile(absolute_errors_pos, percentile)
 
@@ -194,7 +202,7 @@ class Analyzer:
             history_position_m_gt
         )
         relative_errors_pose_mean = np.mean(relative_errors_pos)
-        relative_errors_pose_var = np.std(relative_errors_pos)
+        relative_errors_pose_stdev = np.std(relative_errors_pos)
         relative_errors_pose_median = np.median(relative_errors_pos)
         relative_errors_pose_tail = self.get_percentile(relative_errors_pos, percentile)
 
@@ -218,6 +226,20 @@ class Analyzer:
         relative_errors_heading_median = np.median(relative_errors_heading)
         relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
+        # point cloud quality distances
+        pc_quality_distances = np.array(pc_quality_distances)
+        pc_quality_distances_mean = np.mean(pc_quality_distances)
+        pc_quality_distances_stdev = np.std(pc_quality_distances)
+        pc_quality_distances_median = np.median(pc_quality_distances)
+        pc_quality_distances_tail = self.get_percentile(pc_quality_distances, percentile)
+
+        # num quality points
+        num_quality_points = np.array(num_quality_points)
+        num_quality_points_mean = np.mean(num_quality_points)
+        num_quality_points_stdev = np.std(num_quality_points)
+        num_quality_points_median = np.median(num_quality_points)
+        num_quality_points_tail = self.get_percentile(num_quality_points, percentile)
+
         # create the table
         dict = {
             "Metric": [
@@ -228,13 +250,13 @@ class Analyzer:
             ],
             "Absolute position (m)": [
                 absolute_errors_pose_mean,
-                absolute_errors_pose_var,
+                absolute_errors_pose_stdev,
                 absolute_errors_pose_median,
                 absolute_errors_pose_tail,
             ],
             "Relative position (m)": [
                 relative_errors_pose_mean,
-                relative_errors_pose_var,
+                relative_errors_pose_stdev,
                 relative_errors_pose_median,
                 relative_errors_pose_tail,
             ],
@@ -249,6 +271,16 @@ class Analyzer:
                 relative_errors_heading_stdev,
                 relative_errors_heading_median,
                 relative_errors_heading_tail],
+            "Point Cloud Distances": [
+                pc_quality_distances_mean,
+                pc_quality_distances_stdev,
+                pc_quality_distances_median,
+                pc_quality_distances_tail],
+            "Quality Points": [
+                num_quality_points_mean,
+                num_quality_points_stdev,
+                num_quality_points_median,
+                num_quality_points_tail],
         }
 
         df = pd.DataFrame(dict)
@@ -263,6 +295,8 @@ class Analyzer:
             history_position_m_gt:np.ndarray,
             history_heading_deg:list,
             history_heading_deg_gt:list,
+            pc_quality_distances:list,
+            num_quality_points:list,
             save_folder:str,
             file_name:str
     ):
@@ -273,6 +307,10 @@ class Analyzer:
             history_position_m_gt (np.ndarray): Nx2 gt position array
             history_heading_deg (list): est heading for each frame in degrees
             history_heading_deg_gt (list): gt heading for each frame in degrees
+            pc_quality_distances (list): list of distances for each frame's 
+                point cloud point to nearest point in the map
+            num_quality_points (list): list of number of quality points for each
+                point cloud frame
             save_path (str): path to save the csv file
         """
        
@@ -313,7 +351,25 @@ class Analyzer:
         path = os.path.join(save_folder,file_name + "_relative.csv")
         df.to_csv(path,index=False)
         
+        #point cloud quality
+        pc_quality_distances = np.array(pc_quality_distances)
+        num_quality_points = np.array(num_quality_points)
+        
+        dict = {
+            "pc_quality_distances":pc_quality_distances,
+        }
+        df = pd.DataFrame(dict)
+        path = os.path.join(save_folder,file_name + "_pc_quality_distances.csv")
+        df.to_csv(path,index=False)
 
+        dict = {
+            "num_quality_points":num_quality_points
+        }
+        df = pd.DataFrame(dict)
+        path = os.path.join(save_folder,file_name + "_num_quality_points.csv")
+        df.to_csv(path,index=False)
+        
+        #summary statistics
         total_distance = self.compute_total_distance_traveled(
             history_pose_gt=history_position_m_gt
         )
@@ -405,6 +461,44 @@ class Analyzer:
 
         return relative_errors_position,relative_errors_heading_deg
     
+    def get_pc_quality_stats_from_csvs(self,save_folder:str):
+        """Get the point cloud quality statistics from a folder 
+        containing .csv files with point cloud quality data
+        from multiple datasets
+
+        Args:
+            save_folder (str): path to the results directory
+
+        Returns:
+            (np.ndarray,np.ndarray): pc_quality_distances,num_quality_points
+        """
+
+        #get absolute errors first
+        pc_quality_distances = []
+        num_quality_points = []
+        
+        #pc quality distances
+        pc_quality_distances_files = self.find_files_in_directory(save_folder,'*_pc_quality_distances*')
+        for file_path in pc_quality_distances_files:
+
+            df = pd.read_csv(file_path)
+            pc_quality_distances.extend(
+                df["pc_quality_distances"].astype(float).tolist()
+            )
+        pc_quality_distances = np.array(pc_quality_distances)
+
+        #num quality points
+        num_quality_points_files = self.find_files_in_directory(save_folder,'*_num_quality_points*')
+        for file_path in num_quality_points_files:
+
+            df = pd.read_csv(file_path)
+            num_quality_points.extend(
+                df["num_quality_points"].astype(float).tolist()
+            )
+        num_quality_points = np.array(num_quality_points)
+
+        return pc_quality_distances,num_quality_points
+    
     def get_summary_statistics_from_csvs(self,save_folder:str)->dict:
         total_distance = 0
         trial_distances = []
@@ -466,6 +560,26 @@ class Analyzer:
         relative_errors_heading_median = np.median(relative_errors_heading)
         relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
+        #get point cloud quality statistics
+        pc_quality_distances,num_quality_points = \
+            self.get_pc_quality_stats_from_csvs(save_folder)
+        pc_quality_distances = np.array(pc_quality_distances)
+        pc_quality_distances_mean = np.mean(pc_quality_distances)
+        pc_quality_distances_stdev = np.std(pc_quality_distances)
+        pc_quality_distances_median = np.median(pc_quality_distances)
+        pc_quality_distances_tail = self.get_percentile(pc_quality_distances, percentile)
+
+        # num quality points
+        num_quality_points = np.array(num_quality_points)
+        num_quality_points_mean = np.mean(num_quality_points)
+        num_quality_points_stdev = np.std(num_quality_points)
+        num_quality_points_median = np.median(num_quality_points)
+        num_quality_points_tail = self.get_percentile(num_quality_points, percentile)
+
+        #percent high quality points
+        num_quality_points_revised = np.sum(pc_quality_distances <= 0.5)
+        percent_quality_points = num_quality_points_revised / np.shape(pc_quality_distances)[0]
+
         #get summary statistics
         summary_dict = self.get_summary_statistics_from_csvs(save_folder)
         
@@ -524,6 +638,16 @@ class Analyzer:
                 final_heading_errors_stdev,
                 final_heading_errors_median,
                 final_heading_errors_tail],
+            "Point Cloud Distances": [
+                pc_quality_distances_mean,
+                pc_quality_distances_stdev,
+                pc_quality_distances_median,
+                pc_quality_distances_tail],
+            "Quality Points": [
+                num_quality_points_mean,
+                num_quality_points_stdev,
+                num_quality_points_median,
+                num_quality_points_tail],
         }
 
         df = pd.DataFrame(dict)
@@ -537,8 +661,9 @@ class Analyzer:
         print("average frames per trial: {}".format(
             np.average(summary_dict["trial_frames"])
         ))
+        print("percent quality points: {}".format(percent_quality_points))
+        print("max position error: {}".format(np.max(absolute_errors_pos)))
 
-        return
-        
+        return        
 
 

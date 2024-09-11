@@ -3,6 +3,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from odometry.supportFns import rotation_functions
+
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.datasets.radnav_ds import radnavDS
 from odometry.datasets.map_handler import MapHandler
@@ -435,7 +436,9 @@ class OdomOnlyTB:
             self.history_position_m,
             self.history_position_m_gt,
             self.history_heading_deg,
-            self.history_heading_deg_gt
+            self.history_heading_deg_gt,
+            pc_quality_distances=[0],
+            num_quality_points=[0]
         )
 
         if export_to_csv:
@@ -444,21 +447,11 @@ class OdomOnlyTB:
                 self.history_position_m_gt,
                 self.history_heading_deg,
                 self.history_heading_deg_gt,
+                pc_quality_distances=[0],
+                num_quality_points=[0],
                 save_folder=save_folder_path,
                 file_name=file_name
             )
-        
-    ####################################################################
-    #Import Analysis to a CSV File
-    ####################################################################
-    def analyze_to_csv(self, save_path:str):
-        self.analyzer.record_error_statistics(
-            self.history_position_m,
-            self.history_position_m_gt,
-            self.history_heading_deg,
-            self.history_heading_deg_gt,
-            save_path
-        )
     
     ####################################################################
     #Plot compilation of data

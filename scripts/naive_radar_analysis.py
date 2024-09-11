@@ -8,14 +8,13 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 #load the necessary odometry modules
+#load the necessary odometry modules
 from odometry.datasets.map_handler import MapHandler
 from odometry.datasets.radnav_ds import radnavDS
-from odometry.test_benches.radnav_stacked_pc_tb import RadnavStackedPCTB
+from odometry.test_benches.naive_radar_tb import NaiveRadarTB
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
-from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacker
-
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
 
@@ -27,7 +26,7 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "Radnav09112024"
+results_parent_folder = "NaiveRadar09112024"
 
 datasets_to_test = {
      "WILK":{
@@ -113,7 +112,7 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=7, #originally 5
         icp_max_iterations=20,
-        self_detection_radius_m=0 #originally 1.5
+        self_detection_radius_m=1.5 #originally 1.5
     )
 
     lidar_odometry = icp2DLocalization(
@@ -126,35 +125,12 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
-    #initialize the point cloud stacker
-    pc_stacker = temporalPcStacker(
-        num_frames_static_history = 4, # originally 4
-        num_frames_dynamic_history = 0, # originally 0
-        refresh_distance_m = 3, #originally 3
-        refresh_rot_deg = 90, #originally 90
-        refresh_time_s = 5, #originally 5
-        grid_resolution_m = 5e-2, #originally 5e-2
-        grid_max_distance_m = 20, #originally 20
-        multi_path_clustering_eps = 0.5, #originally 0.5
-        multi_path_clustering_min_samples = 15,  #originally 15
-        multi_path_num_frames_history=4, # originally 4
-        vel_filtering_enabled = True,
-        vel_filtering_v_thresh = 0.05, # originally 0.05
-        vel_filtering_min_static_rejection_radius = 0.25, #originally 0.25
-        vel_filtering_dynamic_cluster_eps = 0.5, #originally 0.5
-        vel_filtering_dynamic_cluster_min_samples = 15, #originally 15
-        min_detection_radius_m=1.5, #originally 1.5
-        max_detection_range_m=20, #originally 20
-        gyro_bias=-0.0024 #originally -0.0024
-    )
-
     #initialize the test bench
-    test_bench = RadnavStackedPCTB(
+    test_bench = NaiveRadarTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
-        dataset=dataset,
-        pc_stacker=pc_stacker
+        dataset=dataset
     )
 
     start_heading = np.deg2rad(0)
@@ -173,11 +149,6 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         est_start_position_m=new_pose_m,
         start_time_s=test_bench.get_dataset_start_time(idx=0),
         gyro_bias=-0.0024
-    )
-
-    #initialize the point cloud stacker
-    test_bench.init_pc_stacker(
-        start_time_s=test_bench.get_dataset_start_time(idx=0)
     )
 
     if generate_movie:

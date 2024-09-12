@@ -35,7 +35,7 @@ MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 RADARHD_MODEL_STATE_DICT_PATH=os.getenv("RADARHD_MODEL_STATE_DICT_PATH")
 CONFIG_DIRECTORY = os.getenv("CONFIG_DIRECTORY")
 
-results_parent_folder = "radarHD09052024"
+results_parent_folder = "radarHD09112024"
 model_dataset_folder_name = "radarHD_comp_datasets"
 
 datasets_to_test = {

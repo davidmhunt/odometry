@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import time
 
 from odometry.supportFns import rotation_functions
 
@@ -59,6 +60,13 @@ class OdomOnlyTB:
         self.history_position_m_gt = None
         self.history_heading_deg_gt = None
         self.history_localizers_reset()
+
+        #timing history
+        self.history_update_periods:list = None
+        self.history_update_actitve_compute_times:list = None
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+        self.history_timing_reset()
 
         #kalman filter histories
         self.history_filter_est = None
@@ -228,6 +236,28 @@ class OdomOnlyTB:
         self.history_filter_g.append(self.filter.g)
         self.history_filter_y.append(self.filter.y)
     
+    ####################################################################
+    #Histories (timing measurement)
+    ####################################################################
+    def history_timing_reset(self):
+        self.history_update_periods = []
+        self.history_update_actitve_compute_times = []
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+    
+    def history_timing_save_compute_time(self):
+
+        #save the compute times
+        self.history_update_periods.append(
+            self.history_current_update_period_time
+        )
+        self.history_update_actitve_compute_times.append(
+            self.history_current_active_compute_time
+        )
+
+        #reset the tracking variables
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
     
     ####################################################################
     #Handling time
@@ -376,6 +406,9 @@ class OdomOnlyTB:
 
         for i in tqdm(range(max_frame)):
 
+            #start time tracking
+            start_time = time.time()
+
             #predict the states forward
             self.filters_predict_from_frame_samples(
                 idx=i,
@@ -407,6 +440,13 @@ class OdomOnlyTB:
                     idx = i
                 )
             
+            #update the time tracking
+            stop_time = time.time()
+            self.history_current_update_period_time += (1/20.0)
+            self.history_current_active_compute_time += \
+                (stop_time - start_time)
+            self.history_timing_save_compute_time()
+
             self.history_update_pose(
                 position_m=np.array([self.filter.x[0],self.filter.x[1]]),
                 heading_rad=self.filter.x[2],

@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import time
 
 from odometry.supportFns import rotation_functions
 from sklearn.neighbors import NearestNeighbors
@@ -69,6 +70,13 @@ class NaiveRadarTB:
         self.history_pc_quality_num_quality_points:list = None
         self.pc_quality_clusterer:NearestNeighbors = None
         self.history_pc_quality_reset()
+
+        #timing history
+        self.history_update_periods:list = None
+        self.history_update_actitve_compute_times:list = None
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+        self.history_timing_reset()
 
         #kalman filter histories
         self.history_filter_est = None
@@ -314,7 +322,29 @@ class NaiveRadarTB:
                 np.sum(distances[:,0] < self.pc_quality_dist_thresh_m)
             )
     
+    ####################################################################
+    #Histories (timing measurement)
+    ####################################################################
+    def history_timing_reset(self):
+        self.history_update_periods = []
+        self.history_update_actitve_compute_times = []
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
     
+    def history_timing_save_compute_time(self):
+
+        #save the compute times
+        self.history_update_periods.append(
+            self.history_current_update_period_time
+        )
+        self.history_update_actitve_compute_times.append(
+            self.history_current_active_compute_time
+        )
+
+        #reset the tracking variables
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+
     ####################################################################
     #Handling time
     #################################################################### 
@@ -462,6 +492,9 @@ class NaiveRadarTB:
 
         for i in tqdm(range(max_frame)):
 
+            #start time tracking
+            start_time = time.time()
+
             #predict the states forward
             self.filters_predict_from_frame_samples(
                 idx=i,
@@ -492,9 +525,6 @@ class NaiveRadarTB:
                     heading_rad=self.filter_gt.x[2],
                     idx = i
                 )
-
-            
-
             
 
             if self.vehicle_moving:
@@ -523,7 +553,13 @@ class NaiveRadarTB:
                         t = self.filter_last_t
                     )
 
-                
+                #update the time tracking
+                stop_time = time.time()
+                self.history_current_update_period_time += (1/20.0)
+                self.history_current_active_compute_time += \
+                    (stop_time - start_time)
+                self.history_timing_save_compute_time()
+
                 self.latest_pose_m = self.filter.x[0:2]
                 self.latest_heading_rad = self.filter.x[2]
             

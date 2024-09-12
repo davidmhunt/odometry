@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import time
 
 from odometry.supportFns import rotation_functions
 from sklearn.neighbors import NearestNeighbors
@@ -82,6 +83,13 @@ class RadnavStackedPCTB:
         self.history_pc_quality_num_quality_points:list = None
         self.pc_quality_clusterer:NearestNeighbors = None
         self.history_pc_quality_reset()
+
+        #timing history
+        self.history_update_periods:list = None
+        self.history_update_actitve_compute_times:list = None
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+        self.history_timing_reset()
 
         #kalman filter histories
         self.history_filter_est = None
@@ -365,6 +373,29 @@ class RadnavStackedPCTB:
             )
     
     ####################################################################
+    #Histories (timing measurement)
+    ####################################################################
+    def history_timing_reset(self):
+        self.history_update_periods = []
+        self.history_update_actitve_compute_times = []
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+    
+    def history_timing_save_compute_time(self):
+
+        #save the compute times
+        self.history_update_periods.append(
+            self.history_current_update_period_time
+        )
+        self.history_update_actitve_compute_times.append(
+            self.history_current_active_compute_time
+        )
+
+        #reset the tracking variables
+        self.history_current_update_period_time:float = 0.0
+        self.history_current_active_compute_time:float = 0.0
+
+    ####################################################################
     #Handling time
     #################################################################### 
     def get_dataset_start_time(self,idx=0)->float:
@@ -517,6 +548,9 @@ class RadnavStackedPCTB:
 
         for i in tqdm(range(max_frame)):
 
+            #start time tracking
+            start_time = time.time()
+
             #predict the states forward
             self.filters_predict_from_frame_samples(
                 idx=i,
@@ -548,7 +582,6 @@ class RadnavStackedPCTB:
                     idx = i
                 )
 
-            
 
             #generate combined point cloud
             radar_points = self.dataset.get_radar_detections(idx=i)
@@ -593,7 +626,20 @@ class RadnavStackedPCTB:
                                 gt_position_m=self.filter_gt.x[0:2],
                                 gt_heading_rad=self.filter_gt.x[2]
                             )
-                
+                    #update the time tracking
+                    stop_time = time.time()
+                    self.history_current_update_period_time += (1/20.0)
+                    self.history_current_active_compute_time += \
+                        (stop_time - start_time)
+                    self.history_timing_save_compute_time()
+                else:
+                    #update the time tracking
+                    stop_time = time.time()
+                    self.history_current_update_period_time += (1/20.0)
+                    self.history_current_active_compute_time += \
+                        (stop_time - start_time)
+                    
+
                 self.latest_pose_m = self.filter.x[0:2]
                 self.latest_heading_rad = self.filter.x[2]
             

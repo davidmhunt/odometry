@@ -27,7 +27,7 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "Radnav09112024"
+results_parent_folder = "Radnav09112024_front_only"
 
 datasets_to_test = {
      "WILK":{
@@ -91,7 +91,7 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
     #initialize the dataset
     dataset = radnavDS(
         dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
-        radar_folder="radar_combined",
+        radar_folder="radar_0",
         lidar_folder="lidar",
         camera_folder="camera",
         imu_orientation_folder="imu_data",

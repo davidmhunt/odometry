@@ -25,17 +25,30 @@ class PlotterAnalyzer:
         if not ax:
             fig,ax = plt.subplots()
 
-        #plot the aligned_detections
-        ax.hist(errors,
-                bins=bins,
-                edgecolor='black',
-                density=True)
+        # Compute the histogram
+        counts, bin_edges = np.histogram(errors, bins=bins)
+
+        # Convert counts to percentages
+        percentages = (counts / len(errors)) * 100
+
+        print("Max: {}, sum: {}".format(
+            np.max(percentages),
+            np.sum(percentages)
+        ))
+
+        # Plot the histogram with percentage on the y-axis
+        ax.bar(
+            bin_edges[:-1],
+            percentages,
+            width=np.diff(bin_edges),
+            edgecolor='black',
+            align='edge')
         
 
         ax.set_title("Error Histogram",
                      fontsize=self.font_size_title)
         ax.set_xlabel("Error (m)",fontsize=self.font_size_axis_labels)
-        ax.set_ylabel("Frequency",fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("Percent (%)",fontsize=self.font_size_axis_labels)
         ax.tick_params(labelsize=self.font_size_ticks)
 
         if show:

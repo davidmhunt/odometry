@@ -12,7 +12,7 @@ from cpsl_datasets.map_handler import MapHandler
 
 from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 
-from mmwave_model_integrator.encoders.radarhd_encoder import RadarHDEncoder
+from mmwave_model_integrator.input_encoders.radarhd_encoder import RadarHDEncoder
 from mmwave_model_integrator.model_runner.radarhd_runner import RadarHDRunner
 from mmwave_model_integrator.decoders.radarhd_decoder import RadarHDDecoder
 

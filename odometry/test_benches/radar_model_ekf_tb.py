@@ -6,7 +6,7 @@ import time
 from cpsl_datasets.cpsl_ds import CpslDS
 from cpsl_datasets.map_handler import MapHandler
 
-from mmwave_model_integrator.encoders._radar_range_az_encoder import _RadarRangeAzEncoder
+from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
 from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
 from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC

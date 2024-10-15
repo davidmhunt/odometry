@@ -123,11 +123,13 @@ In order to use any datasets in your computer's directory, you must first create
 1. Create a .env file in your project's root directory. This will file will not be uploaded to GitHub when you commit your changes.
 2. Inside the .env file, add these variables
 ```
-DATASET_DIRECTORY=/example/your_directory
-MAP_DIRECTORY=/example/your_directory
-MOVIE_TEMP_DIRECTORY=/example/your_directory
-RADCLOUD_MODEL_STATE_DICT_PATH=/example/model.pth
-RADARHD_MODEL_STATE_DICT_PATH=/example/model.pth
+DATASET_DIRECTORY=/data/radnav/rad_nav_datasets/
+MODEL_DATASET_DIRECTORY=/data/radnav/
+MAP_DIRECTORY=/data/radnav/maps/
+CONFIG_DIRECTORY=/home/USERNAME/Documents/odometry/submodules/mmwave_radar_processing/configs/
+MOVIE_TEMP_DIRECTORY=/home/USERNAME/Downloads/radnav_temp_dir
+RADCLOUD_MODEL_STATE_DICT_PATH=/home/USERNAME/Documents/odometry/submodules/radcloud/working_dir/RadCloud_40_chirps_10e.pth
+RADARHD_MODEL_STATE_DICT_PATH=/data/RadarHD/radarhd_dict.pt_gen
 ```
 3. Replace the example text with the path to your directory
 

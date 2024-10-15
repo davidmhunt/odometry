@@ -63,6 +63,11 @@ git submodule update --init
 ```
 curl -sSL https://install.python-poetry.org | python3 -
 ```
+
+If you are using poetry over an ssh connection or get an error in the following steps, try running the following command first and then continuing with the remainder fo the installation.
+```
+export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
+```
 ### Installing odometry (with torch)
 If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
 
@@ -70,21 +75,13 @@ If your machine supports it Navigate to the odometry foler (this folder) and exe
 poetry install --with submodules,torch
 ```
 
-If you get an an error saying: "Failed to unlock the collection!", execute the following command in the terminal:
-```
-export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
-```
+
 
 ### Installing odometry (with torch separately)
 If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
 
 ```
 poetry install --with submodules
-```
-
-If you get an an error saying: "Failed to unlock the collection!", execute the following command in the terminal:
-```
-export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 ```
 
 Follow the following instructions to install the correct version of pytorch for your system.

@@ -13,3 +13,6 @@
 [submodule "submodules/mmwave_model_integrator"]
 	path = submodules/mmwave_model_integrator
 	url = https://github.com/davidmhunt/mmwave_model_integrator.git
+[submodule "submodules/lib-avstack-core"]
+	path = submodules/lib-avstack-core
+	url = https://github.com/avstack-lab/lib-avstack-core.git

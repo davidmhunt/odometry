@@ -549,6 +549,9 @@ class RadnavStackedPCTrackingTB:
             movie_generator:MovieGenerator = None):
         if max_frame == -1:
             max_frame = self.dataset.num_frames
+            
+        # initialize the dynamic tracker
+        self.dynamic_object_tracker.reset(n=max_frame)
 
         for i in tqdm(range(max_frame)):
 
@@ -603,8 +606,18 @@ class RadnavStackedPCTrackingTB:
                 ego_heading_rad=self.filter.x[2],
                 ego_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
             )
+            
+            # update the clusters
+            num_clusters, clusters, centroids = self.dynamic_object_tracker.dynamic_point_cloud_clustering(
+                current_points=self.dynamic_object_tracker.current_dynamic_detections,
+            )
 
             #TODO: update the history 
+            self.dynamic_object_tracker.history_update_dynamic_objects(
+                current_points=self.dynamic_object_tracker.current_dynamic_detections,
+                cluster_nums = num_clusters,
+                centroids = centroids 
+            )
 
             if self.vehicle_moving:
                 if self.point_cloud_stacker.new_pc_available:

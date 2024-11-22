@@ -784,13 +784,18 @@ class RadnavStackedPCTrackingTB:
             axs[1,1].set_title("Last Raytraced Point Cloud",
                                fontsize=self.plotter_localization.font_size_title)
             
+        # Bottom right plot, combined point cloud with clusters
         combined_pc = self.point_cloud_stacker.get_current_stacked_pc_static()
-        dynamic_combined_pc = self.point_cloud_stacker.get_current_stacked_pc_dynamic()
+        # dynamic_combined_pc = self.point_cloud_stacker.get_current_stacked_pc_dynamic()
+        dynamic_combined_pc = self.dynamic_object_tracker.history_dynamic_objects[-1]
+        current_centroids = self.dynamic_object_tracker.history_clustered_dynamic_centroids[-1]
+        centroid_points = np.array(list(current_centroids.values()))
         if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
 
             self.plotter_localization.plot_dynamic_and_static_detections_on_map(
                 static_points=combined_pc,
                 dynamic_points=dynamic_combined_pc,
+                dynamic_centroids=centroid_points,
                 heading_rad=self.filter.x[2],
                 pose_m=self.filter.x[0:2],
                 ax=axs[1,2],

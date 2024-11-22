@@ -266,10 +266,12 @@ class PlotterLocalization:
 
         return
     
+    # modified function to show current dynamic points and clusters
     def plot_dynamic_and_static_detections_on_map(
             self,
             static_points:np.ndarray,
             dynamic_points:np.ndarray,
+            dynamic_centroids:np.ndarray,
             heading_rad,
             pose_m,
             ax:plt.Axes=None,
@@ -297,13 +299,23 @@ class PlotterLocalization:
                 )
 
         if len(dynamic_points > 0):
-            dynamic_aligned_points = \
-                rotation_functions.apply_rot_trans(
-                    points=dynamic_points,
-                    rot_angle_rad=heading_rad,
-                    trans=pose_m
-                )
-                
+            # dynamic_aligned_points = \
+            #     rotation_functions.apply_rot_trans(
+            #         points=dynamic_points,
+            #         rot_angle_rad=heading_rad,
+            #         trans=pose_m
+            #     ) 
+            dynamic_aligned_points = dynamic_points
+        
+        if len(dynamic_centroids > 0):
+            # dynamic_aligned_points = \
+            #     rotation_functions.apply_rot_trans(
+            #         points=dynamic_points,
+            #         rot_angle_rad=heading_rad,
+            #         trans=pose_m
+            #     ) 
+            dynamic_aligned_centroids = dynamic_centroids
+        
         if not ax:
             fig,ax = plt.subplots()
         
@@ -334,7 +346,16 @@ class PlotterLocalization:
                 label="dynamic detections",
                 marker="D",
                 color="green",
-                s=self.marker_size)
+                s=15)
+            
+        if len(dynamic_centroids > 0):
+            ax.scatter(
+                dynamic_aligned_centroids[:,0],
+                dynamic_aligned_centroids[:,1],
+                label="dynamic cluster centroids",
+                marker="*",
+                color="orange",
+                s=25)
         
         #plot the pose estimate
         ax.scatter(

@@ -1,0 +1,150 @@
+import numpy as np
+
+import matplotlib.pyplot as plt
+
+from odometry.test_benches._test_bench import _TestBench
+from odometry.point_cloud_processing._point_cloud_integrator import _PointCloudIntegrator
+
+from geometries.pose.pose import Pose
+
+class PointCloudIntegratorTB(_TestBench):
+
+    def __init__(
+            self,
+            gt_localizer,
+            map_handler,
+            dataset,
+            point_cloud_integrator:_PointCloudIntegrator,
+            localizer = None):
+        
+        super().__init__(gt_localizer, map_handler, dataset, localizer)
+
+        self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator
+
+        return
+    
+    def process_point_cloud(
+            self,
+            point_cloud_raw:np.ndarray,
+            static_points:np.ndarray,
+            dynamic_points:np.ndarray,
+            current_pose:Pose) -> np.ndarray:
+        """Implemented by the child class to process the point cloud
+
+        Args:
+            point_cloud_raw (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel] full radar point cloud
+            static_points (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel] point cloud of static points
+            dynamic_points (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel] point cloud of dynamic points
+            current_pose (Pose): pose object corresponding to the currently 
+                estimated position (from local odometry)
+
+        Returns:
+            np.ndarray: [x,y,z,vel] point cloud to be used for down stream localization
+                tasks. Returns empty array if no points available or if no point 
+                cloud ready to be used
+        """
+        
+        self.point_cloud_integrator.add_points(
+            static_points=static_points,
+            current_pose=current_pose
+        )
+
+        #for now return an empty array so as not to affect odometry computation
+        return np.empty(shape=(0,4))
+    
+    def plot_compilation(
+            self,
+            idx=-1,
+            axs:plt.Axes=[],
+            show=False
+        ):
+
+        if len(axs) == 0:
+            fig,axs=plt.subplots(2,3, figsize=(15,10))
+            fig.subplots_adjust(wspace=0.3,hspace=0.30)
+
+        #top row pose(localization and heading) and camera view
+        self.plotter_localization.plot_heading_history_deg(
+            history_heading_deg=self.history_heading_deg,
+            history_heading_deg_gt=self.history_heading_deg_gt,
+            idx=idx+1,
+            ax=axs[0,0],
+            show=False
+        )
+        
+        self.plotter_localization.plot_position_history_m(
+            history_position_m=self.history_position_m,
+            history_position_m_gt=self.history_position_m_gt,
+            idx=idx+1,
+            ax=axs[0,1],
+            show=False
+        )
+
+        if self.dataset.camera_enabled:
+
+            axs[0,2].imshow(
+                self.dataset.get_camera_frame(idx)
+            )
+            axs[0,2].set_title("Camera View")
+
+        #bottom row (combined point cloud) and kalman filtering
+        if len(self.history_filter_g) > 0:
+            self.plotter_kalman.plot_chi_2_resp(
+                g_thresh=self.filter.g_thresh[2],
+                g_hist=np.array(self.history_filter_g),
+                idx=idx,
+                ax=axs[1,0],
+                show=False
+            )
+
+        self.plotter_localization.marker_size = 0.5
+
+        accumulated_points = self.point_cloud_integrator.get_latest_pc()
+        if accumulated_points.shape[0] > 0:
+            self.plotter_localization.plot_detections_on_map(
+                current_points=accumulated_points[:,0:2],
+                heading_rad=np.deg2rad(self.history_heading_deg[idx]),
+                pose_m=self.history_position_m[idx],
+                ax=axs[1,1],
+                show=False
+            )
+            axs[1,1].set_title(
+                "Accumulated point cloud",
+                fontsize=self.plotter_localization.font_size_title
+            )
+        # if len(self.history_pc_processor_point_cloud) > 0:
+        #     self.plotter_localization.plot_detections_on_map(
+        #         current_points=self.history_pc_processor_point_cloud[-1],
+        #         heading_rad=self.history_pc_processor_heading_rad[-1],
+        #         pose_m=self.history_pc_processor_position_m[-1],
+        #         ax=axs[1,1],
+        #         show=False
+        #     )
+        #     axs[1,1].set_title("Last Raytraced Point Cloud",
+        #                        fontsize=self.plotter_localization.font_size_title)
+            
+        # combined_pc = self.point_cloud_stacker.get_current_stacked_pc_static()
+        # dynamic_combined_pc = self.point_cloud_stacker.get_current_stacked_pc_dynamic()
+        # if combined_pc.shape[0] > 0 or dynamic_combined_pc.shape[0] > 0:
+
+        #     self.plotter_localization.plot_dynamic_and_static_detections_on_map(
+        #         static_points=combined_pc,
+        #         dynamic_points=dynamic_combined_pc,
+        #         heading_rad=self.filter.x[2],
+        #         pose_m=self.filter.x[0:2],
+        #         ax=axs[1,2],
+        #         show=False
+        #     ) 
+        #     axs[1,2].set_title("Current Stacked Point Cloud", #{}".format(len(combined_pc))
+        #                        fontsize=self.plotter_localization.font_size_legend)
+        
+        
+        #reset the marker size
+        self.plotter_localization.marker_size=10
+
+        if show:
+
+            plt.show()

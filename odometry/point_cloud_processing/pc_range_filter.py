@@ -21,8 +21,7 @@ class pcRangeFilter:
             np.ndarray: current detection list without the points where
             the sensor detected itself
         """
-
-        distances = np.linalg.norm(points,axis=1)
+        distances = np.linalg.norm(points[:,0:2],axis=1)
 
         invalid_idxs_too_short = distances < self.min_detection_raduis_m
         invalid_idxs_too_long = distances > self.max_detection_radius_m

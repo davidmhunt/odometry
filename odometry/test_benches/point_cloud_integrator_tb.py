@@ -53,7 +53,7 @@ class PointCloudIntegratorTB(_TestBench):
         )
 
         #for now return an empty array so as not to affect odometry computation
-        return np.empty(shape=(0,4))
+        return self.point_cloud_integrator.get_latest_pc()
     
     def plot_compilation(
             self,
@@ -63,7 +63,7 @@ class PointCloudIntegratorTB(_TestBench):
         ):
 
         if len(axs) == 0:
-            fig,axs=plt.subplots(2,3, figsize=(15,10))
+            fig,axs=plt.subplots(3,3, figsize=(15,15)) #(W,H)
             fig.subplots_adjust(wspace=0.3,hspace=0.30)
 
         #top row pose(localization and heading) and camera view
@@ -90,6 +90,7 @@ class PointCloudIntegratorTB(_TestBench):
             )
             axs[0,2].set_title("Camera View")
 
+
         #bottom row (combined point cloud) and kalman filtering
         if len(self.history_filter_g) > 0:
             self.plotter_kalman.plot_chi_2_resp(
@@ -101,20 +102,58 @@ class PointCloudIntegratorTB(_TestBench):
             )
 
         self.plotter_localization.marker_size = 0.5
-
-        accumulated_points = self.point_cloud_integrator.get_latest_pc()
+        accumulated_points = self.point_cloud_integrator.accumulated_points_raw
+        
         if accumulated_points.shape[0] > 0:
             self.plotter_localization.plot_detections_on_map(
                 current_points=accumulated_points[:,0:2],
+                heading_rad=np.deg2rad(self.history_heading_deg[idx]),
+                pose_m=self.history_position_m[idx],
+                ax=axs[2,1],
+                show=False
+            )
+            axs[2,1].set_title(
+                "Raw accumulated point cloud",
+                fontsize=self.plotter_localization.font_size_title
+            )
+
+        self.plotter_localization.marker_size = 5
+        detections = self.point_cloud_integrator.probabilistic_pc_grid.get_points()
+        if detections.shape[0] > 0:
+            self.plotter_localization.plot_detections_on_map(
+                current_points=detections[:,0:2],
                 heading_rad=np.deg2rad(self.history_heading_deg[idx]),
                 pose_m=self.history_position_m[idx],
                 ax=axs[1,1],
                 show=False
             )
             axs[1,1].set_title(
-                "Accumulated point cloud",
+                "Current Frame Detections",
                 fontsize=self.plotter_localization.font_size_title
             )
+        
+        self.plotter_localization.marker_size = 0.5
+        detections = self.point_cloud_integrator.detection_history
+        if detections.shape[0] > 0:
+            self.plotter_localization.plot_detections_on_map(
+                current_points=detections[:,0:2],
+                heading_rad=np.deg2rad(self.history_heading_deg[idx]),
+                pose_m=self.history_position_m[idx],
+                ax=axs[1,2],
+                show=False
+            )
+        
+        #plotting the occupancy grid
+        grid = self.point_cloud_integrator.probabilistic_pc_grid.grid
+        bins = self.point_cloud_integrator.probabilistic_pc_grid.grid_bins
+        valid_pts = self.point_cloud_integrator.probabilistic_pc_grid.get_points()
+        self.plotter_pc_grid.plot_pc_grid(
+            grid=grid,
+            grid_bins=bins,
+            valid_points=valid_pts,
+            ax=axs[2,0],
+            show=False
+        )
         # if len(self.history_pc_processor_point_cloud) > 0:
         #     self.plotter_localization.plot_detections_on_map(
         #         current_points=self.history_pc_processor_point_cloud[-1],

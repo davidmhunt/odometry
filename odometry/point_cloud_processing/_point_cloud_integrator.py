@@ -4,16 +4,16 @@ from geometries.pose.pose import Pose
 from geometries.transforms.transformation import Transformation
 
 from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
+from odometry.point_cloud_processing.pc_grid.probabilistic_pc_grid import ProbabilisticPCGrid
 
 class _PointCloudIntegrator:
 
     def __init__(
             self,
-            grid_resolution_m:float = 5e-2,
-            grid_max_distance_m:float = 3,
+            probabilistic_pc_grid:ProbabilisticPCGrid,
+            num_frames_persistance:int=30,
             min_detection_radius:float = 0.25,
             max_detection_radius:float = 20.0,
-            num_frames_detection_grid:int = 10
     )-> None:
         
         #pose tracking
@@ -27,34 +27,19 @@ class _PointCloudIntegrator:
             max_detection_radius_m=self.max_detection_radius
         )
         
-        #grid parameters
-        self.grid_resolution_m:float = grid_resolution_m
-        self.grid_max_distance_m:float = grid_max_distance_m
-        self.num_frames_detection_grid:int = num_frames_detection_grid
+        #probabilistic point grid for initial detections
+        self.probabilistic_pc_grid:ProbabilisticPCGrid = probabilistic_pc_grid        
         
-        #grid to store samples
-        self.grid_bins:np.ndarray = np.arange(
-            start=-1 * self.grid_resolution_m,
-            stop=self.grid_resolution_m,
-            step=self.grid_resolution_m
-        )
+        #accumulated points
+        self.num_frames_persistance:int = num_frames_persistance
+        self.detection_history = np.zeros(shape=(0,4))
 
-        #grids
-        self.detection_grid:np.ndarray = \
-            np.zeros(
-                shape = (
-                    self.num_frames_detection_grid + 1,
-                    self.grid_bins.shape[0],
-                    self.grid_bins.shape[0]
-                ), dtype=np.int8
-            )
-        
         #temporary variables
-        self.accumulated_points = np.zeros(shape=(0,4))
-        
+        self.accumulated_points_raw = np.zeros(shape=(0,4))
 
     def reset(self): 
         pass
+
 
     def add_points(
             self,
@@ -75,11 +60,20 @@ class _PointCloudIntegrator:
                 new_pose=current_pose
             )
 
+            #add points to the probabilistic point cloud grid
+            self.probabilistic_pc_grid.apply_transformation(transformation)
+            self.probabilistic_pc_grid.add_points(static_points[:,:3]) #only send x,y,z (not vel)
+
             #move the accumulated points into the current pose's
-            #sensor frame
-            self.accumulated_points = \
+            # sensor frame
+            self.accumulated_points_raw = \
                 transformation.apply_transformation(
-                    points=self.accumulated_points
+                    points=self.accumulated_points_raw
+                )
+            
+            self.detection_history = \
+                transformation.apply_transformation(
+                    points=self.detection_history
                 )
         
         #save the previous pose
@@ -87,11 +81,74 @@ class _PointCloudIntegrator:
 
         #save the add the currently sensed points
         #to the accumulated points
-        self.accumulated_points = \
-            np.vstack((
-                self.accumulated_points,
-                static_points))
+        
+        self.update_history(
+            detections=self.probabilistic_pc_grid.get_points(),
+            raw_points=static_points[:,0:3]
+        )
+    
+    def update_history(self,detections:np.ndarray,raw_points:np.ndarray):
+        """Update the detection history and prune
+        detections that have since expired
+        TODO: Replace this with a more robust method
+        in the future
+
+        Args:
+            detections (np.ndarray): Nx3 array of 
+                detections
+            raw_points (np.ndarray): Nx3 array of 
+                detections
+        """
+        
+        if self.detection_history.shape[0] > 0:
+
+            #decay the detection history by a step
+            self.detection_history[:,3] = \
+                self.detection_history[:,3] - 1
+            
+            #prune any detections that have since decayed
+            valid_idxs = self.detection_history[:,3] > 0
+            self.detection_history = self.detection_history[valid_idxs]
+        
+        if self.accumulated_points_raw.shape[0] > 0:
+
+            #decay the detection history by a step
+            self.accumulated_points_raw[:,3] = \
+                self.accumulated_points_raw[:,3] - 1
+            
+            #prune any detections that have since decayed
+            valid_idxs = self.accumulated_points_raw[:,3] > 0
+            self.accumulated_points_raw = self.accumulated_points_raw[valid_idxs]
+
+        if detections.shape[0] > 0:
+            dets_to_add = np.hstack((
+                detections,
+                np.zeros(shape=
+                         (detections.shape[0],1))
+            ))
+            dets_to_add[:,3] = self.num_frames_persistance
+
+            self.detection_history = \
+                np.vstack((
+                    self.detection_history,
+                    dets_to_add
+                ))
+        
+        if raw_points.shape[0] > 0:
+            dets_to_add = np.hstack((
+                raw_points,
+                np.zeros(shape=
+                         (raw_points.shape[0],1))
+            ))
+            dets_to_add[:,3] = self.num_frames_persistance
+
+            
+            self.accumulated_points_raw = \
+                np.vstack((
+                    self.accumulated_points_raw,
+                    dets_to_add
+                ))
 
     def get_latest_pc(self) -> np.ndarray:
         
-        return self.accumulated_points
+        return self.detection_history

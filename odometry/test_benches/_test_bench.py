@@ -15,6 +15,7 @@ from odometry.datasets.radnav_ds import radnavDS
 from odometry.datasets.map_handler import MapHandler
 from odometry.plotting.plotter_localization import PlotterLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
+from odometry.plotting.plotter_pc_grids import PlotterPCGrid
 from odometry.analyzers.analyzer import Analyzer
 from odometry.estimators.estimators import (
     _ExtendedKalmanFilter,
@@ -61,6 +62,7 @@ class _TestBench:
 
         #initialize a plotter
         self.plotter_localization = PlotterLocalization(dataset,map_handler)
+        self.plotter_pc_grid = PlotterPCGrid(dataset,map_handler)
         self.plotter_kalman = PlotterKalman()
         #initialize an analyzer class
         self.analyzer = Analyzer()
@@ -378,7 +380,7 @@ class _TestBench:
         #align the points with the map
         if point_cloud.shape[0] > 0:
             aligned_points = rotation_functions.apply_rot_trans(
-                points=point_cloud,
+                points=point_cloud[:,0:2],
                 rot_angle_rad=gt_heading_rad,
                 trans=gt_position_m
             )
@@ -685,14 +687,14 @@ class _TestBench:
 
                         #save the measurement and point cloud
                         self.history_pc_processor_update(
-                            point_cloud=pc,
+                            point_cloud=pc[:,0:2],
                             position_m=est_pose_m,
                             heading_rad=est_heading_rad
                         )
 
                         if gt_enabled:
                             self.history_pc_quality_update(
-                                point_cloud=pc,
+                                point_cloud=pc[:,0:2],
                                 gt_position_m=self.filter_gt.x[0:2],
                                 gt_heading_rad=self.filter_gt.x[2]
                             )

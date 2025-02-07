@@ -133,7 +133,7 @@ class PointCloudIntegratorTB(_TestBench):
             )
         
         self.plotter_localization.marker_size = 0.5
-        detections = self.point_cloud_integrator.detection_history
+        detections = self.point_cloud_integrator.get_latest_pc()
         if detections.shape[0] > 0:
             self.plotter_localization.plot_detections_on_map(
                 current_points=detections[:,0:2],

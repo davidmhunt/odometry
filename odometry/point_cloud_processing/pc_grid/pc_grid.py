@@ -25,7 +25,7 @@ class PCGrid:
         # Define the grid bins for storing samples
         self.grid_bins: np.ndarray = np.arange(
             start=-1 * self.grid_max_distance_m,
-            stop=self.grid_max_distance_m,
+            stop=self.grid_max_distance_m + self.grid_resolution_m,
             step=self.grid_resolution_m
         )
 
@@ -186,9 +186,10 @@ class PCGrid:
         Remove points from an Nx3 array where any x, y, or z coordinate is outside of the grid.
         
         Args:
-            points (np.ndarray): Nx3 array of [x, y, z] points.
+            points (np.ndarray): Nx3 array of [x, y, z] points. 4th dimmensions
+                are returned but have no impact
         
         Returns:
             np.ndarray: Filtered array of points within the grid
         """
-        return points[np.all(np.abs(points) <= self.grid_max_distance_m,axis=1)]
+        return points[np.all(np.abs(points[:,0:3]) <= self.grid_max_distance_m,axis=1)]

@@ -15,6 +15,8 @@ from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
 from odometry.point_cloud_processing._point_cloud_integrator import _PointCloudIntegrator
 from odometry.point_cloud_processing.pc_grid.probabilistic_pc_grid import ProbabilisticPCGrid
+from odometry.point_cloud_processing.pc_grid.historical_pc_grid import HistoricalPCGrid
+
 
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
@@ -27,33 +29,33 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "pc_integrator_30fp_7fh_0_4_th"
+results_parent_folder = "pc_integrator_50fp_10fh_0_5_th"
 
 datasets_to_test = {
      "WILK":{
           "map":"wilkinson.yaml",
           "datasets":[
-               'WILK_Path_1_With_Dynamic',
+            #    'WILK_Path_1_With_Dynamic',
                 'WILK_Multipath_Test_4',
                 'WILK_Multipath_Test_5',
-                'WILK_Slow_4',
-                'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
-                'WILK_Path_1_Slow_No_Dynamic_1',
-                'WILK_Slow_Walk_Test_1',
-                'WILK_Path_1_With_Dynamic_2',
-                'WILK_Path_1_No_Dynamic',
-                'WILK_Slow_Walk_Test_2',
-                'WILK_Path_1_Slow_Dynamic_1',
-                'WILK_Multipath_Test_1',
+                # 'WILK_Slow_4',
+                # 'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
+                # 'WILK_Path_1_Slow_No_Dynamic_1',
+                # 'WILK_Slow_Walk_Test_1',
+                # 'WILK_Path_1_With_Dynamic_2',
+                # 'WILK_Path_1_No_Dynamic',
+                # 'WILK_Slow_Walk_Test_2',
+                # 'WILK_Path_1_Slow_Dynamic_1',
+                # 'WILK_Multipath_Test_1',
                 'WILK_Multipath_Test_3',
-                'WILK_Slow_1',
+                # 'WILK_Slow_1',
                 'WILK_vel_cfg_1',
-                'WILK_Slow_2',
-                'WILK_Path_1_Same_Side_Dynamic_1',
+                # 'WILK_Slow_2',
+                # 'WILK_Path_1_Same_Side_Dynamic_1',
                 'WILK_vel_cfg_2',
-                'WILK_Multipath_Test_1_spin_recal',
+                # 'WILK_Multipath_Test_1_spin_recal',
                 'WILK_Multipath_Test_2',
-                'WILK_Slow_3'
+                # 'WILK_Slow_3'
           ]
      },
      "CPSL":{
@@ -61,14 +63,14 @@ datasets_to_test = {
          "datasets":[
              'CPSL_Walk_1',
              'CPSL_Vel_2',
-             'CPSL_NoVel_2',
+            #  'CPSL_NoVel_2',
              'CPSL_Walk_2',
              'CPSL_Vel_1',
-             'CPSL_NoVel_1',
+            #  'CPSL_NoVel_1',
             #  'CONFIG_TEST',
              'CPSL_Vel_3',
             #  'CPSL_No_Move',
-             'CPSL_Lidar_Test',
+            #  'CPSL_Lidar_Test',
              'CPSL_vel_cfg_1']
      },
      "WILK_BASEMENT":{
@@ -112,7 +114,7 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=7, #originally 5
-        icp_max_iterations=20,
+        icp_max_iterations=5,
         self_detection_radius_m=0 #originally 1.5
     )
 
@@ -130,13 +132,19 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
     probabilistic_pc_grid = ProbabilisticPCGrid(
         grid_resolution_m=0.20,
         grid_max_distance_m=5.0,
-        occupancy_threshold=0.4,
-        num_frames_history=7
+        occupancy_threshold=0.5,
+        num_frames_history=10
+    )
+
+    historical_pc_grid = HistoricalPCGrid(
+        grid_resolution_m=0.2,
+        grid_max_distance_m=5.0,
+        num_frames_persistance=50
     )
 
     point_cloud_integrator = _PointCloudIntegrator(
         probabilistic_pc_grid=probabilistic_pc_grid,
-        num_frames_persistance=30,
+        historical_pc_grid=historical_pc_grid,
         min_detection_radius=1.0,
         max_detection_radius=20.0,
     )
@@ -231,7 +239,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True
+                generate_movie=False
             )
     
     analyzer = Analyzer()

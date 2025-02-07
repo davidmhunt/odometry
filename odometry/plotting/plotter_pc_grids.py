@@ -63,11 +63,11 @@ class PlotterPCGrid:
 
         #plot the occupancy grid
         ax.imshow(
-            np.fliplr(grid),
+            grid,
             cmap='gray',
             interpolation='none',
             origin="lower",
-            extent=(min_rng,max_rng,min_rng,max_rng),
+            extent=(max_rng,min_rng,min_rng,max_rng),
             vmax=1,
             vmin=0
         )

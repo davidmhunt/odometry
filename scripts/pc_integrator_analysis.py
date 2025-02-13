@@ -7,8 +7,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from odometry.datasets.map_handler import MapHandler
-from odometry.datasets.radnav_ds import radnavDS
+from cpsl_datasets.cpsl_ds import CpslDS
+from cpsl_datasets.map_handler import MapHandler
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
@@ -29,7 +29,7 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "pc_integrator_50fp_10fh_0_5_th"
+results_parent_folder = "pc_integrator_30fp_10fh_0_50_th_5mRng_0_2_res_mov"
 
 datasets_to_test = {
      "WILK":{
@@ -91,7 +91,7 @@ def create_dir(path):
 def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
 
     #initialize the dataset
-    dataset = radnavDS(
+    dataset = CpslDS(
         dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
         radar_folder="radar_combined",
         lidar_folder="lidar",
@@ -132,8 +132,8 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
     probabilistic_pc_grid = ProbabilisticPCGrid(
         grid_resolution_m=0.20,
         grid_max_distance_m=5.0,
-        occupancy_threshold=0.5,
-        num_frames_history=10
+        occupancy_threshold=0.20,
+        num_frames_history=80
     )
 
     historical_pc_grid = HistoricalPCGrid(
@@ -239,7 +239,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=False
+                generate_movie=True
             )
     
     analyzer = Analyzer()

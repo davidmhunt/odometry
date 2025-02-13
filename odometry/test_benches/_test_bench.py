@@ -11,8 +11,8 @@ from geometries.pose.orientation import Orientation
 from geometries.pose.position import Position
 
 from odometry.localization.icp2D_localization import icp2DLocalization
-from odometry.datasets.radnav_ds import radnavDS
-from odometry.datasets.map_handler import MapHandler
+from cpsl_datasets.cpsl_ds import CpslDS
+from cpsl_datasets.map_handler import MapHandler
 from odometry.plotting.plotter_localization import PlotterLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.plotter_pc_grids import PlotterPCGrid
@@ -31,7 +31,7 @@ class _TestBench:
     def __init__(self,
                  gt_localizer:icp2DLocalization,
                  map_handler:MapHandler,
-                 dataset:radnavDS,
+                 dataset:CpslDS,
                  localizer:icp2DLocalization=None) -> None:
         
         #initialize the localizer
@@ -58,7 +58,7 @@ class _TestBench:
 
         #load the datasets
         self.map_handler:MapHandler = map_handler
-        self.dataset:radnavDS = dataset
+        self.dataset:CpslDS = dataset
 
         #initialize a plotter
         self.plotter_localization = PlotterLocalization(dataset,map_handler)
@@ -153,7 +153,7 @@ class _TestBench:
             )
 
             #get the first points in the localizer point cloud
-            init_points = self.dataset.get_radar_detections(idx=0)
+            init_points = self.dataset.get_radar_data(idx=0)
             init_points = init_points[:,:2]
 
             if not self.gt_localizer:
@@ -563,7 +563,8 @@ class _TestBench:
             point_cloud_raw:np.ndarray,
             static_points:np.ndarray,
             dynamic_points:np.ndarray,
-            current_pose:Pose) -> np.ndarray:
+            current_pose:Pose,
+            gt_points:np.ndarray=np.empty(shape=(0,2))) -> np.ndarray:
         """Implemented by the child class to process the point cloud
 
         Args:
@@ -575,6 +576,10 @@ class _TestBench:
                 corresponding to [x,y,z,vel] point cloud of dynamic points
             current_pose (Pose): pose object corresponding to the currently 
                 estimated position (from local odometry)
+            gt_points (np.ndarray,optional): [x,y] point cloud corresponding to 
+                the ground truth detections. Can be used for evaluation of generated
+                point cloud
+                Defaults to np.empty(shape=(0,2)).
 
         Returns:
             np.ndarray: [x,y,z,vel] point cloud to be used for down stream localization
@@ -606,12 +611,19 @@ class _TestBench:
                 idx=i,
                 gt_enabled=gt_enabled)
 
+            #process lidar ground truth
             if gt_enabled and (self.gt_localizer is not None):
                 # update the lidar ground truth
-                gt_points = self.dataset.get_lidar_point_cloud(idx=i)
+                gt_points = self.dataset.get_lidar_point_cloud_raw(idx=i)
 
+                #filter out ground, set z coordinate to 0 for remaining points
+                valid_points = gt_points[:,2] > -0.2 #filter out ground
+                valid_points = valid_points & (gt_points[:,2] < 0.1) #higher elevation points
+                gt_points = gt_points[valid_points,:3]
+                gt_points[:,2] = 0.0
+                
                 new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-                    points=gt_points,
+                    points=gt_points[:,0:2],
                     estimated_heading_rad=self.filter_gt.x[2],
                     estimated_pose_m=np.array(
                         [self.filter_gt.x[0],self.filter_gt.x[1]])
@@ -631,11 +643,14 @@ class _TestBench:
                     heading_rad=self.filter_gt.x[2],
                     idx = i
                 )
+            else:
+                gt_points = np.empty(shape=(0,3))
 
+            #process radar detections
             if self.localizer and self.vehicle_moving:
                 
                 #get the combined radar point cloud [x,y,z,vel]
-                radar_points = self.dataset.get_radar_detections(idx=i)
+                radar_points = self.dataset.get_radar_data(idx=i)
 
                 static_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,
@@ -664,7 +679,8 @@ class _TestBench:
                     point_cloud_raw=radar_points,
                     static_points=static_points,
                     dynamic_points=dynamic_points,
-                    current_pose=current_pose
+                    current_pose=current_pose,
+                    gt_points=gt_points
                 )
 
                 if pc.shape[0] > 0:

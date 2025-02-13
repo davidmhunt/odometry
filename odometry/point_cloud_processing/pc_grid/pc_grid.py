@@ -31,13 +31,18 @@ class PCGrid:
 
         # Initialize an empty grid with integer values (0: no point, 1: point present)
         self.grid:np.ndarray = None
+        self.gt_grid:np.ndarray = None
 
         # Collection of currently available points
         self.points:np.ndarray = None
+        self.gt_points:np.ndarray = None
         
         self.reset()
 
-    def _reset_grid(self,new_points:np.ndarray = np.empty(shape=(0,3))):
+    def _reset_grid(
+            self,
+            new_points:np.ndarray = np.empty(shape=(0,3)),
+            new_gt_points:np.ndarray = np.empty(shape=(0,3))):
         """
         Reset the saved grid and optionally initialize it with new points.
         NOTE: Must be updated by any child to change functionality
@@ -45,8 +50,11 @@ class PCGrid:
             new_points (np.ndarray, optional): If provided, initializes the 
                 saved grid with these points. 
                 Defaults to an empty set of 3D points.
+            new_gt_points (np.ndarray, optional): If provided, initializes the 
+                saved ground truth point cloud with these points. 
+                Defaults to an empty set of 3D points.
         """
-
+        #initialize point cloud grid
         if new_points.shape[0] > 0:
             self.grid = self._get_grid_from_points(new_points)
         else:
@@ -57,10 +65,28 @@ class PCGrid:
                     self.grid_bins.shape[0]
                 ), dtype=np.int8
             )
-        
+        #initialize ground truth grid
+        if new_gt_points.shape[0] > 0 and new_points.shape[0] > 0:
+            new_gt_points = self._get_dets_close_to_gt_points(
+                dets=new_points,
+                gt_points=new_gt_points,
+                threshold=self.grid_resolution_m
+            )
+            self.gt_grid = self._get_grid_from_points(new_gt_points)
+        else:
+            # Reset grid to empty state
+            self.gt_gridgrid: np.ndarray = np.zeros(
+                shape=(
+                    self.grid_bins.shape[0],
+                    self.grid_bins.shape[0]
+                ), dtype=np.int8
+            )
         return
     
-    def _reset_points(self,new_points:np.ndarray=np.empty(shape=(0,3))):
+    def _reset_points(
+            self,
+            new_points:np.ndarray=np.empty(shape=(0,3)),
+            new_gt_points:np.ndarray=np.empty(shape=(0,3))):
         """
         Reset the saved point cloud and optionally initialize it with new points.
         NOTE: Must be updated by any child to change functionality
@@ -68,36 +94,55 @@ class PCGrid:
             new_points (np.ndarray, optional): If provided, initializes the 
                 saved point cloud with these points. 
                 Defaults to an empty set of 3D points.
+            new_gt_points (np.ndarray, optional): If provided, initializes the 
+                saved ground truth point cloud with these points. 
+                Defaults to an empty set of 3D points.
         """
-        self.points =  new_points
+        self.points = np.empty(shape=(0,3))
+        self.gt_points = np.empty(shape=(0,3))
+
+        if new_points.shape[0] > 0:
+            self.add_points(
+                new_points=new_points,
+                new_gt_points=new_gt_points
+            )
+
         return
     
-    def reset(self, new_points: np.ndarray = np.empty(shape=(0, 3))):
+    def reset(
+            self,
+            new_points: np.ndarray = np.empty(shape=(0, 3)),
+            new_gt_points:np.ndarray = np.empty(shape=(0,3))):
         """
         Reset the point cloud grid and optionally initialize it with new points.
 
         Args:
             new_points (np.ndarray, optional): If provided, initializes the grid 
                 with these points. Defaults to an empty set of 3D points.
+            new_gt_points (np.ndarray, optional): If provided, initializes the 
+                ground truth grid with these ground truth points. 
+                Defaults to an empty set of 3D points.
         """
 
-        self._reset_points(new_points)
+        self._reset_points(new_points,new_gt_points)
 
-        self._reset_grid(new_points)
+        self._reset_grid(new_points,new_gt_points)
 
         return
 
-    def add_points(self, new_points: np.ndarray):
+    def add_points(self, new_points: np.ndarray, new_gt_points: np.ndarray=np.empty(shape=(0,3))):
         """
         Add new points to the point cloud grid and update the grid representation.
 
         Args:
             new_points (np.ndarray): Nx3 array of [x, y, z] points to add.
-
+            gt_points (np.ndarray, optional): Nx3 array of [x,y,z] ground 
+                truth detections (if available). 
+                Defaults to np.empty(shape=0,3).
         Raises:
             ValueError: If the input points do not have a shape of Nx3.
         """
-        if new_points.shape[1] != 3:
+        if new_points.shape[1] != 3 :
             raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
         
         # Append new points to the existing collection
@@ -106,6 +151,19 @@ class PCGrid:
         
         # Update grid representation with new points
         self.grid = self._get_grid_from_points(self.points)
+
+        #handle ground truth detections
+        if new_gt_points.shape[0] > 0 and new_points.shape[0] > 0:
+            new_gt_points = self._get_dets_close_to_gt_points(
+                dets=new_points,
+                gt_points=new_gt_points,
+                threshold=self.grid_resolution_m
+            )
+
+            self.gt_points = np.vstack((self.gt_points, new_gt_points))
+
+            self.gt_grid = self._get_grid_from_points(self.gt_points)
+            self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
 
     def apply_transformation(self, transformation: Transformation):
         """
@@ -121,6 +179,17 @@ class PCGrid:
         
         # Update the grid after transformation
         self.grid = self._get_grid_from_points(self.points)
+
+        #handle the ground truth points
+        if self.gt_points.shape[0] > 0:
+            self.gt_points = transformation.apply_transformation(self.gt_points)
+
+            #filter out points no longer in the grid
+            self.gt_points = self.filter_points_outside_grid(self.gt_points)
+            
+            # Update the grid after transformation
+            self.gt_grid = self._get_grid_from_points(self.gt_grid)
+            self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
     
     def get_points(self)->np.ndarray:
         """Return a quantized set of points from the grid
@@ -129,6 +198,69 @@ class PCGrid:
             np.ndarray: Nx3 array of points obtained from the point cloud grid
         """
         return self._get_points_from_pc_grid(self.grid)
+    
+    def get_gt_points(self)->np.ndarray:
+        """Return a quantized set of points from the grid
+
+        Returns:
+            np.ndarray: Nx3 array of points obtained from the ground truth point cloud grid
+        """
+        return self._get_points_from_pc_grid(self.gt_grid)
+
+    def _get_dets_close_to_gt_points(
+            self,dets:np.ndarray,
+            gt_points:np.ndarray,
+            threshold:float=0.05)->np.ndarray:
+        """Get ground truth points that are close to a given set of detections
+
+        Args:
+            dets (np.ndarray): Nx2 set of [x,y,z] detections
+            gt_points (np.ndarray): Nx2 set of [x,y,z] ground truth detections
+            threshold (float, optional): Euclidian distance to identify the
+                corresponding ground truth detections. Defaults to 0.05.
+
+        Raises:
+            ValueError: If dets or 
+
+        Returns:
+            np.ndarray: Nx2 array of gt points that 
+        """
+        #append a column of grid detections to make detection array 2D
+        if gt_points.shape[1] == 3 and dets.shape[1] == 3:
+            
+            #get the current set of points
+            dists = np.linalg.norm(gt_points[:, None, :] - dets[None, :, :], axis=-1)  
+            # Find points in gt_points that have at least one match in detected_pts within the threshold
+            mask = np.any(dists <= threshold, axis=0)
+            dets = dets[mask]
+
+            return dets
+        else:
+            raise ValueError("Detections and ground truth detections must be a 3D point (3,) or an Nx3 array of points.")
+    
+    def _get_gt_grid_dets_only(self, gt_points:np.ndarray)->np.ndarray:
+        """Compute a "ground truth" grid of lidar detections in the detection region.
+        Only generates a ground truth grid of points corresponding to locations that the 
+        radar actually detected objects at though. Defaults to True
+
+        Args:
+            gt_points (np.ndarray): Nx3 array of lidar detections captured from the
+                same location and at the same time as the most recent radar data
+
+        Returns:
+            np.ndarray: grid
+        """
+
+        #append a column of grid detections to make detection array 2D
+        if gt_points.shape[1] == 3:
+
+            #get a grid from the ground truth points
+            grid_gt_raw = self._get_grid_from_points(gt_points)
+
+            return ((self.grid > 0) & (grid_gt_raw > 0)).astype(np.int8)
+        else:
+            raise ValueError("Ground truth points must be a 3D point (3,) or an Nx3 array of points.")
+
 
     def _get_grid_from_points(self, points: np.ndarray) -> np.ndarray:
         """

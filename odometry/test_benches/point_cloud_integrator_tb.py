@@ -28,7 +28,8 @@ class PointCloudIntegratorTB(_TestBench):
             point_cloud_raw:np.ndarray,
             static_points:np.ndarray,
             dynamic_points:np.ndarray,
-            current_pose:Pose) -> np.ndarray:
+            current_pose:Pose,
+            gt_points:np.ndarray=np.empty(shape=(0,3))) -> np.ndarray:
         """Implemented by the child class to process the point cloud
 
         Args:
@@ -40,6 +41,10 @@ class PointCloudIntegratorTB(_TestBench):
                 corresponding to [x,y,z,vel] point cloud of dynamic points
             current_pose (Pose): pose object corresponding to the currently 
                 estimated position (from local odometry)
+            gt_points (np.ndarray,optional): [x,y,z] point cloud corresponding to 
+                the ground truth detections. Can be used for evaluation of generated
+                point cloud
+                Defaults to np.empty(shape=(0,2)).
 
         Returns:
             np.ndarray: [x,y,z,vel] point cloud to be used for down stream localization
@@ -49,7 +54,8 @@ class PointCloudIntegratorTB(_TestBench):
         
         self.point_cloud_integrator.add_points(
             static_points=static_points,
-            current_pose=current_pose
+            current_pose=current_pose,
+            gt_points=gt_points
         )
 
         #for now return an empty array so as not to affect odometry computation
@@ -109,7 +115,7 @@ class PointCloudIntegratorTB(_TestBench):
                 current_points=accumulated_points[:,0:2],
                 heading_rad=np.deg2rad(self.history_heading_deg[idx]),
                 pose_m=self.history_position_m[idx],
-                ax=axs[2,1],
+                ax=axs[2,2],
                 show=False
             )
             axs[2,1].set_title(
@@ -154,6 +160,21 @@ class PointCloudIntegratorTB(_TestBench):
             ax=axs[2,0],
             show=False
         )
+
+        #plotting the ground truth occupancy grid
+        grid = self.point_cloud_integrator.probabilistic_pc_grid.gt_grid
+        bins = self.point_cloud_integrator.probabilistic_pc_grid.grid_bins
+        self.plotter_pc_grid.plot_pc_grid(
+            grid=grid,
+            grid_bins=bins,
+            ax=axs[2,1],
+            show=False
+        )
+        axs[2,1].set_title(
+            "GT Occupancy Grid",
+            fontsize=self.plotter_pc_grid.font_size_title
+        )
+
         # if len(self.history_pc_processor_point_cloud) > 0:
         #     self.plotter_localization.plot_detections_on_map(
         #         current_points=self.history_pc_processor_point_cloud[-1],

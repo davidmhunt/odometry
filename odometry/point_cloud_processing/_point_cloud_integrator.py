@@ -42,7 +42,8 @@ class _PointCloudIntegrator:
     def add_points(
             self,
             static_points:np.ndarray,
-            current_pose:Pose
+            current_pose:Pose,
+            gt_points:np.ndarray=np.empty(shape=(0,3))
     ):
         
         #filter points to the desired range
@@ -60,12 +61,15 @@ class _PointCloudIntegrator:
 
             #add points to the probabilistic point cloud grid
             self.probabilistic_pc_grid.apply_transformation(transformation)
-            self.probabilistic_pc_grid.add_points(static_points[:,:3]) #only send x,y,z (not vel)
+            self.probabilistic_pc_grid.add_points(
+                new_points=static_points[:,:3], #only send x,y,z (not vel)
+                new_gt_points=gt_points) 
 
             #add points to the historical point cloud grid
             self.historical_pc_grid.apply_transformation(transformation)
             self.historical_pc_grid.add_points(
-                new_points=self.probabilistic_pc_grid.get_points()
+                new_points=self.probabilistic_pc_grid.get_points(),
+                new_gt_points=gt_points
             )
             
             #move the accumulated points into the current pose's

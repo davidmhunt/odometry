@@ -206,6 +206,33 @@ class PCGrid:
             np.ndarray: Nx3 array of points obtained from the ground truth point cloud grid
         """
         return self._get_points_from_pc_grid(self.gt_grid)
+    
+    def get_nodes(self)->tuple:
+        """Get the nodes and associated labels from a point cloud grid
+
+        Returns:
+            tuple: (nodes,labels), A tuple of an Nx4 array of points containing
+              the (x,y,z,grid_value) for each point in the point cloud and a N-element
+              array with the gt label for each node (if gt disabled, labels are all 0's) 
+        """
+        
+        # Identify the indices of occupied grid cells
+        x_idxs, y_idxs = np.nonzero(self.grid)
+
+        if x_idxs.shape[0] > 0:
+            # Convert grid indices back to coordinate values
+            x_vals = self.grid_bins[x_idxs]
+            y_vals = self.grid_bins[y_idxs]
+            z_vals = np.zeros_like(x_vals)  # Assume z=0 as it’s a 2D representation
+            grid_values = self.grid[x_idxs, y_idxs]
+
+            nodes = np.column_stack((x_vals, y_vals, z_vals,grid_values))
+            labels = self.gt_grid[x_idxs,y_idxs]
+
+            return nodes,labels
+        else:
+            return np.empty(shape=(0, 4)),np.empty(shape=0)
+   
 
     def _get_dets_close_to_gt_points(
             self,dets:np.ndarray,
@@ -312,6 +339,33 @@ class PCGrid:
             return np.column_stack((x_vals, y_vals, z_vals))
         else:
             return np.empty(shape=(0, 3))  # Return an empty array if no points exist
+    
+    def _get_nodes_from_pc_grid(self, pc_grid: np.ndarray) -> np.ndarray:
+        """
+        Get a set of nodes from a given point cloud grid
+
+        Args:
+            pc_grid (np.ndarray): NxN grid representation where 1 indicates a point exists
+                at that location, and 0 indicates no point is present.
+
+        Returns:
+            np.ndarray: Nx4 array of points reconstructed from the grid containing the 
+                (x,y,z,grid_value) for all points in a grid
+        """
+        # Identify the indices of occupied grid cells
+        x_idxs, y_idxs = np.nonzero(pc_grid)
+
+        if x_idxs.shape[0] > 0:
+            # Convert grid indices back to coordinate values
+            x_vals = self.grid_bins[x_idxs]
+            y_vals = self.grid_bins[y_idxs]
+            z_vals = np.zeros_like(x_vals)  # Assume z=0 as it’s a 2D representation
+            grid_values = pc_grid[x_idxs, y_idxs]
+
+            return np.column_stack((x_vals, y_vals, z_vals,grid_values))
+        else:
+            return np.empty(shape=(0, 4))  # Return an empty array if no points exist
+
         
     def filter_points_outside_grid(self,points)->np.ndarray:
         """

@@ -598,6 +598,16 @@ class _TestBench:
             max_frame=-1,
             gt_enabled=True,
             movie_generator:MovieGenerator = None):
+        """Run the test bench
+
+        Args:
+            max_frame (int, optional): The frame to run the test bench up to.
+                -1 indicates to run the entire dataset. Defaults to -1.
+            gt_enabled (bool, optional): On True, additionally computes
+                ground truth trajectories as well. Defaults to True.
+            movie_generator (MovieGenerator, optional): When provided with a 
+                MovieGenerator, additionally generates a movie. Defaults to None.
+        """
         if max_frame == -1:
             max_frame = self.dataset.num_frames
 

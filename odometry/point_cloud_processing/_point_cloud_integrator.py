@@ -12,7 +12,7 @@ class _PointCloudIntegrator:
     def __init__(
             self,
             probabilistic_pc_grid:ProbabilisticPCGrid,
-            historical_pc_grid:HistoricalPCGrid,
+            historical_pc_grid:HistoricalPCGrid=None,
             min_detection_radius:float = 0.25,
             max_detection_radius:float = 20.0,
     )-> None:
@@ -66,11 +66,12 @@ class _PointCloudIntegrator:
                 new_gt_points=gt_points) 
 
             #add points to the historical point cloud grid
-            self.historical_pc_grid.apply_transformation(transformation)
-            self.historical_pc_grid.add_points(
-                new_points=self.probabilistic_pc_grid.get_points(),
-                new_gt_points=gt_points
-            )
+            if self.historical_pc_grid:
+                self.historical_pc_grid.apply_transformation(transformation)
+                self.historical_pc_grid.add_points(
+                    new_points=self.probabilistic_pc_grid.get_points(),
+                    new_gt_points=gt_points
+                )
             
             #move the accumulated points into the current pose's
             # sensor frame
@@ -118,7 +119,10 @@ class _PointCloudIntegrator:
                 np.zeros(shape=
                          (raw_points.shape[0],1))
             ))
-            dets_to_add[:,3] = self.historical_pc_grid.num_frames_persistance
+            if self.historical_pc_grid:
+                dets_to_add[:,3] = self.historical_pc_grid.num_frames_persistance
+            else:
+                dets_to_add[:,3] = self.probabilistic_pc_grid.num_frames_history
 
             
             self.accumulated_points_raw = \
@@ -129,4 +133,7 @@ class _PointCloudIntegrator:
 
     def get_latest_pc(self) -> np.ndarray:
         
-        return self.historical_pc_grid.get_points()
+        if self.historical_pc_grid:
+            return self.historical_pc_grid.get_points()
+        else:
+            return self.probabilistic_pc_grid.get_points()

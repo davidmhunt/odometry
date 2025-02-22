@@ -158,7 +158,7 @@ class ProbabilisticPCGrid(PCGrid):
     
     def get_gt_points(self):
         return self._get_points_from_pc_grid(
-            pc_grid=(self.grid > 0)
+            pc_grid=(self.gt_grid > 0)
         )
     
 

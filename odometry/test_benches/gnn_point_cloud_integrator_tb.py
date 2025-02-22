@@ -11,7 +11,9 @@ from geometries.pose.pose import Pose
 from cpsl_datasets.cpsl_ds import CpslDS
 from cpsl_datasets.map_handler import MapHandler
 
-class PointCloudIntegratorTB(_TestBench):
+from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
+
+class GnnPointCloudIntegratorTB(_TestBench):
 
     def __init__(
             self,
@@ -19,11 +21,16 @@ class PointCloudIntegratorTB(_TestBench):
             map_handler:MapHandler,
             dataset:CpslDS,
             point_cloud_integrator:_PointCloudIntegrator,
-            localizer = None):
+            localizer = None,
+            model_dataset_generator:_OnlineDatasetGenerator=None):
         
         super().__init__(gt_localizer, map_handler, dataset, localizer)
 
         self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator
+
+        self.model_dataset_generator = model_dataset_generator
+
+        self.generate_dataset = False
 
         return
     
@@ -62,10 +69,20 @@ class PointCloudIntegratorTB(_TestBench):
             gt_points=gt_points
         )
 
+        if self.generate_dataset:
+
+            nodes,labels = self.point_cloud_integrator.probabilistic_pc_grid.get_nodes()
+
+            if nodes.shape[0]>0:
+                self.model_dataset_generator.save_sample(
+                    input_data=nodes,
+                    output_data=labels
+                )
+
         #for now return an empty array so as not to affect odometry computation
         return self.point_cloud_integrator.get_latest_pc()
     
-    def run(self, max_frame=-1, gt_enabled=True, movie_generator = None):
+    def run(self, max_frame=-1, gt_enabled=True, movie_generator = None,generate_dataset=False):
         """Run the test bench
 
         Args:
@@ -75,7 +92,12 @@ class PointCloudIntegratorTB(_TestBench):
                 ground truth trajectories as well. Defaults to True.
             movie_generator (MovieGenerator, optional): When provided with a 
                 MovieGenerator, additionally generates a movie. Defaults to None.
+            generate_dataset (bool, optional): On True, generates a node dataset which
+                can be used for training models
         """
+
+        #set the generate dataset flag
+        self.generate_dataset = generate_dataset
 
         return super().run(max_frame, gt_enabled, movie_generator)
 

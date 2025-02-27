@@ -72,16 +72,16 @@ export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
 
 ```
-poetry install --with submodules,torch
+poetry install --extras "submodules"
 ```
 
 
 
-### Installing odometry (with torch separately)
+### Installing odometry (if torch fails to install)
 If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
 
 ```
-poetry install --with submodules
+poetry install --extras "submodules"
 ```
 
 Follow the following instructions to install the correct version of pytorch for your system.

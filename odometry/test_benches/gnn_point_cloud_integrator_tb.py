@@ -58,7 +58,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
                 Defaults to np.empty(shape=(0,2)).
 
         Returns:
-            np.ndarray: [x,y,z,vel] point cloud to be used for down stream localization
+            np.ndarray: [x,y,z] point cloud to be used for down stream localization
                 tasks. Returns empty array if no points available or if no point 
                 cloud ready to be used
         """

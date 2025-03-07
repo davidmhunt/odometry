@@ -101,7 +101,7 @@ class PlotterLocalization:
             show (bool, optional): on True, shows the plot. 
                 Defaults to False.
         """
-        if not (heading_rad==0 and pose_m == np.array([0.0,0.0])):
+        if not (heading_rad==0 and np.all(pose_m == np.array([0.0,0.0]))):
             aligned_points = \
                 rotation_functions.apply_rot_trans(
                     points=current_points,

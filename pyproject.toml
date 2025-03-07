@@ -30,12 +30,14 @@ mmwave_model_integrator = {path="./submodules/mmwave_model_integrator/", develop
 radcloud = {path="./submodules/radcloud/", develop = true}
 radarhd = {path="./submodules/radarhd/", develop=true}
 lib-avstack-core = {path="./submodules/lib-avstack-core/",develop=true}
+geometries = {path="./submodules/geometries/",develop=true}
 
 [tool.poetry.group.torch.dependencies]
 torch = "^2.4.0"
 torchvision = "^0.19.0"
 torchaudio = "^2.4.0"
 torchsummary = "^1.5.1"
+torch-geometric = "^2.6.1"
 
 [tool.poetry.group.dev.dependencies]
 ipywidgets = "^8.1.1"

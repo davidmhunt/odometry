@@ -88,7 +88,7 @@ Follow the following instructions to install the correct version of pytorch for 
 
 1. Navigate to the [pytorch installation page](https://pytorch.org/get-started/locally/). Select the requirements for your system. However, under the "package" select the "Pip" option. Once you have specified the options for your system, you'll get a command similar to this
 ```
-pip3 install torch torchvision torchaudio torchsummary
+pip3 install torch torchvision torchaudio torchsummary torch_geometric
 ```
 2. Navigate to the odometry folder
 ```
@@ -106,6 +106,15 @@ pip3 install torch torchvision torchaudio
 ```
 exit
 ```
+
+### Installing torch-cluster
+Currently, torch-cluster is required to run everything. At the current moment though, this cannot be installed using poetry. To overcome this, run the following commands to correctly install everything. Here, replace ${CUDA} with cpu, cu118, cu121, or cu124 depending on cuda version. While this command should work for most systems, see the following page for more specific instructions: [torch-cluster github](https://github.com/rusty1s/pytorch_cluster) 
+```
+cd odometry
+poetry shell
+pip install torch-cluster -f https://data.pyg.org/whl/torch-2.4.0+${CUDA}.html
+```
+
 #### Updating Odometry
 If the pyproject.toml file is updated, the poetry installation must also be updated. Use the following commands to update the version of poetry
 ```

@@ -29,7 +29,7 @@ class VelFiltering:
         Args:
             detections (np.ndarray): Nx2 array with the [x,y] 
                 coordinate for each detection
-            ego_vel (np.ndarray): Nx2 array corresponding to the velocity 
+            ego_vel (np.ndarray): 1x2 array corresponding to the velocity 
                 of the ego vehicle
 
         Returns:
@@ -75,7 +75,7 @@ class VelFiltering:
         Args:
             detections (np.ndarray): Nx4 array with the [x,y,z,vel] 
                 coordinate for each detection
-            ego_vel (np.ndarray): Nx2 array corresponding to the velocity 
+            ego_vel (np.ndarray): 1x2 array corresponding to the velocity 
                 of the ego vehicle
 
         Returns:

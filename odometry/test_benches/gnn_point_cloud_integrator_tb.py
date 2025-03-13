@@ -117,7 +117,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
             history_heading_deg=self.history_heading_deg,
             history_heading_deg_gt=self.history_heading_deg_gt,
             idx=idx+1,
-            ax=axs[0,0],
+            ax=axs[0,2],
             show=False
         )
         
@@ -131,10 +131,10 @@ class GnnPointCloudIntegratorTB(_TestBench):
 
         if self.dataset.camera_enabled:
 
-            axs[0,2].imshow(
+            axs[0,0].imshow(
                 self.dataset.get_camera_frame(idx)
             )
-            axs[0,2].set_title("Camera View")
+            axs[0,0].set_title("Camera View")
 
 
         #bottom row (combined point cloud) and kalman filtering
@@ -143,7 +143,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
                 g_thresh=self.filter.g_thresh[2],
                 g_hist=np.array(self.history_filter_g),
                 idx=idx,
-                ax=axs[1,0],
+                ax=axs[2,0],
                 show=False
             )
 
@@ -158,7 +158,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
                 ax=axs[2,2],
                 show=False
             )
-            axs[2,1].set_title(
+            axs[2,2].set_title(
                 "Raw accumulated point cloud",
                 fontsize=self.plotter_localization.font_size_title
             )
@@ -170,7 +170,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
                 current_points=detections[:,0:2],
                 heading_rad=np.deg2rad(self.history_heading_deg[idx]),
                 pose_m=self.history_position_m[idx],
-                ax=axs[1,1],
+                ax=axs[1,2],
                 show=False
             )
             axs[1,1].set_title(
@@ -178,16 +178,17 @@ class GnnPointCloudIntegratorTB(_TestBench):
                 fontsize=self.plotter_localization.font_size_title
             )
         
-        self.plotter_localization.marker_size = 0.5
+        
         detections = self.point_cloud_integrator.get_latest_pc()
         if detections.shape[0] > 0:
             self.plotter_localization.plot_detections_on_map(
                 current_points=detections[:,0:2],
                 heading_rad=np.deg2rad(self.history_heading_deg[idx]),
                 pose_m=self.history_position_m[idx],
-                ax=axs[1,2],
+                ax=axs[1,1],
                 show=False
             )
+        self.plotter_localization.marker_size = 0.5
         
         #plotting the occupancy grid
         grid = self.point_cloud_integrator.probabilistic_pc_grid.grid
@@ -196,8 +197,8 @@ class GnnPointCloudIntegratorTB(_TestBench):
         self.plotter_pc_grid.plot_pc_grid(
             grid=grid,
             grid_bins=bins,
-            valid_points=valid_pts,
-            ax=axs[2,0],
+            # valid_points=valid_pts,
+            ax=axs[1,0],
             show=False
         )
 

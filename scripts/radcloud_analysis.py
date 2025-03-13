@@ -4,7 +4,7 @@ sys.path.append("../")
 import numpy as np
 
 import matplotlib
-matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 from cpsl_datasets.cpsl_ds import CpslDS
@@ -35,7 +35,7 @@ MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 RADCLOUD_MODEL_STATE_DICT_PATH=os.getenv("RADCLOUD_MODEL_STATE_DICT_PATH")
 CONFIG_DIRECTORY = os.getenv("CONFIG_DIRECTORY")
 
-results_parent_folder = "radCloud09112024"
+results_parent_folder = "radCloud02282025"
 model_dataset_folder_name = "radCloud_comp_datasets"
 
 datasets_to_test = {

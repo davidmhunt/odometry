@@ -4,7 +4,7 @@ sys.path.append("../")
 import numpy as np
 
 import matplotlib
-matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 #load the necessary odometry modules
@@ -26,7 +26,7 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-results_parent_folder = "NaiveRadar09112024"
+results_parent_folder = "NaiveRadar0228205"
 
 datasets_to_test = {
      "WILK":{

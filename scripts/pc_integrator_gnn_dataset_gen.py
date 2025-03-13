@@ -33,58 +33,58 @@ DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-config_label = "10fp_10fh_0_50_th_5mRng_0_2_res"
-results_parent_folder = "pc_integrator_gnn_dataset_gen_{}_test".format(config_label)
+config_label = "RaGNNarok_1fp_20fh_0_50_th_5mRng_0_2_res"
+results_parent_folder = "{}_train".format(config_label)
 
 
 datasets_to_test = {
-     "WILK":{
-          "map":"wilkinson.yaml",
-          "datasets":[
-            #    'WILK_Path_1_With_Dynamic',
-                'WILK_Multipath_Test_4', #test
-                # 'WILK_Multipath_Test_5', #train
-                # 'WILK_Slow_4',
-                # 'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
-                # 'WILK_Path_1_Slow_No_Dynamic_1',
-                # 'WILK_Slow_Walk_Test_1',
-                # 'WILK_Path_1_With_Dynamic_2',
-                # 'WILK_Path_1_No_Dynamic',
-                # 'WILK_Slow_Walk_Test_2',
-                # 'WILK_Path_1_Slow_Dynamic_1',
-                # 'WILK_Multipath_Test_1',
-                # 'WILK_Multipath_Test_3', #train
-                # 'WILK_Slow_1',
-                'WILK_vel_cfg_1', #test
-                # 'WILK_Slow_2',
-                # 'WILK_Path_1_Same_Side_Dynamic_1',
-                # 'WILK_vel_cfg_2', #train
-                # 'WILK_Multipath_Test_1_spin_recal',
-                'WILK_Multipath_Test_2', #test
-                # 'WILK_Slow_3'
-          ]
-     },
-     "CPSL":{
-         "map":"cpsl_full.yaml",
-         "datasets":[
-            #  'CPSL_Walk_1', #train
-            #  'CPSL_Vel_2', #train
-            #  'CPSL_NoVel_2',
-            #  'CPSL_Walk_2', #train
-            #  'CPSL_Vel_1', #train
-            #  'CPSL_NoVel_1',
-            #  'CONFIG_TEST',
-             'CPSL_Vel_3', #test
-            #  'CPSL_No_Move',
-            #  'CPSL_Lidar_Test',
-             'CPSL_vel_cfg_1'] #test
-     },
+    #  "WILK":{
+    #       "map":"wilkinson.yaml",
+    #       "datasets":[
+    #         #    'WILK_Path_1_With_Dynamic',
+    #         #     'WILK_Multipath_Test_4', #test
+    #             'WILK_Multipath_Test_5', #train
+    #         #     'WILK_Slow_4',
+    #         #     'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
+    #         #     'WILK_Path_1_Slow_No_Dynamic_1',
+    #         #     'WILK_Slow_Walk_Test_1',
+    #         #     'WILK_Path_1_With_Dynamic_2',
+    #         #     'WILK_Path_1_No_Dynamic',
+    #         #     'WILK_Slow_Walk_Test_2',
+    #         #     'WILK_Path_1_Slow_Dynamic_1',
+    #         #     'WILK_Multipath_Test_1',
+    #         #     'WILK_Multipath_Test_3', #train
+    #         #     'WILK_Slow_1',
+    #         #     'WILK_vel_cfg_1', #test
+    #         #     'WILK_Slow_2',
+    #         #     'WILK_Path_1_Same_Side_Dynamic_1',
+    #         #     'WILK_vel_cfg_2', #train
+    #         #     'WILK_Multipath_Test_1_spin_recal',
+    #         #     'WILK_Multipath_Test_2', #test
+    #         #     'WILK_Slow_3'
+    #       ]
+    #  },
+    #  "CPSL":{
+    #      "map":"cpsl_full.yaml",
+    #      "datasets":[
+    #          'CPSL_Walk_1', #train
+    #          'CPSL_Vel_2', #train
+    #          'CPSL_NoVel_2',
+    #          'CPSL_Walk_2', #train
+    #          'CPSL_Vel_1', #train
+    #          'CPSL_NoVel_1',
+    #         #  'CONFIG_TEST',
+    #          'CPSL_Vel_3', #test
+    #         #  'CPSL_No_Move',
+    #          'CPSL_Lidar_Test',
+    #          'CPSL_vel_cfg_1'] #test
+    #  },
      "WILK_BASEMENT":{
          "map":"wilk_basement_revB.yaml",
          "datasets":[
             #  'wilk_basement_1', #train
-            #  'wilk_basement_2', #train
-             'wilk_basement_3'] #test
+            #  'wilk_basement_2',] #train
+             'wilk_basement_3'] #train Rag
      }
 }
 
@@ -123,7 +123,7 @@ def generate_gnn_dataset(
     gt_encoder = _GTNodeEncoder()
 
     #initialize the dataset generator
-    generated_dataset_path = os.path.join(GENERATED_DATASETS_PATH,"{}_test".format(config_label))
+    generated_dataset_path = os.path.join(GENERATED_DATASETS_PATH,"{}_train".format(config_label))
     dataset_generator = _OnlineDatasetGenerator(
         generated_dataset_path=generated_dataset_path,
         input_encoder=input_encoder,
@@ -160,20 +160,20 @@ def generate_gnn_dataset(
         grid_resolution_m=0.20,
         grid_max_distance_m=5.0,
         occupancy_threshold=0.20,
-        num_frames_history=10
+        num_frames_history=20
     )
 
     historical_pc_grid = HistoricalPCGrid(
-        grid_resolution_m=0.2,
+        grid_resolution_m=0.20,
         grid_max_distance_m=5.0,
-        num_frames_persistance=50
+        num_frames_persistance=1
     )
 
     point_cloud_integrator = _PointCloudIntegrator(
         probabilistic_pc_grid=probabilistic_pc_grid,
         historical_pc_grid=historical_pc_grid,
         min_detection_radius=1.0,
-        max_detection_radius=20.0,
+        max_detection_radius=5.0,
     )
 
     #initialize the test bench

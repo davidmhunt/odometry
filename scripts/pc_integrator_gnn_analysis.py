@@ -33,59 +33,59 @@ load_dotenv()
 DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 
-config_label = "10fp_10fh_0_50_th_5mRng_0_2_res"
-working_dir_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir"
+config_label = "RaGNNarok_1fp_20fh_0_50_th_5mRng_0_2_res"
+working_dir_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok"
 
-results_parent_folder = "pc_integrator_gnn_analysis_{}_no_history".format(config_label)
+results_parent_folder = "RaGNNarok/{}_10fp_mov".format(config_label)
 
 datasets_to_test = {
      "WILK":{
           "map":"wilkinson.yaml",
           "datasets":[
             #    'WILK_Path_1_With_Dynamic',
-                'WILK_Multipath_Test_4', #test
-                # 'WILK_Multipath_Test_5', #train
-                # 'WILK_Slow_4',
-                # 'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
-                # 'WILK_Path_1_Slow_No_Dynamic_1',
-                # 'WILK_Slow_Walk_Test_1',
-                # 'WILK_Path_1_With_Dynamic_2',
-                # 'WILK_Path_1_No_Dynamic',
-                # 'WILK_Slow_Walk_Test_2',
-                # 'WILK_Path_1_Slow_Dynamic_1',
-                # 'WILK_Multipath_Test_1',
-                # 'WILK_Multipath_Test_3', #train
-                # 'WILK_Slow_1',
-                'WILK_vel_cfg_1', #test
-                # 'WILK_Slow_2',
-                # 'WILK_Path_1_Same_Side_Dynamic_1',
-                # 'WILK_vel_cfg_2', #train
-                # 'WILK_Multipath_Test_1_spin_recal',
-                'WILK_Multipath_Test_2', #test
-                # 'WILK_Slow_3'
+            #     'WILK_Multipath_Test_4', #test
+            #     'WILK_Multipath_Test_5', #train
+            #     'WILK_Slow_4',
+            #     'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
+            #     'WILK_Path_1_Slow_No_Dynamic_1',
+            #     'WILK_Slow_Walk_Test_1',
+            #     'WILK_Path_1_With_Dynamic_2',
+            #     'WILK_Path_1_No_Dynamic',
+            #     'WILK_Slow_Walk_Test_2',
+            #     'WILK_Path_1_Slow_Dynamic_1',
+            #     'WILK_Multipath_Test_1',
+            #     'WILK_Multipath_Test_3', #train
+            #     'WILK_Slow_1',
+            #     'WILK_vel_cfg_1', #test
+            #     'WILK_Slow_2',
+            #     'WILK_Path_1_Same_Side_Dynamic_1',
+                'WILK_vel_cfg_2', #train
+            #     'WILK_Multipath_Test_1_spin_recal',
+            #     'WILK_Multipath_Test_2', #test
+            #     'WILK_Slow_3'
           ]
      },
-     "CPSL":{
-         "map":"cpsl_full.yaml",
-         "datasets":[
-            #  'CPSL_Walk_1', #train
-            #  'CPSL_Vel_2', #train
-            #  'CPSL_NoVel_2',
-            #  'CPSL_Walk_2', #train
-            #  'CPSL_Vel_1', #train
-            #  'CPSL_NoVel_1',
-            #  'CONFIG_TEST',
-             'CPSL_Vel_3', #test
-            #  'CPSL_No_Move',
-            #  'CPSL_Lidar_Test',
-             'CPSL_vel_cfg_1'] #test
-     },
+    #  "CPSL":{
+    #      "map":"cpsl_full.yaml",
+    #      "datasets":[
+    #          'CPSL_Walk_1', #train
+    #          'CPSL_Vel_2', #train
+    #          'CPSL_NoVel_2',
+    #          'CPSL_Walk_2', #train
+    #          'CPSL_Vel_1', #train
+    #          'CPSL_NoVel_1',
+    #         #  'CONFIG_TEST',
+    #          'CPSL_Vel_3', #test
+    #         #  'CPSL_No_Move',
+    #          'CPSL_Lidar_Test',
+    #          'CPSL_vel_cfg_1'] #test
+    #  },
      "WILK_BASEMENT":{
          "map":"wilk_basement_revB.yaml",
          "datasets":[
-            #  'wilk_basement_1', #train
-            #  'wilk_basement_2', #train
-             'wilk_basement_3'] #test
+             'wilk_basement_1', #train
+             'wilk_basement_2',] #train
+            #  'wilk_basement_3'] #test
      }
 }
 
@@ -140,31 +140,31 @@ def analyze_dataset(folder_name,file_name,map_file,generate_movie=False):
             in_channels=4,
             hidden_channels=16,
             out_channels=1
-        ),state_dict_path=os.path.join(working_dir_path,"Sage_{}.pth".format(config_label)),
+        ),state_dict_path=os.path.join(working_dir_path,"{}.pth".format(config_label)),
         cuda_device="cuda:0",
-        edge_radius=10.0
+        edge_radius=5.0
     )
 
     #initialize the probabilistic point cloud grid
     probabilistic_pc_grid = ProbabilisticPCGridGNN(
         runner=runner,
-        grid_resolution_m=0.20,
+        grid_resolution_m=0.2,
         grid_max_distance_m=5.0,
         occupancy_threshold=0.20,
-        num_frames_history=10
+        num_frames_history=20
     )
 
     historical_pc_grid = HistoricalPCGrid(
         grid_resolution_m=0.2,
         grid_max_distance_m=5.0,
-        num_frames_persistance=50
+        num_frames_persistance=10
     )
 
     point_cloud_integrator = _PointCloudIntegrator(
         probabilistic_pc_grid=probabilistic_pc_grid,
-        historical_pc_grid=None,
+        historical_pc_grid=historical_pc_grid,
         min_detection_radius=1.0,
-        max_detection_radius=20.0,
+        max_detection_radius=5.0,
     )
 
     #initialize the test bench
@@ -258,7 +258,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=False
+                generate_movie=True
             )
     
     analyzer = Analyzer()

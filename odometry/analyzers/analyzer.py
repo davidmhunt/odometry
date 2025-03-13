@@ -3,6 +3,7 @@ import pandas as pd
 from IPython.display import display
 import os
 import fnmatch
+import ast
 
 from odometry.plotting.plotter_analyzer import PlotterAnalyzer
 
@@ -226,12 +227,31 @@ class Analyzer:
         relative_errors_heading_median = np.median(relative_errors_heading)
         relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
-        # point cloud quality distances
-        pc_quality_distances = np.array(pc_quality_distances)
-        pc_quality_distances_mean = np.mean(pc_quality_distances)
-        pc_quality_distances_stdev = np.std(pc_quality_distances)
-        pc_quality_distances_median = np.median(pc_quality_distances)
-        pc_quality_distances_tail = self.get_percentile(pc_quality_distances, percentile)
+        #compute point cloud qualities
+        avg_dist = np.array([np.mean(arr) for arr in pc_quality_distances])
+        max_dist = np.array([np.max(arr) for arr in pc_quality_distances])
+        num_pts = np.array([len(arr) for arr in pc_quality_distances])
+
+        #avg pc distance
+        pc_quality_avg_dist = np.array(avg_dist)
+        pc_quality_avg_dist_mean = np.mean(pc_quality_avg_dist)
+        pc_quality_avg_dist_stdev = np.std(pc_quality_avg_dist)
+        pc_quality_avg_dist_median = np.median(pc_quality_avg_dist)
+        pc_quality_avg_dist_tail = self.get_percentile(pc_quality_avg_dist, percentile)
+
+        #max pc distance
+        pc_quality_max_dist = np.array(max_dist)
+        pc_quality_max_dist_mean = np.mean(pc_quality_max_dist)
+        pc_quality_max_dist_stdev = np.std(pc_quality_max_dist)
+        pc_quality_max_dist_median = np.median(pc_quality_max_dist)
+        pc_quality_max_dist_tail = self.get_percentile(pc_quality_max_dist, percentile)
+
+        #num points
+        pc_quality_num_pts = np.array(num_pts)
+        pc_quality_num_pts_mean = np.mean(pc_quality_num_pts)
+        pc_quality_num_pts_stdev = np.std(pc_quality_num_pts)
+        pc_quality_num_pts_median = np.median(pc_quality_num_pts)
+        pc_quality_num_pts_tail = self.get_percentile(pc_quality_num_pts, percentile)
 
         # num quality points
         num_quality_points = np.array(num_quality_points)
@@ -271,11 +291,21 @@ class Analyzer:
                 relative_errors_heading_stdev,
                 relative_errors_heading_median,
                 relative_errors_heading_tail],
-            "Point Cloud Distances": [
-                pc_quality_distances_mean,
-                pc_quality_distances_stdev,
-                pc_quality_distances_median,
-                pc_quality_distances_tail],
+            "Average Point Cloud Dist": [
+                pc_quality_avg_dist_mean,
+                pc_quality_avg_dist_stdev,
+                pc_quality_avg_dist_median,
+                pc_quality_avg_dist_tail],
+            "Max Point Cloud Dist": [
+                pc_quality_max_dist_mean,
+                pc_quality_max_dist_stdev,
+                pc_quality_max_dist_median,
+                pc_quality_max_dist_tail],
+            "Number of Points": [
+                pc_quality_num_pts_mean,
+                pc_quality_num_pts_stdev,
+                pc_quality_num_pts_median,
+                pc_quality_num_pts_tail],
             "Quality Points": [
                 num_quality_points_mean,
                 num_quality_points_stdev,
@@ -352,16 +382,11 @@ class Analyzer:
         df.to_csv(path,index=False)
         
         #point cloud quality
-        pc_quality_distances = np.array(pc_quality_distances)
-        num_quality_points = np.array(num_quality_points)
-        
-        dict = {
-            "pc_quality_distances":pc_quality_distances,
-        }
-        df = pd.DataFrame(dict)
+        df = pd.DataFrame.from_dict({"pc_quality_distances": [list(arr) for arr in pc_quality_distances]})
         path = os.path.join(save_folder,file_name + "_pc_quality_distances.csv")
         df.to_csv(path,index=False)
 
+        num_quality_points = np.array(num_quality_points)
         dict = {
             "num_quality_points":num_quality_points
         }
@@ -470,22 +495,29 @@ class Analyzer:
             save_folder (str): path to the results directory
 
         Returns:
-            (np.ndarray,np.ndarray): pc_quality_distances,num_quality_points
+            (np.ndarray,np.ndarray): avg_dist, max_dist, num_pts, num_quality_points
         """
 
         #get absolute errors first
-        pc_quality_distances = []
+        avg_dist = []
+        max_dist = []
+        num_pts = []
         num_quality_points = []
         
         #pc quality distances
         pc_quality_distances_files = self.find_files_in_directory(save_folder,'*_pc_quality_distances*')
         for file_path in pc_quality_distances_files:
-
+            #get the point cloud distances list
             df = pd.read_csv(file_path)
-            pc_quality_distances.extend(
-                df["pc_quality_distances"].astype(float).tolist()
-            )
-        pc_quality_distances = np.array(pc_quality_distances)
+            pc_quality_distances = [np.array(ast.literal_eval(row)) for row in df["pc_quality_distances"]]
+
+            average_values = np.array([np.mean(arr) for arr in pc_quality_distances])
+            max_values = np.array([np.max(arr) for arr in pc_quality_distances])
+            num_elements = np.array([len(arr) for arr in pc_quality_distances])
+
+            avg_dist.extend(average_values)
+            max_dist.extend(max_values)
+            num_pts.extend(num_elements)
 
         #num quality points
         num_quality_points_files = self.find_files_in_directory(save_folder,'*_num_quality_points*')
@@ -497,7 +529,7 @@ class Analyzer:
             )
         num_quality_points = np.array(num_quality_points)
 
-        return pc_quality_distances,num_quality_points
+        return avg_dist,max_dist,num_pts,num_quality_points
     
     def get_summary_statistics_from_csvs(self,save_folder:str)->dict:
         total_distance = 0
@@ -561,13 +593,30 @@ class Analyzer:
         relative_errors_heading_tail = self.get_percentile(relative_errors_heading, percentile)
 
         #get point cloud quality statistics
-        pc_quality_distances,num_quality_points = \
+        avg_dist, max_dist, num_pts, num_quality_points = \
             self.get_pc_quality_stats_from_csvs(save_folder)
-        pc_quality_distances = np.array(pc_quality_distances)
-        pc_quality_distances_mean = np.mean(pc_quality_distances)
-        pc_quality_distances_stdev = np.std(pc_quality_distances)
-        pc_quality_distances_median = np.median(pc_quality_distances)
-        pc_quality_distances_tail = self.get_percentile(pc_quality_distances, percentile)
+        
+        #avg pc distance
+        pc_quality_avg_dist = np.array(avg_dist)
+        pc_quality_avg_dist_mean = np.mean(pc_quality_avg_dist)
+        pc_quality_avg_dist_stdev = np.std(pc_quality_avg_dist)
+        pc_quality_avg_dist_median = np.median(pc_quality_avg_dist)
+        pc_quality_avg_dist_tail = self.get_percentile(pc_quality_avg_dist, percentile)
+
+        #max pc distance
+        pc_quality_max_dist = np.array(max_dist)
+        pc_quality_max_dist_mean = np.mean(pc_quality_max_dist)
+        pc_quality_max_dist_stdev = np.std(pc_quality_max_dist)
+        pc_quality_max_dist_median = np.median(pc_quality_max_dist)
+        pc_quality_max_dist_tail = self.get_percentile(pc_quality_max_dist, percentile)
+
+        #num points
+        pc_quality_num_pts = np.array(num_pts)
+        pc_quality_num_pts_mean = np.mean(pc_quality_num_pts)
+        pc_quality_num_pts_stdev = np.std(pc_quality_num_pts)
+        pc_quality_num_pts_median = np.median(pc_quality_num_pts)
+        pc_quality_num_pts_tail = self.get_percentile(pc_quality_num_pts, percentile)
+
 
         # num quality points
         num_quality_points = np.array(num_quality_points)
@@ -575,10 +624,6 @@ class Analyzer:
         num_quality_points_stdev = np.std(num_quality_points)
         num_quality_points_median = np.median(num_quality_points)
         num_quality_points_tail = self.get_percentile(num_quality_points, percentile)
-
-        #percent high quality points
-        num_quality_points_revised = np.sum(pc_quality_distances <= 0.5)
-        percent_quality_points = num_quality_points_revised / np.shape(pc_quality_distances)[0]
 
         #get summary statistics
         summary_dict = self.get_summary_statistics_from_csvs(save_folder)
@@ -638,11 +683,21 @@ class Analyzer:
                 final_heading_errors_stdev,
                 final_heading_errors_median,
                 final_heading_errors_tail],
-            "Point Cloud Distances": [
-                pc_quality_distances_mean,
-                pc_quality_distances_stdev,
-                pc_quality_distances_median,
-                pc_quality_distances_tail],
+            "Average Point Cloud Dist": [
+                pc_quality_avg_dist_mean,
+                pc_quality_avg_dist_stdev,
+                pc_quality_avg_dist_median,
+                pc_quality_avg_dist_tail],
+            "Max Point Cloud Dist": [
+                pc_quality_max_dist_mean,
+                pc_quality_max_dist_stdev,
+                pc_quality_max_dist_median,
+                pc_quality_max_dist_tail],
+            "Number of Points": [
+                pc_quality_num_pts_mean,
+                pc_quality_num_pts_stdev,
+                pc_quality_num_pts_median,
+                pc_quality_num_pts_tail],
             "Quality Points": [
                 num_quality_points_mean,
                 num_quality_points_stdev,
@@ -661,7 +716,6 @@ class Analyzer:
         print("average frames per trial: {}".format(
             np.average(summary_dict["trial_frames"])
         ))
-        print("percent quality points: {}".format(percent_quality_points))
         print("max position error: {}".format(np.max(absolute_errors_pos)))
 
         return        

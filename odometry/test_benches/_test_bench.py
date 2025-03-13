@@ -362,6 +362,7 @@ class _TestBench:
     def history_pc_quality_update(
             self,
             point_cloud:np.ndarray,
+            gt_pc:np.ndarray,
             gt_position_m:np.ndarray,
             gt_heading_rad:float):
         """Save the most recently computed stacked point cloud and its
@@ -371,6 +372,8 @@ class _TestBench:
             point_cloud (np.ndarray): Nx2 array of corresponding
                 to the most recent sensed point cloud in the sensor
                 frame
+            gt_pc (np.ndarray): Nx2 array of point corresponding
+                to the most recent ground truth point cloud in the sensor frame
             gt_position_m (np.ndarray): Nx2 array corresponding to the
                 position of the agent in the map
             gt_heading_rad (float): heading corresponding to the
@@ -379,16 +382,24 @@ class _TestBench:
         
         #align the points with the map
         if point_cloud.shape[0] > 0:
-            aligned_points = rotation_functions.apply_rot_trans(
-                points=point_cloud[:,0:2],
-                rot_angle_rad=gt_heading_rad,
-                trans=gt_position_m
+            # aligned_points = rotation_functions.apply_rot_trans(
+            #     points=point_cloud[:,0:2],
+            #     rot_angle_rad=gt_heading_rad,
+            #     trans=gt_position_m
+            # )
+
+            #fit to the current gt point cloud
+            self.pc_quality_clusterer = NearestNeighbors(
+                n_neighbors=1,
+                algorithm='kd_tree'
+            ).fit(
+                gt_pc[:,0:2]
             )
 
             #compute the distances
-            distances,_ = self.pc_quality_clusterer.kneighbors(aligned_points)
+            distances,_ = self.pc_quality_clusterer.kneighbors(point_cloud)
 
-            self.history_pc_quality_distances.extend(distances[:,0])
+            self.history_pc_quality_distances.append(distances[:,0])
             self.history_pc_quality_num_quality_points.append(
                 np.sum(distances[:,0] < self.pc_quality_dist_thresh_m)
             )
@@ -721,6 +732,7 @@ class _TestBench:
                         if gt_enabled:
                             self.history_pc_quality_update(
                                 point_cloud=pc[:,0:2],
+                                gt_pc=gt_points[:,0:2],
                                 gt_position_m=self.filter_gt.x[0:2],
                                 gt_heading_rad=self.filter_gt.x[2]
                             )

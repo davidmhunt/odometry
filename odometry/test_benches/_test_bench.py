@@ -25,6 +25,7 @@ from odometry.point_cloud_processing.temporal_pc_stacker import temporalPcStacke
 from odometry.point_cloud_processing.multipath import MultiPath
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
+from odometry.point_cloud_processing.dynamic_object_tracker import DynamicObjectTracker
 
 class _TestBench:
 
@@ -32,6 +33,7 @@ class _TestBench:
                  gt_localizer:icp2DLocalization,
                  map_handler:MapHandler,
                  dataset:CpslDS,
+                 dynamic_object_tracker:DynamicObjectTracker,
                  localizer:icp2DLocalization=None) -> None:
         
         #initialize the localizer
@@ -107,6 +109,9 @@ class _TestBench:
             dynamic_cluster_eps=0.5,
             dynamic_cluster_min_samples=15
         )
+        
+        #dynamic object tracker
+        self.dynamic_object_tracker:DynamicObjectTracker = dynamic_object_tracker
 
         #TODO: Child add point cloud processing abilities
 
@@ -622,6 +627,9 @@ class _TestBench:
         if max_frame == -1:
             max_frame = self.dataset.num_frames
 
+        # initialize the dynamic tracker
+        self.dynamic_object_tracker.reset(n=max_frame)
+
         for i in tqdm(range(max_frame)):
 
             #start time tracking
@@ -702,6 +710,26 @@ class _TestBench:
                     dynamic_points=dynamic_points,
                     current_pose=current_pose,
                     gt_points=gt_points
+                )
+                
+                #update the dynamic points
+                self.dynamic_object_tracker.update(
+                    current_points=radar_points,
+                    ego_vel=np.array([self.filter.x[3],0.0]),
+                    ego_heading_rad=self.filter.x[2],
+                    ego_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
+                )
+                
+                # update the clusters
+                num_clusters, clusters, centroids = self.dynamic_object_tracker.dynamic_point_cloud_clustering(
+                    current_points=self.dynamic_object_tracker.current_dynamic_detections,
+                )
+
+                #TODO: update the history 
+                self.dynamic_object_tracker.history_update_dynamic_objects(
+                    current_points=self.dynamic_object_tracker.current_dynamic_detections,
+                    cluster_nums = num_clusters,
+                    centroids = centroids 
                 )
 
                 if pc.shape[0] > 0:

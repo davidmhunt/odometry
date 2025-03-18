@@ -83,8 +83,8 @@ class PlotterLocalization:
     def plot_detections_on_map(
             self,
             current_points:np.ndarray,
-            heading_rad,
-            pose_m,
+            heading_rad:float=0,
+            pose_m:np.ndarray=np.array([0.0,0.0]),
             ax:plt.Axes=None,
             show=False
     ):
@@ -102,12 +102,21 @@ class PlotterLocalization:
                 Defaults to False.
         """
         
-        aligned_points = \
-            rotation_functions.apply_rot_trans(
-                points=current_points,
-                rot_angle_rad=heading_rad,
-                trans=pose_m
-            )
+        # aligned_points = \
+        #     rotation_functions.apply_rot_trans(
+        #         points=current_points,
+        #         rot_angle_rad=heading_rad,
+        #         trans=pose_m
+        #     )
+        if not (heading_rad==0 and np.all(pose_m == np.array([0.0,0.0]))):
+            aligned_points = \
+                rotation_functions.apply_rot_trans(
+                    points=current_points,
+                    rot_angle_rad=heading_rad,
+                    trans=pose_m
+                )
+        else:
+            aligned_points= current_points
         
         if not ax:
             fig,ax = plt.subplots()

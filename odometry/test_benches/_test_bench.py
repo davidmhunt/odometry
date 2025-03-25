@@ -614,7 +614,7 @@ class _TestBench:
         return np.empty(shape=(0,3))
     
     ####################################################################
-    #Processing point clouds
+    #Tracking Moving Objects
     ####################################################################   
     def dynamic_object_tracking(
             self,

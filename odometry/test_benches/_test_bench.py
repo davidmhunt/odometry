@@ -112,6 +112,14 @@ class _TestBench:
         
         #dynamic object tracker
         self.dynamic_object_tracker:DynamicObjectTracker = dynamic_object_tracker
+        dynamic_object_tracker.init_xy_tracker(
+            threshold_confirmed=10,   
+            threshold_coast=5.0,     
+            v_max=10.0,             
+            assign_metric="center_dist",
+            assign_radius=1.0,
+            P0=np.diag([1, 1, 5, 5]) ** 2,
+        ) 
 
         #TODO: Child add point cloud processing abilities
 
@@ -604,6 +612,65 @@ class _TestBench:
         """
         #TODO: Implemented by child
         return np.empty(shape=(0,3))
+    
+    ####################################################################
+    #Processing point clouds
+    ####################################################################   
+    def dynamic_object_tracking(
+            self,
+            point_cloud_raw:np.ndarray,
+            idx:int=0
+            ) -> np.ndarray:
+        """Implemented by the child class to process the point cloud
+
+        Args:
+            point_cloud_raw (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel] full radar point cloud
+            static_points (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel] point cloud of static points
+            dynamic_points (np.ndarray): nx4 array for point cloud in agent frame
+                corresponding to [x,y,z,vel] point cloud of dynamic points
+            current_pose (Pose): pose object corresponding to the currently 
+                estimated position (from local odometry)
+            gt_points (np.ndarray,optional): [x,y,z] point cloud corresponding to 
+                the ground truth detections. Can be used for evaluation of generated
+                point cloud
+                Defaults to np.empty(shape=(0,2)).
+
+        Returns:
+            np.ndarray: [x,y,z] point cloud to be used for down stream localization
+                tasks. Returns empty array if no points available or if no point 
+                cloud ready to be used
+        """
+        
+        #update the dynamic points
+        self.dynamic_object_tracker.update(
+            current_points=point_cloud_raw,
+            ego_vel=np.array([self.filter.x[3],0.0]),
+            ego_heading_rad=self.filter.x[2],
+            ego_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
+        )
+        
+        # update the clusters
+        num_clusters, clusters, centroids = self.dynamic_object_tracker.dynamic_point_cloud_clustering(
+            current_points=self.dynamic_object_tracker.current_dynamic_detections,
+        )
+
+        #TODO: update the history 
+        self.dynamic_object_tracker.history_update_dynamic_objects(
+            current_points=self.dynamic_object_tracker.current_dynamic_detections,
+            cluster_nums = num_clusters,
+            centroids = centroids 
+        )
+        
+        current_imu_data = self.dataset.get_imu_full_data(idx=idx)
+        current_timestamp = current_imu_data[-1][0]
+        # timestamp = current_timestamp - initial_timestamp
+
+        centroids_dict = np.array(list(centroids.values()))
+        self.dynamic_object_tracker.update_tracks(i_frame=idx, centroids_dict=centroids_dict, timestamp=current_timestamp)
+        
+        return 
 
     ####################################################################
     #Running localization for the dataset
@@ -709,28 +776,31 @@ class _TestBench:
                     static_points=static_points,
                     dynamic_points=dynamic_points,
                     current_pose=current_pose,
-                    gt_points=gt_points
+                    gt_points=gt_points,
                 )
+               
+                self.dynamic_object_tracking(point_cloud_raw=radar_points, idx=i)
+                # ####################################################
+                # #update the dynamic points
+                # self.dynamic_object_tracker.update(
+                #     current_points=radar_points,
+                #     ego_vel=np.array([self.filter.x[3],0.0]),
+                #     ego_heading_rad=self.filter.x[2],
+                #     ego_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
+                # )
                 
-                #update the dynamic points
-                self.dynamic_object_tracker.update(
-                    current_points=radar_points,
-                    ego_vel=np.array([self.filter.x[3],0.0]),
-                    ego_heading_rad=self.filter.x[2],
-                    ego_pose_m=np.array([self.filter.x[0],self.filter.x[1]])
-                )
-                
-                # update the clusters
-                num_clusters, clusters, centroids = self.dynamic_object_tracker.dynamic_point_cloud_clustering(
-                    current_points=self.dynamic_object_tracker.current_dynamic_detections,
-                )
+                # # update the clusters
+                # num_clusters, clusters, centroids = self.dynamic_object_tracker.dynamic_point_cloud_clustering(
+                #     current_points=self.dynamic_object_tracker.current_dynamic_detections,
+                # )
 
-                #TODO: update the history 
-                self.dynamic_object_tracker.history_update_dynamic_objects(
-                    current_points=self.dynamic_object_tracker.current_dynamic_detections,
-                    cluster_nums = num_clusters,
-                    centroids = centroids 
-                )
+                # #TODO: update the history 
+                # self.dynamic_object_tracker.history_update_dynamic_objects(
+                #     current_points=self.dynamic_object_tracker.current_dynamic_detections,
+                #     cluster_nums = num_clusters,
+                #     centroids = centroids 
+                # )
+                # ####################################################
 
                 if pc.shape[0] > 0:
                    

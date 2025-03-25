@@ -8,7 +8,7 @@ from avstack.geometry import GlobalOrigin2D
 from avstack.modules.perception.detections import CentroidDetection
 from avstack.modules.tracking import BasicXyTracker
 from collections import defaultdict
-
+import matplotlib.pyplot as plt
 
 
 class DynamicObjectTracker:
@@ -42,8 +42,11 @@ class DynamicObjectTracker:
         self.history_clustered_dynamic_clusters_nums:list = None
         self.history_clustered_dynamic_centroids:list = None
         
+        # get tracker history, including both in/active
         self.track_history_full = defaultdict(list)  # track_id -> list of [frame_id, x, y]
+        # get track_history for current active-confirmed tracks
         self.track_history = defaultdict(list)       # track_id -> list of [frame_id, x, y] (active only)
+        # get current confirmed tracks
         self.current_tracks = []                     # list of (track_id, [x, y])
         
         self.xy_tracker = None  # initialize later
@@ -203,13 +206,12 @@ class DynamicObjectTracker:
         timestamp, 
         i_frame,
         centroids_dict,
-        initial_timestamp, 
         noise=np.array([0.5, 0.5])
         ):
         if self.xy_tracker is None:
             raise RuntimeError("xy_tracker not initialized. Please call `init_xy_tracker()` first.")
         
-        self.current_tracks.clear()
+        # self.current_tracks.clear()
         
         # current_imu_data = dataset.get_imu_full_data(idx=i_frame)
         # current_timestamp = current_imu_data[-1][0]
@@ -230,33 +232,76 @@ class DynamicObjectTracker:
                 reference=GlobalOrigin2D,
             ))
             
-        tracks = self.xy_tracker(
+        tracks_comfirmed = self.xy_tracker(
             detections=msmts,
             platform=GlobalOrigin2D,
             check_reference=False,  # if you already enforce consistent reference, set to False
         )
-
-        frame_tracks = []
-        for track in tracks:
-            track_id = track.ID
-            pos = track.position  # [x, y]
-            
-            # ---- 1. full history
-            self.track_history_full[track_id].append([i_frame, pos[0], pos[1]])
-            
-            if track.active:
-                self.track_history[track_id].append([i_frame, pos[0], pos[1]])
-            else:
-                if track_id in self.track_history:
-                    del self.track_history[track_id]
         
-            if track.active:
-                frame_tracks.append((track_id, pos))
+        frame_tracks = []
+
+        valid_ids = set()
+
+        for track in self.xy_tracker.tracks:
+            tid = track.ID
+            pos = track.position
+
+            # full history
+            self.track_history_full[tid].append([i_frame, pos[0], pos[1]])
+
+            # current-confirmed-active-tracks
+            if track.confirmed and track.active:
+                frame_tracks.append((tid, pos))
+                self.track_history[tid].append([i_frame, pos[0], pos[1]])
+                valid_ids.add(tid)
 
         self.current_tracks = frame_tracks
+
+        # confirmed-active history
+        for tid in list(self.track_history.keys()):
+            if tid not in valid_ids:
+                del self.track_history[tid] 
 
     def get_current_tracks(self):
         return self.current_tracks
 
     def get_track_history(self):
         return self.track_history
+    
+    def get_full_track_history(self):
+        return self.track_history_full
+
+    # Plot functions
+    def plot_tracks_on_map(self, 
+                           tracks:dict,
+                           map_handler):
+        # # Filter out empty arrays
+        # valid_data = [d for d in tracks if d.values.size > 0]
+
+        # Prepare a plot
+        plt.figure(figsize=(8, 6))
+
+        #plot the map
+        map_points = map_handler.map_points
+        plt.scatter(
+            map_points[:,0],
+            map_points[:,1],
+            label="map",
+            marker=".",
+            s=0.5,
+            color="blue")
+
+        # Iterate over columns (indices) of valid arrays
+        for track_id, trajectory in tracks.items():
+            if len(trajectory) < 2:
+                continue
+            xs, ys = zip(*[(p[1], p[2]) for p in trajectory])
+            plt.plot(xs, ys, label=f'Active {track_id}')
+
+        # Add labels and legend
+        plt.xlabel('X Coordinate')
+        plt.ylabel('Y Coordinate')
+        plt.title('Trajectories')
+        plt.legend()
+        plt.grid()
+        plt.show()

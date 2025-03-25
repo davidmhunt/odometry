@@ -3,6 +3,11 @@ from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.supportFns.rotation_functions import apply_rot_trans
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import KernelDensity
+from avstack.datastructs import DataContainer
+from avstack.geometry import GlobalOrigin2D
+from avstack.modules.perception.detections import CentroidDetection
+from avstack.modules.tracking import BasicXyTracker
+from collections import defaultdict
 
 
 
@@ -34,11 +39,15 @@ class DynamicObjectTracker:
         # self.history_dynamic_objects:np.ndarray = np.empty()
         self.history_dynamic_objects:list = None
         
-        # self.current_tracks:np.ndarray = np.ndarray()
-        self.current_tracks:np.ndarray = None
-        
         self.history_clustered_dynamic_clusters_nums:list = None
         self.history_clustered_dynamic_centroids:list = None
+        
+        self.track_history_full = defaultdict(list)  # track_id -> list of [frame_id, x, y]
+        self.track_history = defaultdict(list)       # track_id -> list of [frame_id, x, y] (active only)
+        self.current_tracks = []                     # list of (track_id, [x, y])
+        
+        self.xy_tracker = None  # initialize later
+
 
     def reset(self,
             n:int):
@@ -157,3 +166,97 @@ class DynamicObjectTracker:
 
 
         return num_clusters, clusters, centroids
+    
+    def init_xy_tracker(
+            self,
+            threshold_confirmed: float=10,   
+            threshold_coast: float=5.0,     
+            v_max: float=10.0,             
+            assign_metric="center_dist",
+            assign_radius=1.0,
+            P0:np.ndarray=np.diag([1, 1, 5, 5]) ** 2,
+        ) :
+        """_summary_
+
+        Args:
+            threshold_confirmed (float): Minimum hits to confirm a track
+            threshold_coast (float): Maximum frames without updates before deletion
+            v_max (float): Maximum allowed velocity
+            P0 (_type_): _description_
+            assign_radius (float, optional): _description_. Defaults to 1.0.
+
+        Returns:
+            _type_: avstack.modules.tracking.tracker2d.BasicXyTracker
+        """
+        
+        self.xy_tracker = BasicXyTracker(
+            threshold_confirmed,  
+            threshold_coast,     
+            v_max,            
+            assign_metric,
+            assign_radius,
+            P0=P0,
+        )
+
+    def update_tracks(
+        self, 
+        timestamp, 
+        i_frame,
+        centroids_dict,
+        initial_timestamp, 
+        noise=np.array([0.5, 0.5])
+        ):
+        if self.xy_tracker is None:
+            raise RuntimeError("xy_tracker not initialized. Please call `init_xy_tracker()` first.")
+        
+        self.current_tracks.clear()
+        
+        # current_imu_data = dataset.get_imu_full_data(idx=i_frame)
+        # current_timestamp = current_imu_data[-1][0]
+        # timestamp = current_timestamp - initial_timestamp
+
+        msmts = DataContainer(
+            frame=i_frame,
+            timestamp=timestamp,
+            source_identifier="sensor",
+            data=[],
+        )
+
+        for centroid in centroids_dict:
+            msmts.append(CentroidDetection(
+                data=centroid,
+                noise=noise,
+                source_identifier="sensor",
+                reference=GlobalOrigin2D,
+            ))
+            
+        tracks = self.xy_tracker(
+            detections=msmts,
+            platform=GlobalOrigin2D,
+            check_reference=False,  # if you already enforce consistent reference, set to False
+        )
+
+        frame_tracks = []
+        for track in tracks:
+            track_id = track.ID
+            pos = track.position  # [x, y]
+            
+            # ---- 1. full history
+            self.track_history_full[track_id].append([i_frame, pos[0], pos[1]])
+            
+            if track.active:
+                self.track_history[track_id].append([i_frame, pos[0], pos[1]])
+            else:
+                if track_id in self.track_history:
+                    del self.track_history[track_id]
+        
+            if track.active:
+                frame_tracks.append((track_id, pos))
+
+        self.current_tracks = frame_tracks
+
+    def get_current_tracks(self):
+        return self.current_tracks
+
+    def get_track_history(self):
+        return self.track_history

@@ -112,14 +112,14 @@ class _TestBench:
         
         #dynamic object tracker
         self.dynamic_object_tracker:DynamicObjectTracker = dynamic_object_tracker
-        dynamic_object_tracker.init_xy_tracker(
-            threshold_confirmed=10,   
-            threshold_coast=5.0,     
-            v_max=10.0,             
-            assign_metric="center_dist",
-            assign_radius=1.0,
-            P0=np.diag([1, 1, 5, 5]) ** 2,
-        ) 
+        # dynamic_object_tracker.init_xy_tracker(
+        #     threshold_confirmed=10,   
+        #     threshold_coast=5.0,     
+        #     v_max=10.0,             
+        #     assign_metric="center_dist",
+        #     assign_radius=1.0,
+        #     P0=np.diag([1, 1, 5, 5]) ** 2,
+        # ) 
 
         #TODO: Child add point cloud processing abilities
 

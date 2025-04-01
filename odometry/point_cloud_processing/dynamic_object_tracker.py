@@ -95,7 +95,7 @@ class DynamicObjectTracker:
             ego_vel=ego_vel
         )
 
-
+        dynamic_points = filter_self_detections(dynamic_points, radius=0.5)
 
         #move the detections into the global coordinate frame
         self.current_dynamic_detections = apply_rot_trans(
@@ -305,3 +305,20 @@ class DynamicObjectTracker:
         plt.legend()
         plt.grid()
         plt.show()
+        
+# Filter out self-detections near ego vehicle before applying coordinate transform
+# Define a bounding box or radius around the ego vehicle
+def filter_self_detections(points: np.ndarray, radius: float = 0.5) -> np.ndarray:
+    """
+    Filters out points that are within a certain radius of the ego vehicle (i.e., self-detections).
+    
+    Args:
+        points: np.ndarray of shape (N, 2) representing [x, y] in sensor frame.
+        radius: Distance threshold for filtering.
+
+    Returns:
+        Filtered points, shape (M, 2) where M <= N
+    """
+    distances = np.linalg.norm(points[:, :2], axis=1)
+    return points[distances > radius]
+    

@@ -82,6 +82,8 @@ class DynamicObjTrackingTB(_TestBench):
             ego_vel=np.array([self.filter.x[3],0.0])
         )
         
+        static_points = static_points[:,0:2]
+
         # dynamic_combined_pc = self.dynamic_object_tracker.history_dynamic_objects[-1]
         # current_centroids = self.dynamic_object_tracker.history_clustered_dynamic_centroids[-1]
         if self.dynamic_object_tracker.history_dynamic_objects :

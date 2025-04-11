@@ -298,13 +298,13 @@ class PlotterLocalization:
                 Defaults to False.
         """
         if len(static_points > 0):
-            # static_aligned_points = \
-            #     rotation_functions.apply_rot_trans(
-            #         points=static_points,
-            #         rot_angle_rad=heading_rad,
-            #         trans=pose_m
-            #     )
-            static_aligned_points = static_points
+            static_aligned_points = \
+                rotation_functions.apply_rot_trans(
+                    points=static_points,
+                    rot_angle_rad=heading_rad,
+                    trans=pose_m
+                )
+            # static_aligned_points = static_points
 
         if len(dynamic_points > 0):
             # dynamic_aligned_points = \

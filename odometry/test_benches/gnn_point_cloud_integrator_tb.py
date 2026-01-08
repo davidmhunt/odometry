@@ -71,7 +71,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
 
         if self.generate_dataset:
 
-            nodes,labels = self.point_cloud_integrator.probabilistic_pc_grid.get_nodes()
+            nodes,labels = self.point_cloud_integrator.get_nodes()
 
             if nodes.shape[0]>0:
                 self.model_dataset_generator.save_sample(

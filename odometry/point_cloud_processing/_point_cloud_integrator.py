@@ -137,3 +137,7 @@ class _PointCloudIntegrator:
             return self.historical_pc_grid.get_points()
         else:
             return self.probabilistic_pc_grid.get_points()
+    
+    def get_nodes(self)->tuple:
+        
+        return self.probabilistic_pc_grid.get_nodes()

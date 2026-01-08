@@ -24,6 +24,7 @@ class HistoricalPCGrid(_PCGrid):
                 Defaults to 30.
         """
         # Map num_frames_persistance to num_frames_history for the base class
+        self.num_frames_persistance = num_frames_persistance
         super().__init__(
             grid_resolution_m=grid_resolution_m,
             grid_max_distance_m=grid_max_distance_m,

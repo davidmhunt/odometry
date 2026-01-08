@@ -131,7 +131,7 @@ class _PointCloudIntegrator:
                     dets_to_add
                 ))
 
-    def get_latest_pc(self) -> np.ndarray:
+    def get_points(self) -> np.ndarray:
         
         if self.historical_pc_grid:
             return self.historical_pc_grid.get_points()

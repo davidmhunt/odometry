@@ -96,7 +96,7 @@ cd odometry
 ```
 3. Start a poetry shell
 ```
-poetry shell
+eval $(poetry env activate)
 ```
 4. run the command given by the pytorch website
 ```
@@ -111,7 +111,7 @@ exit
 Currently, torch-cluster is required to run everything. At the current moment though, this cannot be installed using poetry. To overcome this, run the following commands to correctly install everything. Here, replace ${CUDA} with cpu, cu118, cu121, or cu124 depending on cuda version. While this command should work for most systems, see the following page for more specific instructions: [torch-cluster github](https://github.com/rusty1s/pytorch_cluster) 
 ```
 cd odometry
-poetry shell
+eval $(poetry env activate)
 pip install torch-cluster -f https://data.pyg.org/whl/torch-2.4.0+${CUDA}.html
 ```
 

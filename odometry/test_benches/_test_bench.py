@@ -161,7 +161,7 @@ class _TestBench:
             )
 
             #get the first points in the localizer point cloud
-            init_points = self.dataset.get_radar_data(idx=0)
+            init_points = self.dataset.get_radar_point_cloud(idx=0)
             init_points = init_points[:,:2]
 
             if not self.gt_localizer:
@@ -829,7 +829,7 @@ class _TestBench:
             if self.localizer and self.vehicle_moving:
                 
                 #get the combined radar point cloud [x,y,z,vel]
-                radar_points = self.dataset.get_radar_data(idx=i)
+                radar_points = self.dataset.get_radar_point_cloud(idx=i)
 
                 static_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,

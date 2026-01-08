@@ -3,7 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from odometry.test_benches._test_bench import _TestBench
-from odometry.point_cloud_processing._point_cloud_integrator import _PointCloudIntegrator
+from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
+# from odometry.point_cloud_processing._point_cloud_integrator import _PointCloudIntegrator
 from odometry.localization.icp2D_localization import icp2DLocalization
 
 from geometries.pose.pose import Pose
@@ -80,7 +81,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
                 )
 
         #for now return an empty array so as not to affect odometry computation
-        return self.point_cloud_integrator.get_latest_pc()
+        return self.point_cloud_integrator.get_points()
     
     def run(self, max_frame=-1, gt_enabled=True, movie_generator = None,generate_dataset=False):
         """Run the test bench
@@ -148,7 +149,7 @@ class GnnPointCloudIntegratorTB(_TestBench):
             )
 
         self.plotter_localization.marker_size = 0.5
-        accumulated_points = self.point_cloud_integrator.accumulated_points_raw
+        accumulated_points = self.point_cloud_integrator.get_raw_point_history()
         
         if accumulated_points.shape[0] > 0:
             self.plotter_localization.plot_detections_on_map(
@@ -164,22 +165,22 @@ class GnnPointCloudIntegratorTB(_TestBench):
             )
 
         self.plotter_localization.marker_size = 5
-        detections = self.point_cloud_integrator.probabilistic_pc_grid.get_points()
-        if detections.shape[0] > 0:
-            self.plotter_localization.plot_detections_on_map(
-                current_points=detections[:,0:2],
-                heading_rad=np.deg2rad(self.history_heading_deg[idx]),
-                pose_m=self.history_position_m[idx],
-                ax=axs[1,2],
-                show=False
-            )
-            axs[1,1].set_title(
-                "Current Frame Detections",
-                fontsize=self.plotter_localization.font_size_title
-            )
+        # detections = self.point_cloud_integrator.get_points()
+        # if detections.shape[0] > 0:
+        #     self.plotter_localization.plot_detections_on_map(
+        #         current_points=detections[:,0:2],
+        #         heading_rad=np.deg2rad(self.history_heading_deg[idx]),
+        #         pose_m=self.history_position_m[idx],
+        #         ax=axs[1,2],
+        #         show=False
+        #     )
+        #     axs[1,1].set_title(
+        #         "Current Frame Detections",
+        #         fontsize=self.plotter_localization.font_size_title
+        #     )
         
         
-        detections = self.point_cloud_integrator.get_latest_pc()
+        detections = self.point_cloud_integrator.get_points()
         if detections.shape[0] > 0:
             self.plotter_localization.plot_detections_on_map(
                 current_points=detections[:,0:2],

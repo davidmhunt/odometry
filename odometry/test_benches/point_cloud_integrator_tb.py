@@ -63,7 +63,7 @@ class PointCloudIntegratorTB(_TestBench):
         )
 
         #for now return an empty array so as not to affect odometry computation
-        return self.point_cloud_integrator.get_latest_pc()
+        return self.point_cloud_integrator.get_points()
     
     def run(self, max_frame=-1, gt_enabled=True, movie_generator = None):
         """Run the test bench
@@ -157,7 +157,7 @@ class PointCloudIntegratorTB(_TestBench):
             )
         
         self.plotter_localization.marker_size = 0.5
-        detections = self.point_cloud_integrator.get_latest_pc()
+        detections = self.point_cloud_integrator.get_points()
         if detections.shape[0] > 0:
             self.plotter_localization.plot_detections_on_map(
                 current_points=detections[:,0:2],

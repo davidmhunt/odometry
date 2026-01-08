@@ -116,7 +116,7 @@ class PcAccumulator:
             np.zeros(shape=
                         (new_points.shape[0],1))
         ))
-        new_points[:,3] = self.num_frames_persistance
+        new_points[:,3] = self.num_frames_history
         self.points = np.vstack((self.points, new_points))
         
         if new_gt_points.shape[0] > 0:
@@ -130,7 +130,7 @@ class PcAccumulator:
                 np.zeros(shape=
                             (new_gt_points.shape[0],1))
             ))
-            new_gt_points[:,3] = self.num_frames_persistance
+            new_gt_points[:,3] = self.num_frames_history
             self.gt_points = np.vstack((self.gt_points, new_gt_points))
 
     def apply_transformation(self, transformation: Transformation):
@@ -139,16 +139,13 @@ class PcAccumulator:
 
         Updates the spatial coordinates (x, y, z) of both detected points and
         ground truth points using the provided transformation object.
-        The grid representation is then updated to reflect the new positions.
+        The point cloud representation is then updated to reflect the new positions.
 
         Args:
             transformation (Transformation): The transformation object containing
                 rotation and translation to apply.
         """
         self.points[:,0:3] = transformation.apply_transformation(self.points[:,0:3])
-
-        # Update the grid after transformation
-        self.grid = self._get_grid_from_points(self.points[:,0:3])
 
         #handle the ground truth points
         if self.gt_points.shape[0] > 0:
@@ -206,7 +203,6 @@ class PcAccumulator:
         
         if self.points.shape[0] > 0:
                 
-            #encode all points as nodes with the "grid value" being the number of frames until the point expires
             nodes = self.points
 
             label = np.array(
@@ -238,7 +234,6 @@ class PcAccumulator:
         Raises:
             ValueError: If inputs are not Nx3 arrays.
         """
-        #append a column of grid detections to make detection array 2D
         if gt_points.shape[1] == 3 and dets.shape[1] == 3:
             
             #get the current set of points

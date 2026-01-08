@@ -1,16 +1,36 @@
 import numpy as np
 
 from geometries.transforms.transformation import Transformation
-from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
 
 class PcAccumulator:
-    """Basic point cloud accumulator
+    """
+    Accumulates point cloud data over multiple frames, handling persistence and decay.
+
+    This class maintains a collection of 3D points and optional ground truth points,
+    managing their lifecycle through a 'time-to-live' mechanism. It supports
+    rigid body transformations and querying of valid points.
+
+    Attributes:
+        gt_distance_threshold_m (float): Distance threshold in meters for associating
+            detections with ground truth points.
+        num_frames_history (int): Number of frames a point persists before being removed.
+        points (np.ndarray): Nx4 array storing [x, y, z, frames_remaining] for detections.
+        gt_points (np.ndarray): Nx4 array storing [x, y, z, frames_remaining] for ground truth.
     """
     def __init__(
             self,
             gt_distance_threshold_m: float = 0.05,
             num_frames_history:int = 30,
     ):
+        """
+        Initialize the PcAccumulator.
+
+        Args:
+            gt_distance_threshold_m (float, optional): Maximum distance in meters to
+                associate a detection with a ground truth point. Defaults to 0.05.
+            num_frames_history (int, optional): The number of frames a point should
+                persist in the accumulator before expiring. Defaults to 30.
+        """
 
         self.gt_distance_threshold_m:float = gt_distance_threshold_m
         self.num_frames_history:int = num_frames_history
@@ -26,15 +46,16 @@ class PcAccumulator:
             new_points: np.ndarray = np.empty(shape=(0, 3)),
             new_gt_points:np.ndarray = np.empty(shape=(0,3))):
         """
-        Reset the saved point cloud and optionally initialize it with new points.
-        NOTE: Must be updated by any child to change functionality
+        Reset the accumulator and optionally seed it with new points.
+
+        Clears existing points and optionally adds an initial set of detections
+        and ground truth points.
+
         Args:
-            new_points (np.ndarray, optional): If provided, initializes the 
-                saved point cloud with these points. 
-                Defaults to an empty set of 3D points.
-            new_gt_points (np.ndarray, optional): If provided, initializes the 
-                saved ground truth point cloud with these points. 
-                Defaults to an empty set of 3D points.
+            new_points (np.ndarray, optional): Nx3 array of [x, y, z] points to
+                initialize the accumulator with. Defaults to empty.
+            new_gt_points (np.ndarray, optional): Nx3 array of [x, y, z] ground
+                truth points to initialize with. Defaults to empty.
         """
         self.points = np.empty(shape=(0,4))
         self.gt_points = np.empty(shape=(0,4))
@@ -48,15 +69,21 @@ class PcAccumulator:
 
     def add_points(self, new_points: np.ndarray, new_gt_points: np.ndarray=np.empty(shape=(0,3))):
         """
-        Add new points to the point cloud grid and update the grid representation.
+        Add new points to the accumulator, updating persistence timers.
+
+        This method performs the following steps:
+        1. Decrements the timer for existing points and removes expired ones.
+        2. Appends the `new_points` with a fresh timer initialized to
+           `self.num_frames_history`.
+        3. Similarly updates and adds ground truth points if provided.
 
         Args:
-            new_points (np.ndarray): Nx3 array of [x, y, z] points to add.
-            gt_points (np.ndarray, optional): Nx3 array of [x,y,z] ground 
-                truth detections (if available). 
-                Defaults to np.empty(shape=0,3).
+            new_points (np.ndarray): Nx3 array of [x, y, z] detected points to add.
+            new_gt_points (np.ndarray, optional): Nx3 array of [x, y, z] ground
+                truth points. Defaults to empty.
+
         Raises:
-            ValueError: If the input points do not have a shape of Nx3.
+            ValueError: If `new_points` does not have 3 columns (x, y, z).
         """
         if new_points.shape[1] != 3 :
             raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
@@ -108,10 +135,15 @@ class PcAccumulator:
 
     def apply_transformation(self, transformation: Transformation):
         """
-        Apply a coordinate transformation to the current set of points.
+        Apply a rigid body transformation to all stored points.
+
+        Updates the spatial coordinates (x, y, z) of both detected points and
+        ground truth points using the provided transformation object.
+        The grid representation is then updated to reflect the new positions.
 
         Args:
-            transformation (Transformation): Transformation to apply to the points.
+            transformation (Transformation): The transformation object containing
+                rotation and translation to apply.
         """
         self.points[:,0:3] = transformation.apply_transformation(self.points[:,0:3])
 
@@ -124,10 +156,17 @@ class PcAccumulator:
             self.gt_points[:,0:3] = transformation.apply_transformation(self.gt_points[:,0:3])
     
     def get_points(self, raw:bool = False)->np.ndarray:
-        """Return a quantized set of points from the grid
+        """
+        Retrieve the currently valid detected points.
+
+        Args:
+            raw (bool, optional): If True, returns the points including their
+                persistence timer. If False, returns only spatial coordinates.
+                Defaults to False.
 
         Returns:
-            np.ndarray: Nx3 array of points obtained from the point cloud grid
+            np.ndarray: If raw is False, an Nx3 array of [x, y, z].
+                If raw is True, an Nx4 array of [x, y, z, frames_remaining].
         """
         if raw:
             return self.points
@@ -135,10 +174,17 @@ class PcAccumulator:
             return self.points[:,0:3]
     
     def get_gt_points(self, raw:bool = False)->np.ndarray:
-        """Return a quantized set of points from the grid
+        """
+        Retrieve the currently valid ground truth points.
+
+        Args:
+            raw (bool, optional): If True, returns the points including their
+                persistence timer. If False, returns only spatial coordinates.
+                Defaults to False.
 
         Returns:
-            np.ndarray: Nx3 array of points obtained from the ground truth point cloud grid
+            np.ndarray: If raw is False, an Nx3 array of [x, y, z].
+                If raw is True, an Nx4 array of [x, y, z, frames_remaining].
         """
         if raw:
             return self.gt_points
@@ -146,12 +192,16 @@ class PcAccumulator:
             return self.gt_points[:,0:3]
     
     def get_nodes(self)->tuple:
-        """Get the nodes and associated labels from a point cloud grid
+        """
+        Retrieve points as nodes with ground truth labels.
+
+        Useful for graph-based processing where points are treated as nodes.
 
         Returns:
-            tuple: (nodes,labels), A tuple of an Nx4 array of points containing
-              the (x,y,z,grid_value) for each point in the point cloud and a N-element
-              array with the gt label for each node (if gt disabled, labels are all 0's) 
+            tuple: A pair (nodes, labels).
+                - nodes (np.ndarray): Nx4 array of [x, y, z, frames_remaining].
+                - labels (np.ndarray): N-element boolean array, where True indicates
+                  the point is close to a ground truth point (true positive).
         """
         
         if self.points.shape[0] > 0:
@@ -172,19 +222,21 @@ class PcAccumulator:
             self,dets:np.ndarray,
             gt_points:np.ndarray,
             threshold:float=0.05)->np.ndarray:
-        """Get ground truth points that are close to a given set of detections
+        """
+        Filter detections to find those close to ground truth points.
 
         Args:
-            dets (np.ndarray): Nx2 set of [x,y,z] detections
-            gt_points (np.ndarray): Nx2 set of [x,y,z] ground truth detections
-            threshold (float, optional): Euclidian distance to identify the
-                corresponding ground truth detections. Defaults to 0.05.
-
-        Raises:
-            ValueError: If dets or 
+            dets (np.ndarray): Nx3 array of [x, y, z] detected points.
+            gt_points (np.ndarray): Mx3 array of [x, y, z] ground truth points.
+            threshold (float, optional): Maximum Euclidean distance to consider
+                a detection as matching a ground truth point. Defaults to 0.05.
 
         Returns:
-            np.ndarray: Nx2 array of gt points that 
+            np.ndarray: Subset of `dets` that are within `threshold` distance
+            of any point in `gt_points`.
+
+        Raises:
+            ValueError: If inputs are not Nx3 arrays.
         """
         #append a column of grid detections to make detection array 2D
         if gt_points.shape[1] == 3 and dets.shape[1] == 3:

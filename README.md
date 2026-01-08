@@ -19,9 +19,9 @@ sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt update
 ```
 
-3. Install python 3.10 along with the required development dependencies
+3. Install python 3.12 along with the required development dependencies
 ```
-sudo apt install python3.10 python3.10-dev
+sudo apt install python3.12 python3.12-dev
 ```
 
 The following resources may be helpful [Deadsnakes PPA description](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa), [Tutorial on Deadsnakes on Ubuntu](https://preocts.github.io/python/20221230-deadsnakes/)
@@ -38,7 +38,7 @@ bash Anaconda3-2023.09-0-Linux-x86_64.sh -b
 ```
 3. Once conda is installed, create a new conda environment with the correct version of python
 ```
-conda create -n odometry python=3.10
+conda create -n odometry python=3.12
 ```
 
 ### 2. Clone CPSL_TI_Radar
@@ -81,7 +81,7 @@ poetry install --extras "submodules"
 If your machine supports it Navigate to the odometry foler (this folder) and execute the following command
 
 ```
-poetry install --extras "submodules"
+poetry install --with submodules
 ```
 
 Follow the following instructions to install the correct version of pytorch for your system.

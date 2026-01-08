@@ -9,8 +9,10 @@ from sklearn.neighbors import NearestNeighbors
 from geometries.pose.pose import Pose
 from geometries.pose.orientation import Orientation
 from geometries.pose.position import Position
+from geometries.transforms.transformation import Transformation
 
 from odometry.localization.icp2D_localization import icp2DLocalization
+from odometry.localization._localizer import _Localizer
 from cpsl_datasets.cpsl_ds import CpslDS
 from cpsl_datasets.map_handler import MapHandler
 from odometry.plotting.plotter_localization import PlotterLocalization
@@ -32,10 +34,12 @@ class _TestBench:
                  gt_localizer:icp2DLocalization,
                  map_handler:MapHandler,
                  dataset:CpslDS,
-                 localizer:icp2DLocalization=None) -> None:
+                 localizer:_Localizer=None,
+                 use_filters:bool = True,
+                 use_vehicle_odom:bool = False) -> None:
         
         #initialize the localizer
-        self.localizer:icp2DLocalization = localizer
+        self.localizer:_Localizer = localizer
         self.gt_localizer:icp2DLocalization = gt_localizer
 
         #vehicle_movement_flag
@@ -46,6 +50,7 @@ class _TestBench:
         self.latest_heading_rad:float = None
 
         #filter parameters
+        self.use_filters = use_filters
         self.filter:KalmanXYPhiSpeedGyroEncoder = None
         self.inertial_integrator:KalmanXYPhiSpeedGyroEncoder = None
         self.filter_gt:KalmanXYPhiSpeedGyroEncoder = None #gt filter
@@ -55,6 +60,10 @@ class _TestBench:
         #filter time tracking
         self.filter_last_t:float = None
         self.filter_next_vel_data:np.ndarray = None
+
+        #vehicle odometry usage flag
+        self.use_vehicle_odom = use_vehicle_odom
+        self.previous_vehicle_odom_pose:Pose = Pose()
 
         #load the datasets
         self.map_handler:MapHandler = map_handler
@@ -119,7 +128,8 @@ class _TestBench:
     def init_localization(self,
                           est_start_heading_rad,
                           est_start_pose_m,
-                          show = False):
+                          show = False,
+                          gyro_bias=-0.0024): #gyro bias for radnav dataset
         
 
         if self.gt_localizer:
@@ -175,13 +185,29 @@ class _TestBench:
                 print("radar icp failed to find initial location, using est start pose")      
         
 
-        if show and self.localizer:
+        if show and self.gt_localizer:
             self.plotter_localization.plot_detections_on_map(
-                current_points=init_points,
+                current_points=init_gt_points,
                 heading_rad=new_heading_rad,
                 pose_m=new_pose_m,
                 show=show
             )
+
+            #reset the last heading and pose
+        self.latest_pose_m = new_pose_m
+        self.latest_heading_rad = new_heading_rad
+
+        if self.use_filters:
+
+            self.init_filter(
+                est_start_heading_rad=new_heading_rad,
+                est_start_position_m=new_pose_m,
+                start_time_s = self.get_dataset_start_time(idx=0),
+                gyro_bias=gyro_bias
+            )
+        
+        if self.use_vehicle_odom:
+            self.init_vehicle_odometry()
         
         return new_heading_rad,new_pose_m
     
@@ -242,10 +268,6 @@ class _TestBench:
         #reset filter time
         self.filter_last_t = \
             self.dataset.get_imu_full_data(idx=0)[0,0]
-
-        #reset the last heading and pose
-        self.latest_pose_m = est_start_position_m
-        self.latest_heading_rad = est_start_heading_rad
             
     ####################################################################
     #Histories (localizers)
@@ -382,6 +404,8 @@ class _TestBench:
         
         #align the points with the map
         if point_cloud.shape[0] > 0:
+
+            #TODO: Check if this is needed (originally commented out)
             # aligned_points = rotation_functions.apply_rot_trans(
             #     points=point_cloud[:,0:2],
             #     rot_angle_rad=gt_heading_rad,
@@ -442,7 +466,8 @@ class _TestBench:
         """
 
         assert (self.dataset.imu_full_enabled or 
-                self.dataset.vehicle_vel_enabled),\
+                self.dataset.vehicle_vel_enabled or
+                self.dataset.vehicle_odom_enabled),\
                 "cannot get time as IMU_full nor \
                 vehicle_vel datasets not found"
         
@@ -454,6 +479,10 @@ class _TestBench:
         
         if self.dataset.vehicle_vel_enabled:
             data = self.dataset.get_vehicle_vel_data(idx=idx)
+            start_time = max(data[0,0],start_time)
+
+        if self.dataset.vehicle_odom_enabled:
+            data = self.dataset.get_vehicle_odom_data(idx=idx)
             start_time = max(data[0,0],start_time)
         
         return start_time
@@ -567,6 +596,112 @@ class _TestBench:
         )
 
     ####################################################################
+    #Vehicle odom updates
+    ####################################################################
+    def init_vehicle_odometry(
+            self
+    ):
+        
+        #get the initial odometry point
+        #indexed by [time,x,y,z,quat_w,quat_x,quat_y,quat_z,vx,vy,vz,wx,wy,wz]
+        initial_odom_data = self.dataset.get_vehicle_odom_data(idx=0)[-1,1:8]
+        self.previous_vehicle_odom_pose = Pose(
+            position=Position(
+                x=initial_odom_data[0],
+                y=initial_odom_data[1],
+                z=initial_odom_data[2]
+            ),
+            orientation=Orientation(
+                qw=initial_odom_data[3],
+                qx=initial_odom_data[4],
+                qy=initial_odom_data[5],
+                qz=initial_odom_data[6]
+            )
+        )
+        # self.previous_vehicle_odom_pose = self.previous_vehicle_odom_pose.flu_from_ned()
+    
+    def get_odom_transformation(
+            self,
+            current_idx:int
+    )->tuple:
+        """Get the odometry transformation between the previous and current odometry frames.
+        Note: the translation/rotation is converted to be in the world coordinate frame
+
+        Args:
+            current_idx (int): _description_
+
+        Returns:
+            tuple: _description_
+        """
+
+        if current_idx == 269:
+            pass
+
+        #get the current odometry pose
+        #indexed by [time,x,y,z,quat_w,quat_x,quat_y,quat_z,vx,vy,vz,wx,wy,wz]
+        current_odom_data = self.dataset.get_vehicle_odom_data(idx=current_idx)[-1,1:8]
+        current_odom_pose = Pose(
+            position=Position(
+                x=current_odom_data[0],
+                y=current_odom_data[1],
+                z=current_odom_data[2]
+            ),
+            orientation=Orientation(
+                qw=current_odom_data[3],
+                qx=current_odom_data[4],
+                qy=current_odom_data[5],
+                qz=current_odom_data[6]
+            )
+        )
+        # current_odom_pose = current_odom_pose.flu_from_ned()
+
+        #compute the transformation from the previous to current odom frame
+        transformation = Transformation.from_orig_to_new(
+            original_pose=self.previous_vehicle_odom_pose,
+            new_pose=current_odom_pose
+        )
+        
+        #get the rotation adjustment
+        rotation = transformation.rotation
+        rotation = Orientation(
+            qx=rotation[0],
+            qy=rotation[1],
+            qz=rotation[2],
+            qw=rotation[3]
+        )
+        heading_change_rad = rotation.to_euler(degrees=False)[2]
+
+
+        #get the translation - need to move from odom -> body -> world
+        translation = transformation.translation
+
+        #compute the appropriate transforms to adjust the coordinate frame coorectly
+        trans_odom_to_body = Transformation.from_orig_to_new(
+            original_pose=Pose(),
+            new_pose=Pose(
+                orientation=self.previous_vehicle_odom_pose.orientation
+            )
+        )
+        trans_body_to_map = Transformation.from_orig_to_new(
+            original_pose=Pose(),
+            new_pose=Pose(
+                orientation=Orientation.from_euler(
+                    yaw=self.latest_heading_rad,
+                    degrees=False
+                )
+            )
+        )
+        translation = trans_odom_to_body.apply_transformation(translation)
+        translation = trans_body_to_map.apply_transformation(translation)
+
+        #update the preious pose
+        self.previous_vehicle_odom_pose = current_odom_pose
+
+        return translation[0:2],heading_change_rad
+
+
+
+    ####################################################################
     #Processing point clouds
     ####################################################################
     def process_point_cloud(
@@ -627,10 +762,20 @@ class _TestBench:
             #start time tracking
             start_time = time.time()
 
-            #predict the states forward
-            self.filters_predict_from_frame_samples(
-                idx=i,
-                gt_enabled=gt_enabled)
+            if self.use_filters:
+
+                #predict the states forward
+                self.filters_predict_from_frame_samples(
+                    idx=i,
+                    gt_enabled=gt_enabled)
+            
+            elif self.use_vehicle_odom:
+
+                translation,heading_update = self.get_odom_transformation(current_idx=i)
+
+                #TODO: This is currently broken, but I'm not sure why
+                self.latest_pose_m -= translation
+                self.latest_heading_rad += heading_update
 
             #process lidar ground truth
             if gt_enabled and (self.gt_localizer is not None):
@@ -643,27 +788,42 @@ class _TestBench:
                 gt_points = gt_points[valid_points,:3]
                 gt_points[:,2] = 0.0
                 
-                new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-                    points=gt_points[:,0:2],
-                    estimated_heading_rad=self.filter_gt.x[2],
-                    estimated_pose_m=np.array(
-                        [self.filter_gt.x[0],self.filter_gt.x[1]])
-                )
+                if self.use_filters:
+                    new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                        points=gt_points[:,0:2],
+                        estimated_heading_rad=self.filter_gt.x[2],
+                        estimated_pose_m=np.array(
+                            [self.filter_gt.x[0],self.filter_gt.x[1]])
+                    )
 
-                #perform a measurement
-                self.filter_gt_perform_update(
-                    estimated_position_m=new_pose_m,
-                    estimated_heading_rad=new_heading_rad,
-                    t = self.filter_last_t
-                )
+                    #perform a measurement
+                    self.filter_gt_perform_update(
+                        estimated_position_m=new_pose_m,
+                        estimated_heading_rad=new_heading_rad,
+                        t = self.filter_last_t
+                    )
 
-                self.history_update_pose_gt(
-                    position_m=np.array(
-                        [self.filter_gt.x[0],self.filter_gt.x[1]]
-                    ),
-                    heading_rad=self.filter_gt.x[2],
-                    idx = i
-                )
+                    self.history_update_pose_gt(
+                        position_m=np.array(
+                            [self.filter_gt.x[0],self.filter_gt.x[1]]
+                        ),
+                        heading_rad=self.filter_gt.x[2],
+                        idx = i
+                    )
+                else:
+                    new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                        points=gt_points[:,0:2],
+                        estimated_heading_rad=self.gt_localizer.current_heading_rad,
+                        estimated_pose_m=self.gt_localizer.current_pose_m.copy()
+                    )
+
+                    self.history_update_pose_gt(
+                        position_m=self.gt_localizer.current_pose_m.copy(),
+                        heading_rad=self.gt_localizer.current_heading_rad,
+                        idx = i
+                    )
+
+                
             else:
                 gt_points = np.empty(shape=(0,3))
 
@@ -736,20 +896,21 @@ class _TestBench:
                                 gt_position_m=self.filter_gt.x[0:2],
                                 gt_heading_rad=self.filter_gt.x[2]
                             )
-            #update the time tracking
-            stop_time = time.time()
-            self.history_current_update_period_time += (1/20.0)
-            self.history_current_active_compute_time += \
-                (stop_time - start_time)
-            self.history_timing_save_compute_time()
-            
-            #save pose history
-            self.latest_pose_m = self.filter.x[0:2]
-            self.latest_heading_rad = self.filter.x[2]
-                               
+                #update the time tracking
+                stop_time = time.time()
+                self.history_current_update_period_time += (1/20.0)
+                self.history_current_active_compute_time += \
+                    (stop_time - start_time)
+                self.history_timing_save_compute_time()
+
+            if self.use_filters:    
+                #save pose history
+                self.latest_pose_m = self.filter.x[0:2]
+                self.latest_heading_rad = self.filter.x[2]
+                                
             self.history_update_pose(
-                position_m=np.array([self.filter.x[0],self.filter.x[1]]),
-                heading_rad=self.filter.x[2],
+                position_m=self.latest_pose_m,
+                heading_rad=self.latest_heading_rad,
                 idx=i
             )
 

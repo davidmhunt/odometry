@@ -191,21 +191,27 @@ class PCGrid:
             self.gt_grid = self._get_grid_from_points(self.gt_grid)
             self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
     
-    def get_points(self)->np.ndarray:
+    def get_points(self, raw:bool = False)->np.ndarray:
         """Return a quantized set of points from the grid
 
         Returns:
             np.ndarray: Nx3 array of points obtained from the point cloud grid
         """
-        return self._get_points_from_pc_grid(self.grid)
+        if raw:
+            return self.points[:,0:3]
+        else:
+            return self._get_points_from_pc_grid(self.grid)
     
-    def get_gt_points(self)->np.ndarray:
+    def get_gt_points(self, raw:bool = False)->np.ndarray:
         """Return a quantized set of points from the grid
 
         Returns:
             np.ndarray: Nx3 array of points obtained from the ground truth point cloud grid
         """
-        return self._get_points_from_pc_grid(self.gt_grid)
+        if raw:
+            return self.gt_points[:,0:3]
+        else:
+            return self._get_points_from_pc_grid(self.gt_grid)
     
     def get_nodes(self)->tuple:
         """Get the nodes and associated labels from a point cloud grid

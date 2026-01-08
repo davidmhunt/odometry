@@ -1,10 +1,11 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from odometry.supportFns import rotation_functions
+from odometry.localization._localizer import _Localizer
 
 from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
 
-class icp2D:
+class icp2D(_Localizer):
     """Class that performs icp point cloud matching and computes the optimal rotation
     and translation between two point clouds
     """
@@ -17,14 +18,7 @@ class icp2D:
                  icp_point_pairs_threshold = 4,
                  icp_max_iterations = 20,
                  self_detection_radius_m = 0.25):
-               
-        #initialize the current position to (0,0)
-        self.current_pose_m = np.array([0.0,0.0])
-        self.current_heading_rad = 0.0
-
-        #array to store the currently valid points (from icp)
-        self.current_valid_points = np.empty(shape=(0,2))
-        
+                    
         #icp and related parameters
         self.ground_detection_filtering:pcRangeFilter = \
             pcRangeFilter(self_detection_radius_m)
@@ -36,6 +30,8 @@ class icp2D:
         self.icp_convergence_translation_threshold = icp_convergence_translation_threshold
         self.icp_point_pairs_threshold = icp_point_pairs_threshold
         self.icp_max_iterations = icp_max_iterations
+
+        super().__init__()
     
     ####################################################################
     #Odometry support functions

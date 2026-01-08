@@ -137,6 +137,25 @@ class HistoricalPCGrid(PCGrid):
             # Update the grid after transformation
             self.gt_grid = self._get_grid_from_points(self.gt_grid[:,0:3])
             self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
+    
+    def get_nodes(self,raw:bool=False)->tuple:
+
+        if not raw:
+            return super().get_nodes()
+        else:
+            if self.points.shape[0] > 0:
+                
+                #encode all points as nodes with the "grid value" being the number of frames until the point expires
+                nodes = self.points
+
+                label = np.array(
+                    [np.any(np.all(p == self.gt_points, axis=1)) for p in self.points]
+                ) if self.gt_points.size > 0 else np.zeros(len(self.points), dtype=bool)
+
+                return nodes, label
+
+            else:
+                return np.empty(shape=(0, 4)),np.empty(shape=0)
 
     
 

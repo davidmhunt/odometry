@@ -75,7 +75,7 @@ class PCGrid:
             self.gt_grid = self._get_grid_from_points(new_gt_points)
         else:
             # Reset grid to empty state
-            self.gt_gridgrid: np.ndarray = np.zeros(
+            self.gt_grid: np.ndarray = np.zeros(
                 shape=(
                     self.grid_bins.shape[0],
                     self.grid_bins.shape[0]

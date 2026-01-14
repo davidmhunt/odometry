@@ -31,9 +31,9 @@ DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-normalize_frames = False
+normalize_frames = True
 num_frames_history = 100
-config_label = "Hermes_{}fh_0_1th".format(num_frames_history)
+config_label = "IcaRAus_gnn_{}fh".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 

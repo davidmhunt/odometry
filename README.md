@@ -112,7 +112,15 @@ Currently, torch-cluster is required to run everything. At the current moment th
 ```
 cd odometry
 eval $(poetry env activate)
-pip install torch-cluster -f https://data.pyg.org/whl/torch-2.4.0+${CUDA}.html
+pip install torch-cluster -f https://data.pyg.org/whl/torch-2.4.1+${CUDA}.html
+pip install torch-scatter -f https://data.pyg.org/whl/torch-2.4.1+${CUDA}.html
+```
+
+Note: If these commands don't install correctly, you can check the version of torch and cuda using the following command
+```
+cd odometry
+eval $(poetry env activate)
+python -c "import torch; print(f'Torch: {torch.__version__}, CUDA: {torch.version.cuda}')"
 ```
 
 #### Updating Odometry

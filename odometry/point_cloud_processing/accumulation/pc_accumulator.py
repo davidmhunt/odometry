@@ -207,7 +207,7 @@ class PcAccumulator:
         
         if self.points.shape[0] > 0:
                 
-            nodes = self.points
+            nodes = self.points.copy()
 
             if normalize_frames:
                 nodes[:,3] = nodes[:,3] / self.num_frames_history

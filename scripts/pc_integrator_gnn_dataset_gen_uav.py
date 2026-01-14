@@ -11,10 +11,8 @@ from cpsl_datasets.map_handler import MapHandler
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
-from odometry.test_benches.gnn_point_cloud_integrator_tb import GnnPointCloudIntegratorTB
-from odometry.point_cloud_processing._point_cloud_integrator import _PointCloudIntegrator
-from odometry.point_cloud_processing.pc_grid.probabilistic_pc_grid import ProbabilisticPCGrid
-from odometry.point_cloud_processing.pc_grid.historical_pc_grid import HistoricalPCGrid
+from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
+from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
 
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
@@ -33,7 +31,9 @@ DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-config_label = "RaGNNarok_40fp_20fh_0_50_th_5mRng_0_2_res"
+normalize_frames = False
+num_frames_history = 100
+config_label = "Hermes_{}fh_0_1th".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -104,7 +104,7 @@ def generate_gnn_dataset(
     #initialize the dataset
     dataset = CpslDS(
         dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
-        radar_folder="radar_combined",
+        radar_pc_folder="radar_combined",
         lidar_folder="lidar",
         camera_folder="camera",
         imu_orientation_folder="imu_data",
@@ -157,28 +157,15 @@ def generate_gnn_dataset(
 
     #initialize the probabilistic point cloud grid
     
-    pre_gnn_historical_pc_grid = ProbabilisticPCGrid(
-        grid_resolution_m=0.05,
-        grid_max_distance_m=5.0,
-        occupancy_threshold=0.20,
-        num_frames_history=20
-    )
-
-    post_gnn_historical_pc_grid = HistoricalPCGrid(
-        grid_resolution_m=0.05,
-        grid_max_distance_m=20.0,
-        num_frames_persistance=40
-    )
-
     point_cloud_integrator = _PointCloudIntegrator(
-        probabilistic_pc_grid=pre_gnn_historical_pc_grid,
-        historical_pc_grid=post_gnn_historical_pc_grid,
-        min_detection_radius=2.0,
-        max_detection_radius=20.0,
+        gt_distance_threshold_m=0.25,
+        num_frames_history=num_frames_history,
+        min_detection_radius=1.0,
+        max_detection_radius=5.0
     )
 
     #initialize the test bench
-    test_bench = GnnPointCloudIntegratorTB(
+    test_bench = PointCloudIntegratorTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
@@ -186,7 +173,6 @@ def generate_gnn_dataset(
         point_cloud_integrator=point_cloud_integrator,
         model_dataset_generator=dataset_generator
     )
-
     start_heading = np.deg2rad(0)
     start_pose = np.array([0.00,0.00])
 
@@ -227,7 +213,8 @@ def generate_gnn_dataset(
         max_frame=end_idx,
         gt_enabled=True,
         movie_generator=movie_generator,
-        generate_dataset=True)
+        generate_dataset=True,
+        normalize_frames=normalize_frames)
     
     if generate_movie:
         movie_folder="{}/Movies".format(results_parent_folder)

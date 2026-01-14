@@ -11,7 +11,7 @@ from cpsl_datasets.map_handler import MapHandler
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
-from odometry.test_benches.gnn_point_cloud_integrator_tb import GnnPointCloudIntegratorTB
+from odometry.test_benches.ragnnarok_point_cloud_integrator_tb import GnnPointCloudIntegratorTB
 from odometry.point_cloud_processing._point_cloud_integrator import _PointCloudIntegrator
 from odometry.point_cloud_processing.pc_grid.probabilistic_pc_grid_gnn import ProbabilisticPCGridGNN
 from odometry.point_cloud_processing.pc_grid.historical_pc_grid import HistoricalPCGrid

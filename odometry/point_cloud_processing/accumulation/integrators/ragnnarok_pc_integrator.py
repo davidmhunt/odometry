@@ -5,6 +5,8 @@ from geometries.pose.pose import Pose
 from odometry.point_cloud_processing.accumulation.grids.probabilistic_pc_grid_gnn import ProbabilisticPCGridGNN
 from odometry.point_cloud_processing.accumulation.grids.historical_pc_grid import HistoricalPCGrid
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
+from odometry.point_cloud_processing.accumulation.pc_accumulator import PcAccumulator
+
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 
 class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
@@ -59,7 +61,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
         
         super().__init__(
             gt_distance_threshold_m=grid_resolution_m_prob,
-            num_frames_history=num_frames_history_hist,
+            num_frames_history=num_frames_history_hist + num_frames_history_prob,
             min_detection_radius=min_detection_radius,
             max_detection_radius=max_detection_radius
         )
@@ -142,7 +144,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
         
         return self.historical_pc_grid.get_points()
     
-    def get_nodes(self) -> tuple:
+    def get_nodes(self, **kwargs) -> tuple:
         """
         Retrieve nodes and labels from the probabilistic grid.
 

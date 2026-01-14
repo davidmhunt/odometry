@@ -130,6 +130,15 @@ class _PointCloudIntegrator:
         #should be overridden by child classes
         return self.raw_point_history.get_points()
     
+    def get_gt_points(self) -> np.ndarray:
+        """
+        Retrieve the ground truth points.
+
+        Returns:
+            np.ndarray: Array of ground truth points.
+        """
+        return self.raw_point_history.get_gt_points()
+    
     def get_raw_point_history(self) -> np.ndarray:
         """
         Retrieve the raw accumulated point history.
@@ -141,12 +150,16 @@ class _PointCloudIntegrator:
         return self.raw_point_history.get_points()
         
     
-    def get_nodes(self) -> tuple:
+    def get_nodes(self, normalize_frames:bool = False) -> tuple:
         """
         Retrieve nodes and labels for graph-based processing.
+
+        Args:
+            normalize_frames (bool, optional): If True, normalizes the frames
+                remaining by the total number of frames. Defaults to False.
 
         Returns:
             tuple: (nodes, labels). behavior depends on implementation point history.
         """
         #should be overridden by child classes
-        return self.raw_point_history.get_nodes()
+        return self.raw_point_history.get_nodes(normalize_frames=normalize_frames)

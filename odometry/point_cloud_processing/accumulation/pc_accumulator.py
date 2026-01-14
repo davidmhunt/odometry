@@ -188,11 +188,15 @@ class PcAccumulator:
         else:
             return self.gt_points[:,0:3]
     
-    def get_nodes(self)->tuple:
+    def get_nodes(self, normalize_frames:bool = False)->tuple:
         """
         Retrieve points as nodes with ground truth labels.
 
         Useful for graph-based processing where points are treated as nodes.
+
+        Args:
+            normalize_frames (bool, optional): If True, normalizes the frames
+                remaining by the total number of frames. Defaults to False.
 
         Returns:
             tuple: A pair (nodes, labels).
@@ -204,6 +208,9 @@ class PcAccumulator:
         if self.points.shape[0] > 0:
                 
             nodes = self.points
+
+            if normalize_frames:
+                nodes[:,3] = nodes[:,3] / self.num_frames_history
 
             label = np.array(
                 [np.any(np.all(p == self.gt_points, axis=1)) for p in self.points]

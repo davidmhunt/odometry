@@ -21,6 +21,7 @@ dependencies = [
     "opencv-python>4.7,<4.9.0.80",
     "poetry-dotenv-plugin>=0.2.0,<0.3.0",
     "optuna[visualization] (>=4.6.0,<5.0.0)",
+    "optuna-dashboard (>=0.20.0,<0.21.0)",
 ]
 
 [tool.poetry]

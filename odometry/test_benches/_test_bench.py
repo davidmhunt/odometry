@@ -1,7 +1,10 @@
 import numpy as np
+from typing import Union
+from enum import Enum
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import time
+from scipy.spatial.transform import Rotation
 
 from odometry.supportFns import rotation_functions
 from sklearn.neighbors import NearestNeighbors
@@ -22,9 +25,15 @@ from odometry.analyzers.analyzer import Analyzer
 from odometry.estimators.estimators import (
     _ExtendedKalmanFilter,
     KalmanXYPhiSpeedGyroEncoder,
+    KalmanXYPhi,
+    BodyDelta,
     Inertial)
 from odometry.point_cloud_processing.vel_filtering import VelFiltering
 from odometry.plotting.movies import MovieGenerator
+
+class PredictionSource(Enum):
+    VEHICLE_ODOM = "vehicle_odom"
+    IMU_AND_VEL = "imu_and_vel"
 
 class _TestBench:
 
@@ -34,7 +43,7 @@ class _TestBench:
                  dataset:CpslDS,
                  localizer:_Localizer=None,
                  use_filters:bool = True,
-                 use_vehicle_odom:bool = False) -> None:
+                 prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL) -> None:
         
         #initialize the localizer
         self.localizer:_Localizer = localizer
@@ -49,9 +58,9 @@ class _TestBench:
 
         #filter parameters
         self.use_filters = use_filters
-        self.filter:KalmanXYPhiSpeedGyroEncoder = None
-        self.inertial_integrator:KalmanXYPhiSpeedGyroEncoder = None
-        self.filter_gt:KalmanXYPhiSpeedGyroEncoder = None #gt filter
+        self.filter:Union[KalmanXYPhiSpeedGyroEncoder,KalmanXYPhi] = None
+        self.inertial_integrator:Union[KalmanXYPhiSpeedGyroEncoder,KalmanXYPhi] = None
+        self.filter_gt:Union[KalmanXYPhiSpeedGyroEncoder,KalmanXYPhi] = None #gt filter
         self.filter_R:np.ndarray = None
         self.filter_msmt_component:list = None
         
@@ -60,7 +69,8 @@ class _TestBench:
         self.filter_next_vel_data:np.ndarray = None
 
         #vehicle odometry usage flag
-        self.use_vehicle_odom = use_vehicle_odom
+        # self.use_vehicle_odom = use_vehicle_odom
+        self.prediction_source = prediction_source
         self.previous_vehicle_odom_pose:Pose = Pose()
 
         #load the datasets
@@ -204,7 +214,7 @@ class _TestBench:
                 gyro_bias=gyro_bias
             )
         
-        if self.use_vehicle_odom:
+        if self.prediction_source == PredictionSource.VEHICLE_ODOM:
             self.init_vehicle_odometry()
         
         return new_heading_rad,new_pose_m
@@ -228,32 +238,64 @@ class _TestBench:
         #declare initial state covariance matrix originally [5,5,0.1,1,1e-2,1e-2])
         P0 = np.diag([5,5,0.1,1,1e-7,1e-2])
 
-        #filter for gt
-        self.filter_gt = KalmanXYPhiSpeedGyroEncoder(
-            t0=start_time_s,
-            x0 = x0.copy(),
-            P0 = P0,
-            chi2_pct=0.95, #originally 0.95
-            do_chi2=True
-        )
+        if self.prediction_source == PredictionSource.VEHICLE_ODOM:
+             self.filter_gt = KalmanXYPhi(
+                t0=start_time_s,
+                x0=x0[[0,1,2]], #only x,y,phi
+                P0=P0[0:3,0:3],
+                chi2_pct=0.95,
+                do_chi2=True
+             )
+             self.inertial_integrator = KalmanXYPhi(
+                t0=start_time_s,
+                x0=x0[[0,1,2]],
+                P0=P0[0:3,0:3],
+                chi2_pct=0.95,
+                do_chi2=True
+             )
+             self.filter = KalmanXYPhi(
+                t0=start_time_s,
+                x0=x0[[0,1,2]],
+                P0=P0[0:3,0:3],
+                chi2_pct=0.95,
+                do_chi2=True
+             )
 
-        #inertial integrator
-        self.inertial_integrator = KalmanXYPhiSpeedGyroEncoder(
-            t0=start_time_s,
-            x0 = x0.copy(),
-            P0 = P0,
-            chi2_pct=0.95, #originally 0.95
-            do_chi2=True
-        )
+             #reset filter time
+             self.filter_last_t = \
+                self.dataset.get_vehicle_odom_data(idx=0)[0,0]
 
-        #filter under test
-        self.filter = KalmanXYPhiSpeedGyroEncoder(
-            t0=start_time_s,
-            x0 = x0.copy(),
-            P0 = P0,
-            chi2_pct=0.95, #originally 0.95
-            do_chi2=True
-        )
+        elif self.prediction_source == PredictionSource.IMU_AND_VEL:
+            #filter for gt
+            self.filter_gt = KalmanXYPhiSpeedGyroEncoder(
+                t0=start_time_s,
+                x0 = x0.copy(),
+                P0 = P0,
+                chi2_pct=0.95, #originally 0.95
+                do_chi2=True
+            )
+
+            #inertial integrator
+            self.inertial_integrator = KalmanXYPhiSpeedGyroEncoder(
+                t0=start_time_s,
+                x0 = x0.copy(),
+                P0 = P0,
+                chi2_pct=0.95, #originally 0.95
+                do_chi2=True
+            )
+
+            #filter under test
+            self.filter = KalmanXYPhiSpeedGyroEncoder(
+                t0=start_time_s,
+                x0 = x0.copy(),
+                P0 = P0,
+                chi2_pct=0.95, #originally 0.95
+                do_chi2=True
+            )
+
+            #reset filter time
+            self.filter_last_t = \
+                self.dataset.get_imu_full_data(idx=0)[0,0]
 
         #define the observation noise
         # self.filter_R = np.diag([1.0,1.0,1.0]) ** 2 #original values
@@ -262,10 +304,6 @@ class _TestBench:
 
         #reset filter histories
         self.history_filters_reset()
-
-        #reset filter time
-        self.filter_last_t = \
-            self.dataset.get_imu_full_data(idx=0)[0,0]
             
     ####################################################################
     #Histories (localizers)
@@ -496,8 +534,79 @@ class _TestBench:
         else:
             self.vehicle_moving = True
     
-    def filters_predict_from_frame_samples(self, idx = 0, gt_enabled=False):
+    def filters_predict_from_odom_frame_samples(self,idx = 0, gt_enabled=False):
+        
+        odom_data = self.dataset.get_vehicle_odom_data(idx)
 
+        #iterate over all odometry samples in the frame
+        for i in range(odom_data.shape[0]):
+            
+            #get the current sample data (time, position, orientation)
+            current_sample_data = odom_data[i,:]
+            current_time = current_sample_data[0]
+            
+            #compute dt
+            dt = current_time - self.filter_last_t
+            
+            #create a Pose object for the current sample
+            current_sample_pose = Pose(
+                position=Position(
+                    x=current_sample_data[1],
+                    y=current_sample_data[2],
+                    z=current_sample_data[3]
+                ),
+                orientation=Orientation(
+                    qw=current_sample_data[4],
+                    qx=current_sample_data[5],
+                    qy=current_sample_data[6],
+                    qz=current_sample_data[7]
+                )
+            )
+            
+            #compute the body delta from the previous pose to the current sample pose
+            body_delta = self.compute_relative_body_delta(
+                prev_pose=self.previous_vehicle_odom_pose,
+                new_pose=current_sample_pose
+            )
+
+            #predict the filters forward
+            self.inertial_integrator.predict(
+                dt=dt,
+                inertial=body_delta,
+                check_P=False
+            )
+
+            self.filter.predict(
+                dt=dt,
+                inertial=body_delta,
+                check_P=False
+            )
+
+            if gt_enabled and (self.gt_localizer is not None):
+                self.filter_gt.predict(
+                    dt=dt,
+                    inertial=body_delta,
+                    check_P=False
+                )
+            
+            #Update tracking variables
+            self.filter_last_t = current_time
+            self.previous_vehicle_odom_pose = current_sample_pose
+            
+            #update histories
+            self.history_filters_update_state_history()
+            
+            #Check movement (accumulate movement or check instantaneous?)
+            if (abs(body_delta.dx) > 1e-4) or (abs(body_delta.dy) > 1e-4) or (abs(body_delta.dtheta) > 1e-5):
+                self.vehicle_moving = True
+            else:
+                self.vehicle_moving = False
+            
+            return
+
+    def filters_predict_from_imu_vel_frame_samples(self,idx = 0,gt_enabled=False):
+
+        #Fallthrough for IMU/Vel based data
         imu_data = self.dataset.get_imu_full_data(idx)
         vel_data = self.dataset.get_vehicle_vel_data(idx)
 
@@ -552,6 +661,19 @@ class _TestBench:
             self.vehicle_vel_check_for_movement(vel_data[i])
 
         return
+
+    def filters_predict_from_frame_samples(self, idx = 0, gt_enabled=False):
+
+        
+        if self.prediction_source == PredictionSource.VEHICLE_ODOM:
+            self.filters_predict_from_odom_frame_samples(idx=idx,gt_enabled=gt_enabled)
+            return
+        elif self.prediction_source == PredictionSource.IMU_AND_VEL:
+            self.filters_predict_from_imu_vel_frame_samples(idx=idx,gt_enabled=gt_enabled)
+            return
+        else:
+            raise ValueError("Invalid prediction source")
+
     
     def filter_perform_update(self,
                               estimated_position_m:np.ndarray,
@@ -616,86 +738,49 @@ class _TestBench:
                 qz=initial_odom_data[6]
             )
         )
-        # self.previous_vehicle_odom_pose = self.previous_vehicle_odom_pose.flu_from_ned()
     
-    def get_odom_transformation(
+    def compute_relative_body_delta(
             self,
-            current_idx:int
-    )->tuple:
-        """Get the odometry transformation between the previous and current odometry frames.
-        Note: the translation/rotation is converted to be in the world coordinate frame
+            prev_pose:Pose,
+            new_pose:Pose
+    )->BodyDelta:
+        """Compute the relative body delta between two poses.
 
         Args:
-            current_idx (int): _description_
+            prev_pose (Pose): The starting pose (previous)
+            new_pose (Pose): The ending pose (new)
 
         Returns:
-            tuple: _description_
+            BodyDelta: The computed delta in the Body frame of prev_pose
         """
-
-        if current_idx == 269:
-            pass
-
-        #get the current odometry pose
-        #indexed by [time,x,y,z,quat_w,quat_x,quat_y,quat_z,vx,vy,vz,wx,wy,wz]
-        current_odom_data = self.dataset.get_vehicle_odom_data(idx=current_idx)[-1,1:8]
-        current_odom_pose = Pose(
-            position=Position(
-                x=current_odom_data[0],
-                y=current_odom_data[1],
-                z=current_odom_data[2]
-            ),
-            orientation=Orientation(
-                qw=current_odom_data[3],
-                qx=current_odom_data[4],
-                qy=current_odom_data[5],
-                qz=current_odom_data[6]
-            )
-        )
-        # current_odom_pose = current_odom_pose.flu_from_ned()
-
+        
         #compute the transformation from the previous to current odom frame
+        #T_prev_to_curr in ODOM frame
+        # transformation = Transformation.from_orig_to_new(
+        #     original_pose=prev_pose,
+        #     new_pose=new_pose
+        # )
         transformation = Transformation.from_orig_to_new(
-            original_pose=self.previous_vehicle_odom_pose,
-            new_pose=current_odom_pose
+            new_pose=prev_pose,
+            original_pose=new_pose
         )
         
-        #get the rotation adjustment
-        rotation = transformation.rotation
-        rotation = Orientation(
-            qx=rotation[0],
-            qy=rotation[1],
-            qz=rotation[2],
-            qw=rotation[3]
+        #The transformation translation component is in the coordinate system of original_pose (Previous Body Frame)
+        
+        dx_body = transformation.translation[0]
+        dy_body = transformation.translation[1]
+        
+        # Rotation
+        rot = transformation.rotation #np.ndarray
+        dtheta = Rotation.from_quat(rot).as_euler('xyz', degrees=False)[2]
+        
+        body_delta = BodyDelta(
+            dx=dx_body,
+            dy=dy_body,
+            dtheta=dtheta
         )
-        heading_change_rad = rotation.to_euler(degrees=False)[2]
 
-
-        #get the translation - need to move from odom -> body -> world
-        translation = transformation.translation
-
-        #compute the appropriate transforms to adjust the coordinate frame coorectly
-        trans_odom_to_body = Transformation.from_orig_to_new(
-            original_pose=Pose(),
-            new_pose=Pose(
-                orientation=self.previous_vehicle_odom_pose.orientation
-            )
-        )
-        trans_body_to_map = Transformation.from_orig_to_new(
-            original_pose=Pose(),
-            new_pose=Pose(
-                orientation=Orientation.from_euler(
-                    yaw=self.latest_heading_rad,
-                    degrees=False
-                )
-            )
-        )
-        translation = trans_odom_to_body.apply_transformation(translation)
-        translation = trans_body_to_map.apply_transformation(translation)
-
-        #update the preious pose
-        self.previous_vehicle_odom_pose = current_odom_pose
-
-        return translation[0:2],heading_change_rad
+        return body_delta
 
 
 
@@ -766,14 +851,6 @@ class _TestBench:
                 self.filters_predict_from_frame_samples(
                     idx=i,
                     gt_enabled=gt_enabled)
-            
-            elif self.use_vehicle_odom:
-
-                translation,heading_update = self.get_odom_transformation(current_idx=i)
-
-                #TODO: This is currently broken, but I'm not sure why
-                self.latest_pose_m -= translation
-                self.latest_heading_rad += heading_update
 
             #process lidar ground truth
             if gt_enabled and (self.gt_localizer is not None):
@@ -831,24 +908,32 @@ class _TestBench:
                 #get the combined radar point cloud [x,y,z,vel]
                 radar_points = self.dataset.get_radar_point_cloud(idx=i)
 
+                if self.prediction_source == PredictionSource.VEHICLE_ODOM:
+                    vehicle_odom = self.dataset.get_vehicle_odom_data(idx=i)
+                    ego_vel = vehicle_odom[0,8:10]
+                elif self.prediction_source == PredictionSource.IMU_AND_VEL:
+                    ego_vel = np.array([self.filter.x[3],0.0])
+                else:
+                    ego_vel = np.array([0.0,0.0])
+
                 static_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,
-                    ego_vel=np.array([self.filter.x[3],0.0])
+                    ego_vel=ego_vel
                 )
 
                 dynamic_points = self.vel_filtering.get_dynamic_detections(
                     detections=radar_points,
-                    ego_vel=np.array([self.filter.x[3],0.0])
+                    ego_vel=ego_vel
                 )
 
                 #get the current pose
                 current_pose = Pose(
                     position=Position(
-                        x = self.inertial_integrator.x[0],
-                        y = self.inertial_integrator.x[1]
+                        x = self.filter.x[0],
+                        y = self.filter.x[1]
                     ),
                     orientation=Orientation.from_euler(
-                        yaw=self.inertial_integrator.x[2],
+                        yaw=self.filter.x[2],
                         degrees=False
                     )
                 )

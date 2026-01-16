@@ -2,7 +2,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-from odometry.test_benches._test_bench import _TestBench
+from odometry.test_benches._test_bench import _TestBench, PredictionSource
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
 from odometry.localization.icp2D_localization import icp2DLocalization
 
@@ -22,9 +22,19 @@ class PointCloudIntegratorTB(_TestBench):
             dataset:CpslDS,
             point_cloud_integrator:_PointCloudIntegrator,
             localizer = None,
-            model_dataset_generator:_OnlineDatasetGenerator=None):
+            model_dataset_generator:_OnlineDatasetGenerator=None,
+            use_filters:bool = True,
+            prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL
+            ):
         
-        super().__init__(gt_localizer, map_handler, dataset, localizer)
+        super().__init__(
+            gt_localizer,
+            map_handler,
+            dataset,
+            localizer,
+            use_filters=use_filters,
+            prediction_source=prediction_source
+        )
 
         self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator
 

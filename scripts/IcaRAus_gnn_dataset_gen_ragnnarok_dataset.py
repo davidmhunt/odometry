@@ -32,7 +32,7 @@ MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
 normalize_frames = True
-num_frames_history = 100
+num_frames_history = 200
 config_label = "IcaRAus_gnn_{}fh".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
@@ -43,7 +43,7 @@ datasets_to_test = {
     #       "datasets":[
     #         #    'WILK_Path_1_With_Dynamic',
     #         #     'WILK_Multipath_Test_4', #test
-    #             'WILK_Multipath_Test_5', #train
+                # 'WILK_Multipath_Test_5', #train
     #         #     'WILK_Slow_4',
     #         #     'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
     #         #     'WILK_Path_1_Slow_No_Dynamic_1',

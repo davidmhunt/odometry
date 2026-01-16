@@ -31,6 +31,25 @@ class Inertial:
     def __str__(self) -> str:
         return f"Inerital data with gyro: {self.gyro}, accel: {self.accel}, wheel encoder: {self.sencode}"
 
+class BodyDelta:
+    def __init__(self,
+                 dx: float = 0.0,
+                 dy: float = 0.0,
+                 dtheta: float = 0.0):
+        """Body frame delta class representing relative motion.
+
+        Args:
+           dx (float): translation in body x (forward)
+           dy (float): translation in body y (left)
+           dtheta (float): rotation in body (counter-clockwise)
+        """
+        self.dx = dx
+        self.dy = dy
+        self.dtheta = dtheta
+
+    def __str__(self) -> str:
+        return f"BodyDelta with dx: {self.dx}, dy: {self.dy}, dtheta: {self.dtheta}"
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -441,3 +460,162 @@ class InertialIntegrator:
         self.t += dt
         
         return
+
+class KalmanXYPhi(_ExtendedKalmanFilter):
+    n_states = 3
+
+    def __init__(self, *args, **kwargs):
+        """Kalman filter using odometry body deltas for prediction
+        
+        Args:
+            state vector (np.ndarray): [x, y, phi]
+            prediction (BodyDelta): BodyDelta object containing (dx, dy, dtheta)
+            update: (see super class)
+        """
+        super().__init__(*args, **kwargs)
+
+        # measurement function
+        def h_func(x: np.ndarray, msmt_components: List[str]):
+            """Measurement function for the filter
+            
+            Args:
+                x (np.ndarray): current state vector [x, y, phi]
+                msmt_components (List[str]): list of measurement components to use
+            
+            Returns:
+                np.ndarray: predicted measurement vector
+            """
+            z = []
+            for component in msmt_components:
+                if component == "x":
+                    z.append(x[0])
+                elif component == "y":
+                    z.append(x[1])
+                elif component == "phi":
+                    z.append(x[2])
+                else:
+                    raise NotImplementedError(component)
+            if len(z) == 0:
+                raise RuntimeError(f"Did not populate z using {msmt_components}")
+            z = np.asarray(z)
+            return z
+
+        self.h_func = h_func
+
+        # state propagation function
+        def f_func(x: np.ndarray, dt:float, inertial: BodyDelta, **kwargs):
+            """State propagation function using body frame deltas.
+
+            Args:
+                x (np.ndarray): current state vector [x, y, phi]
+                dt (float): time step (used for process noise scaling)
+                inertial (BodyDelta): BodyDelta object containing relative motion
+            
+            Returns:
+                np.ndarray: predicted new state vector
+            """
+            
+            if not isinstance(inertial, BodyDelta):
+                 raise ValueError(f"KalmanXYPhi requires BodyDelta for prediction, got {type(inertial)}")
+
+            dx = inertial.dx
+            dy = inertial.dy
+            dtheta = inertial.dtheta
+            
+            cos_phi = np.cos(x[2])
+            sin_phi = np.sin(x[2])
+
+            x[0] = x[0] + dx * cos_phi - dy * sin_phi
+            x[1] = x[1] + dx * sin_phi + dy * cos_phi
+            x[2] = x[2] + dtheta
+            return x
+
+        self.f_func = f_func
+
+    @classmethod
+    def get_H_matrix(cls, msmt_components: List[str]):
+        """Computed the H matrix (Observation matrix)
+
+        Args:
+            msmt_components (List[str]): List of measurements available
+
+        Returns:
+            np.ndarray: H matrix
+        """
+        if not isinstance(msmt_components, list):
+            raise ValueError(
+                f"msmt_components must be a list, got {type(msmt_components)}"
+            )
+        H = []
+        for component in msmt_components:
+            hm = np.zeros((cls.n_states,))
+            if component == "x":
+                hm[0] = 1
+            elif component == "y":
+                hm[1] = 1
+            elif component == "phi":
+                hm[2] = 1
+            else:
+                raise NotImplementedError(component)
+            H.append(hm)
+        return np.asarray(H)
+
+    @staticmethod
+    def get_F_matrix(x: np.ndarray, dt:float, inertial: BodyDelta, **kwargs):
+        """Computes the F matrix (Jacobian of state transition)
+
+        Args:
+            x (np.ndarray): current state vector
+            dt (float): time step
+            inertial (BodyDelta): BodyDelta object
+
+        Returns:
+            np.ndarray: F matrix
+        """
+        
+        dx = inertial.dx
+        dy = inertial.dy
+        
+        # d(x_new)/d(phi) = -dx*sin(phi) - dy*cos(phi)
+        # d(y_new)/d(phi) =  dx*cos(phi) - dy*sin(phi)
+        
+        sin_phi = np.sin(x[2])
+        cos_phi = np.cos(x[2]) 
+        
+        f02 = -dx * sin_phi - dy * cos_phi
+        f12 =  dx * cos_phi - dy * sin_phi
+        
+        F = np.array([
+            [1, 0, f02],
+            [0, 1, f12],
+            [0, 0, 1]
+        ])
+        return F
+
+    @staticmethod
+    def get_Q_matrix(
+        x: np.ndarray, dt: float, sigma_x=0.05, sigma_y=0.05, sigma_h=0.02, **kwargs
+    ):
+        """Computes the Q matrix (Process Noise Covariance)
+
+        Args:
+            x (np.ndarray): current state vector
+            dt (float): time step
+            sigma_x (float, optional): std dev of x process noise. Defaults to 0.05.
+            sigma_y (float, optional): std dev of y process noise. Defaults to 0.05.
+            sigma_h (float, optional): std dev of heading process noise. Defaults to 0.02.
+
+        Returns:
+            np.ndarray: Q matrix
+        """
+        
+        q00 = dt * sigma_x**2
+        q11 = dt * sigma_y**2
+        q22 = dt * sigma_h**2
+        
+        Q = np.array([
+            [q00, 0, 0],
+            [0, q11, 0],
+            [0, 0, q22]
+        ])
+        return Q

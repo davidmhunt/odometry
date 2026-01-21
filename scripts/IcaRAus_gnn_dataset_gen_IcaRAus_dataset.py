@@ -14,6 +14,7 @@ from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
 from odometry.test_benches._test_bench import _TestBench, PredictionSource
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
+from odometry.point_cloud_processing.accumulation.integrators.ragnnarok_pc_integrator import RagnnarokPointCloudIntegrator
 
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
@@ -37,7 +38,7 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_gnn_{}fh".format(num_frames_history)
+config_label = "IcaRAus_gnn_{}fh_grids".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -126,14 +127,22 @@ def generate_gnn_dataset(
     )
 
     #initialize the probabilistic point cloud grid
-    
     point_cloud_integrator = _PointCloudIntegrator(
         gt_distance_threshold_m=0.25,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
         max_detection_radius=4.0, #originally 5.0
     )
-
+    # point_cloud_integrator = RagnnarokPointCloudIntegrator(
+    #     grid_resolution_m_prob=0.1,
+    #     grid_max_distance_m_prob=5.0,
+    #     num_frames_history_prob=num_frames_history,
+    #     grid_resolution_m_hist=0.1,
+    #     grid_max_distance_m_hist=5.0,
+    #     num_frames_history_hist=num_frames_history,
+    #     min_detection_radius=0.25,
+    #     max_detection_radius=20.0, #originally 5.0   
+    # )
     #initialize the test bench
     test_bench = PointCloudIntegratorTB(
         localizer=radar_odometry,

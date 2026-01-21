@@ -21,6 +21,7 @@ class PointCloudIntegratorTB(_TestBench):
             map_handler:MapHandler,
             dataset:CpslDS,
             point_cloud_integrator:_PointCloudIntegrator,
+            dynamic_point_cloud_integrator: _PointCloudIntegrator = None,
             localizer = None,
             model_dataset_generator:_OnlineDatasetGenerator=None,
             use_filters:bool = True,
@@ -37,6 +38,7 @@ class PointCloudIntegratorTB(_TestBench):
         )
 
         self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator
+        self.dynamic_point_cloud_integrator:_PointCloudIntegrator = dynamic_point_cloud_integrator
 
         self.model_dataset_generator = model_dataset_generator
 
@@ -77,6 +79,12 @@ class PointCloudIntegratorTB(_TestBench):
             current_pose=current_pose,
             gt_points=gt_points
         )
+
+        if self.dynamic_point_cloud_integrator is not None:
+            self.dynamic_point_cloud_integrator.add_points(
+                static_points=dynamic_points,
+                current_pose=current_pose
+            )
 
         if self.generate_dataset:
 
@@ -205,6 +213,22 @@ class PointCloudIntegratorTB(_TestBench):
             )
             axs[2,2].set_title(
                 "GT Detectections: {}".format(detections.shape[0]),
+                fontsize=self.plotter_localization.font_size_title
+            )
+        
+        #dynamic accumulated point cloud
+        if self.dynamic_point_cloud_integrator is not None:
+            dynamic_points = self.dynamic_point_cloud_integrator.get_points()
+            if dynamic_points.shape[0] > 0:
+                self.plotter_localization.plot_detections_on_map(
+                    current_points=dynamic_points[:,0:2],
+                    heading_rad=np.deg2rad(self.history_heading_deg[idx]),
+                    pose_m=self.history_position_m[idx],
+                ax=axs[2,1],
+                show=False
+            )
+            axs[2,1].set_title(
+                "Dynamic Detectections: {}".format(dynamic_points.shape[0]),
                 fontsize=self.plotter_localization.font_size_title
             )
         # self.plotter_localization.marker_size = 0.5

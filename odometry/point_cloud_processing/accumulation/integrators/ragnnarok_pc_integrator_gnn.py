@@ -2,14 +2,14 @@ import numpy as np
 
 from geometries.pose.pose import Pose
 
-from odometry.point_cloud_processing.accumulation.grids.probabilistic_pc_grid import ProbabilisticPCGrid
+from odometry.point_cloud_processing.accumulation.grids.probabilistic_pc_grid_gnn import ProbabilisticPCGridGNN
 from odometry.point_cloud_processing.accumulation.grids.historical_pc_grid import HistoricalPCGrid
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
 from odometry.point_cloud_processing.accumulation.pc_accumulator import PcAccumulator
 
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 
-class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
+class RagnnarokPointCloudIntegratorGNN(_PointCloudIntegrator):
     """
     Integrates point clouds using both probabilistic and historical grid approaches.
 
@@ -25,6 +25,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
 
     def __init__(
             self,
+            gnn_runner: GNNRunner,
             grid_resolution_m_prob: float = 0.10,
             grid_max_distance_m_prob: float = 5.0,
             num_frames_history_prob: int = 20,
@@ -38,6 +39,8 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
         Initialize the RagnnarokPointCloudIntegrator.
 
         Args:
+            gnn_runner (GNNRunner): the GNN runner instance used for point classification
+                in the probabilistic grid.
             grid_resolution_m_prob (float, optional): Resolution for the probabilistic
                 grid. Defaults to 0.10.
             grid_max_distance_m_prob (float, optional): Max distance for the
@@ -64,8 +67,9 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
         )
         
         #probabilistic point grid for initial detections
-        self.probabilistic_pc_grid:ProbabilisticPCGrid = \
-            ProbabilisticPCGrid(
+        self.probabilistic_pc_grid:ProbabilisticPCGridGNN = \
+            ProbabilisticPCGridGNN(
+                runner=gnn_runner,
                 grid_resolution_m=grid_resolution_m_prob,
                 grid_max_distance_m=grid_max_distance_m_prob,
                 num_frames_history=num_frames_history_prob,

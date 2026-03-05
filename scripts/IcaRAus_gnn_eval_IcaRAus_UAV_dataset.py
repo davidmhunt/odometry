@@ -207,6 +207,13 @@ def analyze_dataset(
             ncols=3,
             figsize=(15,15)
         )
+        
+        movie_folder="{}/Movies".format(results_parent_folder)
+        create_dir(movie_folder)
+        movie_generator.start_movie(
+            video_file_name="{}/{}.mp4".format(movie_folder,file_name),
+            fps=20
+        )
     else:
         movie_generator=None
     
@@ -220,10 +227,7 @@ def analyze_dataset(
         normalize_frames=normalize_frames)
     
     if generate_movie:
-        movie_folder="{}/Movies".format(results_parent_folder)
-        create_dir(movie_folder)
-        movie_generator.save_movie(video_file_name="{}/{}.mp4".format(
-            movie_folder,file_name),fps=20)
+        movie_generator.save_movie()
     
     #save the analysis
     result_folder="{}/Results".format(results_parent_folder)

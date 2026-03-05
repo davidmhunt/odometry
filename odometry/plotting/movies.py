@@ -3,7 +3,10 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import tqdm
-import imageio
+import imageio.v2 as imageio
+import threading
+import queue
+import numpy as np
 
 class MovieGenerator:
 
@@ -17,6 +20,13 @@ class MovieGenerator:
 
         self.figure:Figure = None
         self.axs:list[Axes] = []
+
+        self.video_file_name = None
+        self.fps = 20
+        self.writer = None
+        self.frame_queue = None
+        self.writer_thread = None
+        self._stop_event = threading.Event()
 
         self.reset()
 
@@ -95,6 +105,28 @@ class MovieGenerator:
 
         self.figure.subplots_adjust(wspace=wspace,hspace=hspace)
 
+    def _writer_worker(self):
+        """Background thread that pops frames from the queue and writes them."""
+        while not self._stop_event.is_set() or not self.frame_queue.empty():
+            try:
+                frame = self.frame_queue.get(timeout=0.1)
+                if self.writer is not None:
+                    self.writer.append_data(frame)
+                self.frame_queue.task_done()
+            except queue.Empty:
+                continue
+
+    def start_movie(self, video_file_name:str="result.mp4", fps:int=20):
+        """Starts the asynchronous video writer."""
+        self.video_file_name = video_file_name
+        self.fps = fps
+        self.writer = imageio.get_writer(video_file_name, fps=fps)
+        self.frame_queue = queue.Queue(maxsize=100)
+        self._stop_event.clear()
+        
+        self.writer_thread = threading.Thread(target=self._writer_worker, daemon=True)
+        self.writer_thread.start()
+
     def clear_axes(self):
 
         for ax in self.axs.flat:
@@ -102,10 +134,22 @@ class MovieGenerator:
     
     def save_frame(self,clear_axs = True):
         
-        #save the current frame
-        file_name = "{}_{}.png".format(self.temp_file_name,self.next_frame+1000)
-        path = os.path.join(self.temp_dir_path,file_name)
-        self.figure.savefig(path,format="png",dpi=200)
+        if self.writer is None:
+            raise RuntimeError("MovieGenerator.start_movie() must be called before save_frame()")
+
+        # Force a draw so the renderer buffer is updated
+        self.figure.canvas.draw()
+
+        # Extract RGB buffer directly from matplotlib
+        w, h = self.figure.canvas.get_width_height()
+        buf = np.frombuffer(self.figure.canvas.tostring_rgb(), dtype=np.uint8)
+        buf.shape = (h, w, 3)
+
+        # Enqueue the buffer for the background thread
+        try:
+            self.frame_queue.put(buf.copy(), timeout=2.0)
+        except queue.Full:
+            print("Warning: MovieGenerator queue is full, dropping frame.")
 
         self.next_frame+=1
 
@@ -114,15 +158,15 @@ class MovieGenerator:
             self.clear_axes()
 
     
-    def save_movie(self,video_file_name:str="result.mp4",fps:int=20):
-
-        writer = imageio.get_writer(video_file_name,fps=fps)
-        for i in tqdm.tqdm(range(self.next_frame)):
-
-            file_name = "{}_{}.png".format(self.temp_file_name,i+1000)
-            path = os.path.join(self.temp_dir_path,file_name)
-
-            writer.append_data(imageio.imread(path))
-        
-        writer.close()
+    def save_movie(self):
+        """Closes the background thread and finalizes the video file."""
+        if self.writer_thread is not None:
+            self._stop_event.set()
+            self.writer_thread.join()
+            
+        if self.writer is not None:
+            self.writer.close()
+            self.writer = None
+            
+        print(f"Movie saved successfully with {self.next_frame} frames.")
     

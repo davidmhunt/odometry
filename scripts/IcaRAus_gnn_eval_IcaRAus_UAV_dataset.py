@@ -12,7 +12,7 @@ from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
-from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource
+from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator_gnn_runner import _PointCloudIntegratorGnnRunner
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
@@ -167,7 +167,8 @@ def analyze_dataset(
         model_dataset_generator=None,
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
-        gt_source=GroundTruthSource.MOTION_CAPTURE
+        gt_source=GroundTruthSource.MOTION_CAPTURE,
+        odom_frame=OdomCoordinateFrame.NED
     )
     start_heading = np.deg2rad(0)
     start_pose = np.array([0.00,0.00])

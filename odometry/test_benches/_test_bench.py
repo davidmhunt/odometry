@@ -39,6 +39,10 @@ class GroundTruthSource(Enum):
     LIDAR = "lidar"
     MOTION_CAPTURE = "motion_capture"
 
+class OdomCoordinateFrame(Enum):
+    FLU = "flu"
+    NED = "ned"
+
 class _TestBench:
 
     def __init__(self,
@@ -48,12 +52,14 @@ class _TestBench:
                  localizer:_Localizer=None,
                  use_filters:bool = True,
                  prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
-                 gt_source:GroundTruthSource = GroundTruthSource.LIDAR) -> None:
+                 gt_source:GroundTruthSource = GroundTruthSource.LIDAR,
+                 odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU) -> None:
         
         #initialize the localizer
         self.localizer:_Localizer = localizer
         self.gt_localizer:icp2DLocalization = gt_localizer
         self.gt_source:GroundTruthSource = gt_source
+        self.odom_frame:OdomCoordinateFrame = odom_frame
 
         #vehicle_movement_flag
         self.vehicle_moving = False
@@ -145,6 +151,11 @@ class _TestBench:
                           show = False,
                           gyro_bias=-0.0024): #gyro bias for radnav dataset
         
+        if self.gt_source == GroundTruthSource.LIDAR:
+            assert self.gt_localizer is not None and self.dataset.lidar_enabled, "GT localizer and LIDAR data required for LIDAR gt_source"
+
+        if self.gt_source == GroundTruthSource.MOTION_CAPTURE:
+            assert self.dataset.vicon_enabled, "Vicon motion capture data missing for GT source"
 
         if self.gt_source == GroundTruthSource.LIDAR and self.gt_localizer:
             #load the map points into the localizers
@@ -582,18 +593,41 @@ class _TestBench:
             #compute dt
             dt = current_time - self.filter_last_t
             
+            x = current_sample_data[1]
+            y = current_sample_data[2]
+            z = current_sample_data[3]
+            
+            qw = current_sample_data[4]
+            qx = current_sample_data[5]
+            qy = current_sample_data[6]
+            qz = current_sample_data[7]
+
+            if self.odom_frame == OdomCoordinateFrame.NED:
+                rot = Rotation.from_quat([qx, qy, qz, qw])
+                rot_180_x = Rotation.from_euler('x', 180, degrees=True)
+                rot = rot_180_x * rot
+                quat = rot.as_quat()
+                qx = quat[0]
+                qy = quat[1]
+                qz = quat[2]
+                qw = quat[3]
+                
+                # Invert Y and Z for NED to FLU position
+                # y = -y
+                # z = -z
+
             #create a Pose object for the current sample
             current_sample_pose = Pose(
                 position=Position(
-                    x=current_sample_data[1],
-                    y=current_sample_data[2],
-                    z=current_sample_data[3]
+                    x=x,
+                    y=y,
+                    z=z
                 ),
                 orientation=Orientation(
-                    qw=current_sample_data[4],
-                    qx=current_sample_data[5],
-                    qy=current_sample_data[6],
-                    qz=current_sample_data[7]
+                    qw=qw,
+                    qx=qx,
+                    qy=qy,
+                    qz=qz
                 )
             )
             
@@ -759,17 +793,40 @@ class _TestBench:
         #get the initial odometry point
         #indexed by [time,x,y,z,quat_w,quat_x,quat_y,quat_z,vx,vy,vz,wx,wy,wz]
         initial_odom_data = self.dataset.get_vehicle_odom_data(idx=0)[-1,1:8]
+        
+        x = initial_odom_data[0]
+        y = initial_odom_data[1]
+        z = initial_odom_data[2]
+        
+        qw = initial_odom_data[3]
+        qx = initial_odom_data[4]
+        qy = initial_odom_data[5]
+        qz = initial_odom_data[6]
+
+        if self.odom_frame == OdomCoordinateFrame.NED:
+            rot = Rotation.from_quat([qx, qy, qz, qw])
+            rot_180_x = Rotation.from_euler('x', 180, degrees=True)
+            rot = rot_180_x * rot
+            quat = rot.as_quat()
+            qx = quat[0]
+            qy = quat[1]
+            qz = quat[2]
+            qw = quat[3]
+            
+            y = -y
+            z = -z
+
         self.previous_vehicle_odom_pose = Pose(
             position=Position(
-                x=initial_odom_data[0],
-                y=initial_odom_data[1],
-                z=initial_odom_data[2]
+                x=x,
+                y=y,
+                z=z
             ),
             orientation=Orientation(
-                qw=initial_odom_data[3],
-                qx=initial_odom_data[4],
-                qy=initial_odom_data[5],
-                qz=initial_odom_data[6]
+                qw=qw,
+                qx=qx,
+                qy=qy,
+                qz=qz
             )
         )
     

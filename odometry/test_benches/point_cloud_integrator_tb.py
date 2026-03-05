@@ -12,6 +12,7 @@ from cpsl_datasets.cpsl_ds import CpslDS
 from cpsl_datasets.map_handler import MapHandler
 
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
+from odometry.test_benches._test_bench import OdomCoordinateFrame
 
 class PointCloudIntegratorTB(_TestBench):
 
@@ -26,7 +27,8 @@ class PointCloudIntegratorTB(_TestBench):
             model_dataset_generator:_OnlineDatasetGenerator=None,
             use_filters:bool = True,
             prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
-            gt_source=None
+            gt_source=None,
+            odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU
             ):
         
         super().__init__(
@@ -36,7 +38,8 @@ class PointCloudIntegratorTB(_TestBench):
             localizer,
             use_filters=use_filters,
             prediction_source=prediction_source,
-            gt_source=gt_source
+            gt_source=gt_source,
+            odom_frame=odom_frame
         )
 
         self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator

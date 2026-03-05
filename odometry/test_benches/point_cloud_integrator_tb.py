@@ -25,7 +25,8 @@ class PointCloudIntegratorTB(_TestBench):
             localizer = None,
             model_dataset_generator:_OnlineDatasetGenerator=None,
             use_filters:bool = True,
-            prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL
+            prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
+            gt_source=None
             ):
         
         super().__init__(
@@ -34,7 +35,8 @@ class PointCloudIntegratorTB(_TestBench):
             dataset,
             localizer,
             use_filters=use_filters,
-            prediction_source=prediction_source
+            prediction_source=prediction_source,
+            gt_source=gt_source
         )
 
         self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator

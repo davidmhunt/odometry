@@ -35,6 +35,10 @@ class PredictionSource(Enum):
     VEHICLE_ODOM = "vehicle_odom"
     IMU_AND_VEL = "imu_and_vel"
 
+class GroundTruthSource(Enum):
+    LIDAR = "lidar"
+    MOTION_CAPTURE = "motion_capture"
+
 class _TestBench:
 
     def __init__(self,
@@ -43,11 +47,13 @@ class _TestBench:
                  dataset:CpslDS,
                  localizer:_Localizer=None,
                  use_filters:bool = True,
-                 prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL) -> None:
+                 prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
+                 gt_source:GroundTruthSource = GroundTruthSource.LIDAR) -> None:
         
         #initialize the localizer
         self.localizer:_Localizer = localizer
         self.gt_localizer:icp2DLocalization = gt_localizer
+        self.gt_source:GroundTruthSource = gt_source
 
         #vehicle_movement_flag
         self.vehicle_moving = False
@@ -141,27 +147,39 @@ class _TestBench:
         
 
         if self.gt_localizer:
-            #load the map points into the localizers
-            self.gt_localizer.load_map_point_cloud(
-                map_points=self.map_handler.map_points
-            )
-
-            #get the first points in the gt point cloud
-            init_gt_points = self.dataset.get_lidar_point_cloud(idx=0)
-
-            new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-                points=init_gt_points,
-                estimated_heading_rad=est_start_heading_rad,
-                estimated_pose_m=est_start_pose_m
-            )
-
-            print("gt icp estimated heading:{} deg, pose:{}".format(
-                np.rad2deg(new_heading_rad),new_pose_m))
-        
-            self.gt_localizer.reset_odometry(
-                pose=new_pose_m,
-                heading_rad=new_heading_rad
-            )
+            if self.gt_source == GroundTruthSource.LIDAR:
+                #load the map points into the localizers
+                self.gt_localizer.load_map_point_cloud(
+                    map_points=self.map_handler.map_points
+                )
+    
+                #get the first points in the gt point cloud
+                init_gt_points = self.dataset.get_lidar_point_cloud(idx=0)
+    
+                new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                    points=init_gt_points,
+                    estimated_heading_rad=est_start_heading_rad,
+                    estimated_pose_m=est_start_pose_m
+                )
+    
+                print("gt icp estimated heading:{} deg, pose:{}".format(
+                    np.rad2deg(new_heading_rad),new_pose_m))
+            
+                self.gt_localizer.reset_odometry(
+                    pose=new_pose_m,
+                    heading_rad=new_heading_rad
+                )
+            elif self.gt_source == GroundTruthSource.MOTION_CAPTURE:
+                vicon_sample = self.dataset.get_vicon_data(0)
+                new_pose_m = np.array([vicon_sample[0], vicon_sample[1]])
+                rot = Rotation.from_quat([vicon_sample[4], vicon_sample[5], vicon_sample[6], vicon_sample[3]])
+                new_heading_rad = rot.as_euler('xyz', degrees=False)[2]
+                init_gt_points = np.empty(shape=(0,2)) #no init points
+                
+                self.gt_localizer.reset_odometry(
+                    pose=new_pose_m,
+                    heading_rad=new_heading_rad
+                )
 
         if self.localizer:
 
@@ -193,13 +211,30 @@ class _TestBench:
                 print("radar icp failed to find initial location, using est start pose")      
         
 
-        if show and self.gt_localizer:
-            self.plotter_localization.plot_detections_on_map(
-                current_points=init_gt_points,
-                heading_rad=new_heading_rad,
-                pose_m=new_pose_m,
-                show=show
-            )
+        if show:
+            if self.gt_localizer:
+                if self.gt_source == GroundTruthSource.MOTION_CAPTURE and init_points.shape[0] > 0:
+                    self.plotter_localization.plot_detections_on_map(
+                        current_points=init_points,
+                        heading_rad=new_heading_rad,
+                        pose_m=new_pose_m,
+                        show=show
+                    )
+                elif self.gt_source == GroundTruthSource.LIDAR:
+                    self.plotter_localization.plot_detections_on_map(
+                        current_points=init_gt_points,
+                        heading_rad=new_heading_rad,
+                        pose_m=new_pose_m,
+                        show=show
+                    )
+            
+            elif self.localizer:
+                self.plotter_localization.plot_detections_on_map(
+                    current_points=init_points,
+                    heading_rad=new_heading_rad,
+                    pose_m=new_pose_m,
+                    show=show
+                )
 
             #reset the last heading and pose
         self.latest_pose_m = new_pose_m
@@ -439,7 +474,7 @@ class _TestBench:
         """
         
         #align the points with the map
-        if point_cloud.shape[0] > 0:
+        if point_cloud.shape[0] > 0 and gt_pc.shape[0] > 0:
 
             #TODO: Check if this is needed (originally commented out)
             # aligned_points = rotation_functions.apply_rot_trans(
@@ -854,50 +889,70 @@ class _TestBench:
 
             #process lidar ground truth
             if gt_enabled and (self.gt_localizer is not None):
-                # update the lidar ground truth
-                gt_points = self.dataset.get_lidar_point_cloud_raw(idx=i)
-
-                #filter out ground, set z coordinate to 0 for remaining points
-                valid_points = gt_points[:,2] > -0.2 #filter out ground
-                valid_points = valid_points & (gt_points[:,2] < 0.1) #higher elevation points
-                gt_points = gt_points[valid_points,:3]
-                gt_points[:,2] = 0.0
-                
-                if self.use_filters:
-                    new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-                        points=gt_points[:,0:2],
-                        estimated_heading_rad=self.filter_gt.x[2],
-                        estimated_pose_m=np.array(
-                            [self.filter_gt.x[0],self.filter_gt.x[1]])
-                    )
-
-                    #perform a measurement
-                    self.filter_gt_perform_update(
-                        estimated_position_m=new_pose_m,
-                        estimated_heading_rad=new_heading_rad,
-                        t = self.filter_last_t
-                    )
-
-                    self.history_update_pose_gt(
-                        position_m=np.array(
-                            [self.filter_gt.x[0],self.filter_gt.x[1]]
-                        ),
-                        heading_rad=self.filter_gt.x[2],
-                        idx = i
-                    )
-                else:
-                    new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-                        points=gt_points[:,0:2],
-                        estimated_heading_rad=self.gt_localizer.current_heading_rad,
-                        estimated_pose_m=self.gt_localizer.current_pose_m.copy()
-                    )
-
-                    self.history_update_pose_gt(
-                        position_m=self.gt_localizer.current_pose_m.copy(),
-                        heading_rad=self.gt_localizer.current_heading_rad,
-                        idx = i
-                    )
-
+                if self.gt_source == GroundTruthSource.LIDAR:
+                    # update the lidar ground truth
+                    gt_points = self.dataset.get_lidar_point_cloud_raw(idx=i)
+    
+                    #filter out ground, set z coordinate to 0 for remaining points
+                    valid_points = gt_points[:,2] > -0.2 #filter out ground
+                    valid_points = valid_points & (gt_points[:,2] < 0.1) #higher elevation points
+                    gt_points = gt_points[valid_points,:3]
+                    gt_points[:,2] = 0.0
+                    
+                    if self.use_filters:
+                        new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                            points=gt_points[:,0:2],
+                            estimated_heading_rad=self.filter_gt.x[2],
+                            estimated_pose_m=np.array(
+                                [self.filter_gt.x[0],self.filter_gt.x[1]])
+                        )
+    
+                        #perform a measurement
+                        self.filter_gt_perform_update(
+                            estimated_position_m=new_pose_m,
+                            estimated_heading_rad=new_heading_rad,
+                            t = self.filter_last_t
+                        )
+    
+                        self.history_update_pose_gt(
+                            position_m=np.array(
+                                [self.filter_gt.x[0],self.filter_gt.x[1]]
+                            ),
+                            heading_rad=self.filter_gt.x[2],
+                            idx = i
+                        )
+                    else:
+                        new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                            points=gt_points[:,0:2],
+                            estimated_heading_rad=self.gt_localizer.current_heading_rad,
+                            estimated_pose_m=self.gt_localizer.current_pose_m.copy()
+                        )
+    
+                        self.history_update_pose_gt(
+                            position_m=self.gt_localizer.current_pose_m.copy(),
+                            heading_rad=self.gt_localizer.current_heading_rad,
+                            idx = i
+                        )
+                elif self.gt_source == GroundTruthSource.MOTION_CAPTURE:
+                    gt_points = np.empty(shape=(0,3))
+                    
+                    vicon_sample = self.dataset.get_vicon_data(i)
+                    if vicon_sample.shape[0] > 0:
+                        
+                        new_pose_m = np.array([vicon_sample[0], vicon_sample[1]])
+                        rot = Rotation.from_quat([vicon_sample[4], vicon_sample[5], vicon_sample[6], vicon_sample[3]])
+                        new_heading_rad = rot.as_euler('xyz', degrees=False)[2]
+                        
+                        self.history_update_pose_gt(
+                            position_m=new_pose_m,
+                            heading_rad=new_heading_rad,
+                            idx = i
+                        )
+                        
+                        # Disabled ground truth filtering per user request
+                        if self.use_filters:
+                            self.filter_gt.x[0:2] = new_pose_m
+                            self.filter_gt.x[2] = new_heading_rad
                 
             else:
                 gt_points = np.empty(shape=(0,3))

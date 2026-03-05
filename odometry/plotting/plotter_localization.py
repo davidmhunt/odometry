@@ -140,6 +140,23 @@ class PlotterLocalization:
             s=15.0,
             label="est position"
         )
+        
+        #plot an arrow showing heading direction
+        arrow_length = 3.0
+        dx = arrow_length * np.cos(heading_rad)
+        dy = arrow_length * np.sin(heading_rad)
+        ax.quiver(
+            pose_m[0],
+            pose_m[1],
+            dx,
+            dy,
+            angles="xy",
+            scale_units="xy",
+            scale=1,
+            color="cyan",
+            width=0.005,
+            label="heading"
+        )
 
         ax.set_title("Point cloud Detections: {}".format(aligned_points.shape[0]),fontsize=self.font_size_title)
         ax.set_xlim(

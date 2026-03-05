@@ -146,36 +146,36 @@ class _TestBench:
                           gyro_bias=-0.0024): #gyro bias for radnav dataset
         
 
-        if self.gt_localizer:
-            if self.gt_source == GroundTruthSource.LIDAR:
-                #load the map points into the localizers
-                self.gt_localizer.load_map_point_cloud(
-                    map_points=self.map_handler.map_points
-                )
-    
-                #get the first points in the gt point cloud
-                init_gt_points = self.dataset.get_lidar_point_cloud(idx=0)
-    
-                new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
-                    points=init_gt_points,
-                    estimated_heading_rad=est_start_heading_rad,
-                    estimated_pose_m=est_start_pose_m
-                )
-    
-                print("gt icp estimated heading:{} deg, pose:{}".format(
-                    np.rad2deg(new_heading_rad),new_pose_m))
+        if self.gt_source == GroundTruthSource.LIDAR and self.gt_localizer:
+            #load the map points into the localizers
+            self.gt_localizer.load_map_point_cloud(
+                map_points=self.map_handler.map_points
+            )
+
+            #get the first points in the gt point cloud
+            init_gt_points = self.dataset.get_lidar_point_cloud(idx=0)
+
+            new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
+                points=init_gt_points,
+                estimated_heading_rad=est_start_heading_rad,
+                estimated_pose_m=est_start_pose_m
+            )
+
+            print("gt icp estimated heading:{} deg, pose:{}".format(
+                np.rad2deg(new_heading_rad),new_pose_m))
+        
+            self.gt_localizer.reset_odometry(
+                pose=new_pose_m,
+                heading_rad=new_heading_rad
+            )
+        elif self.gt_source == GroundTruthSource.MOTION_CAPTURE:
+            vicon_sample = self.dataset.get_vicon_data(0)
+            new_pose_m = np.array([vicon_sample[0], vicon_sample[1]])
+            rot = Rotation.from_quat([vicon_sample[4], vicon_sample[5], vicon_sample[6], vicon_sample[3]])
+            new_heading_rad = rot.as_euler('xyz', degrees=False)[2]
+            init_gt_points = np.empty(shape=(0,2)) #no init points
             
-                self.gt_localizer.reset_odometry(
-                    pose=new_pose_m,
-                    heading_rad=new_heading_rad
-                )
-            elif self.gt_source == GroundTruthSource.MOTION_CAPTURE:
-                vicon_sample = self.dataset.get_vicon_data(0)
-                new_pose_m = np.array([vicon_sample[0], vicon_sample[1]])
-                rot = Rotation.from_quat([vicon_sample[4], vicon_sample[5], vicon_sample[6], vicon_sample[3]])
-                new_heading_rad = rot.as_euler('xyz', degrees=False)[2]
-                init_gt_points = np.empty(shape=(0,2)) #no init points
-                
+            if self.gt_localizer:
                 self.gt_localizer.reset_odometry(
                     pose=new_pose_m,
                     heading_rad=new_heading_rad
@@ -212,22 +212,21 @@ class _TestBench:
         
 
         if show:
-            if self.gt_localizer:
-                if self.gt_source == GroundTruthSource.MOTION_CAPTURE and init_points.shape[0] > 0:
+            if self.gt_source == GroundTruthSource.MOTION_CAPTURE:
+                if init_points.shape[0] > 0:
                     self.plotter_localization.plot_detections_on_map(
                         current_points=init_points,
                         heading_rad=new_heading_rad,
                         pose_m=new_pose_m,
                         show=show
                     )
-                elif self.gt_source == GroundTruthSource.LIDAR:
-                    self.plotter_localization.plot_detections_on_map(
-                        current_points=init_gt_points,
-                        heading_rad=new_heading_rad,
-                        pose_m=new_pose_m,
-                        show=show
-                    )
-            
+            elif self.gt_source == GroundTruthSource.LIDAR and self.gt_localizer:
+                self.plotter_localization.plot_detections_on_map(
+                    current_points=init_gt_points,
+                    heading_rad=new_heading_rad,
+                    pose_m=new_pose_m,
+                    show=show
+                )
             elif self.localizer:
                 self.plotter_localization.plot_detections_on_map(
                     current_points=init_points,
@@ -888,8 +887,8 @@ class _TestBench:
                     gt_enabled=gt_enabled)
 
             #process lidar ground truth
-            if gt_enabled and (self.gt_localizer is not None):
-                if self.gt_source == GroundTruthSource.LIDAR:
+            if gt_enabled and (self.gt_localizer is not None or self.gt_source == GroundTruthSource.MOTION_CAPTURE):
+                if self.gt_source == GroundTruthSource.LIDAR and self.gt_localizer:
                     # update the lidar ground truth
                     gt_points = self.dataset.get_lidar_point_cloud_raw(idx=i)
     

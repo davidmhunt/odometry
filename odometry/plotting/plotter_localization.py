@@ -15,7 +15,7 @@ class PlotterLocalization:
         self.font_size_ticks = 12
         self.font_size_legend = 12
         self.plot_x_max = 10
-        self.plot_y_max = 20
+        self.plot_y_max = 10
         self.marker_size = 10
 
         #particle filter specific

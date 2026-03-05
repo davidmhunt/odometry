@@ -508,6 +508,9 @@ class _TestBench:
             self.history_pc_quality_num_quality_points.append(
                 np.sum(distances[:,0] < self.pc_quality_dist_thresh_m)
             )
+        else:
+            self.history_pc_quality_distances.append(np.array([-1]))
+            self.history_pc_quality_num_quality_points.append(0)
     
     ####################################################################
     #Histories (timing measurement)
@@ -611,10 +614,6 @@ class _TestBench:
                 qy = quat[1]
                 qz = quat[2]
                 qw = quat[3]
-                
-                # Invert Y and Z for NED to FLU position
-                # y = -y
-                # z = -z
 
             #create a Pose object for the current sample
             current_sample_pose = Pose(
@@ -812,9 +811,6 @@ class _TestBench:
             qy = quat[1]
             qz = quat[2]
             qw = quat[3]
-            
-            y = -y
-            z = -z
 
         self.previous_vehicle_odom_pose = Pose(
             position=Position(
@@ -863,7 +859,8 @@ class _TestBench:
         
         # Rotation
         rot = transformation.rotation #np.ndarray
-        dtheta = Rotation.from_quat(rot).as_euler('xyz', degrees=False)[2]
+
+        dtheta = 1 * Rotation.from_quat(rot).as_euler('xyz', degrees=False)[2]
         
         body_delta = BodyDelta(
             dx=dx_body,

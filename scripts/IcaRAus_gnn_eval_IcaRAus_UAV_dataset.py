@@ -41,8 +41,8 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_gnn_two_stream_IcaRAus_ds_{}fh_k_4".format(num_frames_history)
-results_parent_folder = "{}_train".format(config_label)
+config_label = "IcaRAus_gnn_two_stream_IcaRAus_UAV_flow_ds_{}fh_k_4".format(num_frames_history)
+results_parent_folder = "{}_eval".format(config_label)# _eval or _train
 
 
 datasets_to_test = {
@@ -53,6 +53,12 @@ datasets_to_test = {
             "vicon_box_2",
             "vicon_box_3",
             "vicon_box_4"
+          ]
+     },
+     "vicon_diamond":{
+          "map":"north_vicon_1.yaml",
+          "datasets":[
+            "vicon_diamond_1"
           ]
      }
 }
@@ -240,6 +246,7 @@ def analyze_dataset(
         ax=axs,
         show=False
     )
+    print("saving position history plot to: {}/{}.png".format(position_history_folder,file_name))
     fig.savefig("{}/{}.png".format(position_history_folder,file_name))
 
 

@@ -1,6 +1,7 @@
 import numpy as np
 
 from geometries.transforms.transformation import Transformation
+from scipy.spatial import cKDTree
 
 class PcAccumulator:
     """
@@ -212,9 +213,14 @@ class PcAccumulator:
             if normalize_frames:
                 nodes[:,3] = nodes[:,3] / self.num_frames_history
 
-            label = np.array(
-                [np.any(np.all(p == self.gt_points, axis=1)) for p in self.points]
-            ) if self.gt_points.size > 0 else np.zeros(len(self.points), dtype=bool)
+            if self.gt_points.size > 0:
+                tree = cKDTree(self.gt_points)
+                dists, _ = tree.query(self.points, distance_upper_bound=1e-5)
+                label = dists <= 1e-5
+            else:
+                label = np.zeros(len(self.points), dtype=bool)
+            
+            
 
             return nodes, label
 
@@ -243,10 +249,14 @@ class PcAccumulator:
         """
         if gt_points.shape[1] == 3 and dets.shape[1] == 3:
             
-            #get the current set of points
-            dists = np.linalg.norm(gt_points[:, None, :] - dets[None, :, :], axis=-1)  
-            # Find points in gt_points that have at least one match in detected_pts within the threshold
-            mask = np.any(dists <= threshold, axis=0)
+            if gt_points.shape[0] == 0 or dets.shape[0] == 0:
+                return np.empty(shape=(0, 3))
+            
+            # Use cKDTree for efficient nearest neighbor search
+            tree = cKDTree(gt_points)
+            dists, _ = tree.query(dets, distance_upper_bound=threshold)
+            
+            mask = dists <= threshold
             dets = dets[mask]
 
             return dets

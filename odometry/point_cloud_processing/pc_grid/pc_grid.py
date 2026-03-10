@@ -2,6 +2,7 @@ import numpy as np
 
 from geometries.transforms.transformation import Transformation
 from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
+from scipy.spatial import cKDTree
 
 class PCGrid:
     """Basic point cloud grid
@@ -261,10 +262,14 @@ class PCGrid:
         #append a column of grid detections to make detection array 2D
         if gt_points.shape[1] == 3 and dets.shape[1] == 3:
             
-            #get the current set of points
-            dists = np.linalg.norm(gt_points[:, None, :] - dets[None, :, :], axis=-1)  
-            # Find points in gt_points that have at least one match in detected_pts within the threshold
-            mask = np.any(dists <= threshold, axis=0)
+            if gt_points.shape[0] == 0 or dets.shape[0] == 0:
+                return np.empty(shape=(0, 3))
+            
+            # Use cKDTree for efficient nearest neighbor search
+            tree = cKDTree(gt_points)
+            dists, _ = tree.query(dets, distance_upper_bound=threshold)
+            
+            mask = dists <= threshold
             dets = dets[mask]
 
             return dets

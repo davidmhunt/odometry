@@ -22,6 +22,7 @@ from mmwave_model_integrator.torch_training.models.TwoStreamSpatioTemporalGnn im
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
 from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
+
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
 
@@ -34,53 +35,43 @@ load_dotenv()
 # MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 # GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-DATASET_PATH = "/data/IcaRAus/datasets/UGV"
+DATASET_PATH = "/data/IcaRAus/datasets/UAV/Flow_datasets"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
 GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_ugv_gnn_{}fh_wilk_cpsl_north_vicon".format(num_frames_history)
-results_parent_folder = "{}_train".format(config_label)
+config_label = "IcaRAus_gnn_two_stream_IcaRAus_UAV_flow_ds_{}fh_k_4".format(num_frames_history)
+results_parent_folder = "{}_eval".format(config_label)# _eval or _train
 
 
 datasets_to_test = {
-     "WILK":{
-          "map":"wilk_map.yaml",
+     "vicon_box":{
+          "map":"north_vicon_1.yaml",
           "datasets":[
-            "IcaRAus_ugv_wilk_1_5m",
-            # "IcaRAus_ugv_wilk_2_5m",
-            # "IcaRAus_ugv_wilk_3_5m"
+            "vicon_box_1",
+            "vicon_box_2",
+            "vicon_box_3",
+            "vicon_box_4",
+            "vicon_box_5"
           ]
      },
-     "CPSL":{
-         "map":"cpsl_map.yaml",
-         "datasets":[
-             'IcaRAus_ugv_cpsl_1_5m',
-            #  'IcaRAus_ugv_cpsl_2_5m',
-            #  'IcaRAus_ugv_cpsl_3_5m',
-         ]
+     "vicon_diamond":{
+          "map":"north_vicon_1.yaml",
+          "datasets":[
+            "vicon_diamond_1"
+          ]
      },
-     "NORTH_1st":{
-         "map":"north_1st_map.yaml",
-         "datasets":[
-            #  'north_1st_1',
-            #  'north_1st_2',
-            #  'north_1st_3',
-            #  'north_1st_4',
-            #  'north_1st_5'
-         ]
-     },
-     "NORTH_VICON":{
-         "map":"north_vicon_1.yaml",
-         "datasets":[
-             'north_vicon_1',
-             'north_vicon_2',
-            #  'north_vicon_3',
-            #  'north_vicon_4',
-            #  'north_vicon_5'
-         ]
-     },
+     "vicon_box_rotate":{
+        "map":"north_vicon_1.yaml",
+        "datasets":[
+            "vicon_box_rotate_1",
+            "vicon_box_rotate_2",
+            "vicon_box_rotate_3",
+            # "vicon_box_rotate_4", #didn't contain flow data
+            # "vicon_box_rotate_5" #didn't contain flow data
+        ]
+     }
 }
 
 def create_dir(path):
@@ -89,20 +80,20 @@ def create_dir(path):
             os.makedirs(path)
         return
 
-def generate_gnn_dataset(
+def analyze_dataset(
         folder_name,
         file_name,
         map_file,
-        generate_movie=False,
-        clear_existing_train_data=False):
+        generate_movie=False):
 
     #initialize the dataset
     dataset = CpslDS(
         dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
         radar_pc_folder="radar_combined_pc",
-        lidar_folder="lidar",
-        camera_folder="camera",
-        vehicle_odom_folder="vehicle_odom"
+        # lidar_folder="lidar",
+        # camera_folder="camera",
+        vehicle_odom_folder="vehicle_odom",
+        vicon_folder="vicon_x500_8"
     )
 
     #initialize the map handler
@@ -112,20 +103,20 @@ def generate_gnn_dataset(
     )
 
     #initialize the dataset encoders
-    input_encoder = _NodeEncoder()
-    gt_encoder = _GTNodeEncoder()
+    # input_encoder = _NodeEncoder()
+    # gt_encoder = _GTNodeEncoder()
 
     #initialize the dataset generator
-    generated_dataset_path = os.path.join(GENERATED_DATASETS_PATH,"{}_train".format(config_label))
-    dataset_generator = _OnlineDatasetGenerator(
-        generated_dataset_path=generated_dataset_path,
-        input_encoder=input_encoder,
-        ground_truth_encoder=gt_encoder,
-        generated_file_name="frame",
-        input_encoding_folder="nodes",
-        ground_truth_encoding_folder="labels",
-        clear_existing_data=clear_existing_train_data
-    )
+    # generated_dataset_path = os.path.join(GENERATED_DATASETS_PATH,"{}_train".format(config_label))
+    # dataset_generator = _OnlineDatasetGenerator(
+    #     generated_dataset_path=generated_dataset_path,
+    #     input_encoder=input_encoder,
+    #     ground_truth_encoder=gt_encoder,
+    #     generated_file_name="frame",
+    #     input_encoding_folder="nodes",
+    #     ground_truth_encoding_folder="labels",
+    #     clear_existing_data=clear_existing_train_data
+    # )
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
@@ -148,23 +139,40 @@ def generate_gnn_dataset(
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
-    #initialize the probabilistic point cloud grid
-    point_cloud_integrator = _PointCloudIntegrator(
-        gt_distance_threshold_m=0.25,
+    model = TwoStreamSpatioTemporalGnn(
+        hidden_channels=28,
+        out_channels=1,
+        k=4, #original is 40
+        dropout=0.1
+    )
+
+    runner = GNNRunner(
+        model= model,
+        state_dict_path = "/home/david/Downloads/IcaRAus_TwoStreamSpatioTemporalGnn_IcaRAus_ds_50fh_k4.pth",
+        cuda_device="cpu",
+        edge_radius=10.0, #unused for this model
+        enable_downsampling=True,
+        downsample_keep_ratio=0.50,
+        downsample_min_points=300,
+        use_sigmoid=True
+    )
+
+    point_cloud_integrator = _PointCloudIntegratorGnnRunner(
+        gnn_runner=runner,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=5.0, #originally 5.0
+        max_detection_radius=4.0,
+        normalize_frames=True
     )
-    # point_cloud_integrator = RagnnarokPointCloudIntegrator(
-    #     grid_resolution_m_prob=0.1,
-    #     grid_max_distance_m_prob=5.0,
-    #     num_frames_history_prob=num_frames_history,
-    #     grid_resolution_m_hist=0.1,
-    #     grid_max_distance_m_hist=5.0,
-    #     num_frames_history_hist=num_frames_history,
-    #     min_detection_radius=0.25,
-    #     max_detection_radius=20.0, #originally 5.0   
-    # )
+
+    #dynamic point cloud integrator
+    dynamic_point_cloud_integrator = _PointCloudIntegrator(
+        gt_distance_threshold_m=0.5,
+        num_frames_history=num_frames_history,
+        min_detection_radius=1.0,
+        max_detection_radius=4.0
+    )
+
     #initialize the test bench
     test_bench = PointCloudIntegratorTB(
         localizer=radar_odometry,
@@ -172,11 +180,12 @@ def generate_gnn_dataset(
         map_handler=map_handler,
         dataset=dataset,
         point_cloud_integrator=point_cloud_integrator,
-        model_dataset_generator=dataset_generator,
+        dynamic_point_cloud_integrator=dynamic_point_cloud_integrator,
+        model_dataset_generator=None,
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
-        gt_source=GroundTruthSource.LIDAR,
-        odom_frame=OdomCoordinateFrame.FLU
+        gt_source=GroundTruthSource.MOTION_CAPTURE,
+        odom_frame=OdomCoordinateFrame.NED
     )
     start_heading = np.deg2rad(0)
     start_pose = np.array([0.00,0.00])
@@ -196,7 +205,7 @@ def generate_gnn_dataset(
         gyro_bias=-0.0024 #irrelevant here as using odom samples
     )
 
-    if generate_movie: #generate_movie:
+    if generate_movie:
         #loading directory from .env file
         MOVIE_TEMP_DIRECTORY = os.getenv("MOVIE_TEMP_DIRECTORY")
 
@@ -214,7 +223,7 @@ def generate_gnn_dataset(
         create_dir(movie_folder)
         movie_generator.start_movie(
             video_file_name="{}/{}.mp4".format(movie_folder,file_name),
-            fps=20
+            fps=10
         )
     else:
         movie_generator=None
@@ -225,7 +234,7 @@ def generate_gnn_dataset(
         max_frame=end_idx,
         gt_enabled=True,
         movie_generator=movie_generator,
-        generate_dataset=True,
+        generate_dataset=False,
         normalize_frames=normalize_frames)
     
     if generate_movie:
@@ -252,25 +261,22 @@ def generate_gnn_dataset(
         ax=axs,
         show=False
     )
+    print("saving position history plot to: {}/{}.png".format(position_history_folder,file_name))
     fig.savefig("{}/{}.png".format(position_history_folder,file_name))
 
 
 if __name__ == "__main__":
-    clear_existing_train_data = True
     for folder_name in datasets_to_test.keys():
          map_name = datasets_to_test[folder_name]["map"]
          for file_name in datasets_to_test[folder_name]["datasets"]:
             print("analyzing: {}".format(file_name))
             
-            generate_gnn_dataset(
+            analyze_dataset(
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=False,
-                clear_existing_train_data=clear_existing_train_data
+                generate_movie=True,
             )
-
-            clear_existing_train_data = False
     
     analyzer = Analyzer()
     analyzer.show_cumulative_summary_from_csvs(

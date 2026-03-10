@@ -608,12 +608,16 @@ class _TestBench:
             if self.odom_frame == OdomCoordinateFrame.NED:
                 rot = Rotation.from_quat([qx, qy, qz, qw])
                 rot_180_x = Rotation.from_euler('x', 180, degrees=True)
-                rot = rot_180_x * rot
+                rot = rot_180_x * rot * rot_180_x
                 quat = rot.as_quat()
                 qx = quat[0]
                 qy = quat[1]
                 qz = quat[2]
                 qw = quat[3]
+
+                x = x
+                y = -y
+                z = -z
 
             #create a Pose object for the current sample
             current_sample_pose = Pose(
@@ -803,14 +807,19 @@ class _TestBench:
         qz = initial_odom_data[6]
 
         if self.odom_frame == OdomCoordinateFrame.NED:
-            rot = Rotation.from_quat([qx, qy, qz, qw])
-            rot_180_x = Rotation.from_euler('x', 180, degrees=True)
-            rot = rot_180_x * rot
-            quat = rot.as_quat()
-            qx = quat[0]
-            qy = quat[1]
-            qz = quat[2]
-            qw = quat[3]
+                rot = Rotation.from_quat([qx, qy, qz, qw])
+                rot_180_x = Rotation.from_euler('x', 180, degrees=True)
+                rot = rot_180_x * rot * rot_180_x
+                quat = rot.as_quat()
+                qx = quat[0]
+                qy = quat[1]
+                qz = quat[2]
+                qw = quat[3]
+
+                #convert translation from NED to FLU
+                x = x
+                y = -y
+                z = -z
 
         self.previous_vehicle_odom_pose = Pose(
             position=Position(

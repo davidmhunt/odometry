@@ -90,12 +90,23 @@ vicon_history = np.array(vicon_history)
 odom_rot = Rotation.from_quat(odom_history[:, [5, 6, 7, 4]])
 vicon_rot = Rotation.from_quat(vicon_history[:, [4, 5, 6, 3]])
 
+# Apply 180 degree rotation about x-axis to Odometry (NED -> FLU)
+rot_180_x = Rotation.from_euler('x', 180, degrees=True)
+# Pre-multiply changes the World frame (NED->FLU), Post-multiply changes the Body frame (FRD->FLU)
+odom_rot = rot_180_x * odom_rot * rot_180_x
+# odom_rot = rot_180_x * odom_rot
+
+# Convert Odometry Translation from NED to FLU
+odom_pos_flu = odom_history[:, 1:4].copy()
+odom_pos_flu[:, 1] = -odom_pos_flu[:, 1]  # Y: East to Left
+odom_pos_flu[:, 2] = -odom_pos_flu[:, 2]  # Z: Down to Up
+
 # Calculate initial offset for alignment
 odom_rot_0 = odom_rot[0]
 vicon_rot_0 = vicon_rot[0]
 rot_align = odom_rot_0 * vicon_rot_0.inv()
 
-odom_pos_0 = odom_history[0, 1:4]
+odom_pos_0 = odom_pos_flu[0]
 vicon_pos_0 = vicon_history[0, 0:3]
 trans_align = odom_pos_0 - rot_align.apply(vicon_pos_0)
 
@@ -117,21 +128,21 @@ fig.suptitle(f"Odometry vs MOCAP (Aligned): {file_name}")
 t = odom_history[:, 0] - odom_history[0, 0]
 
 # Pos X
-axs[0, 0].plot(t, odom_history[:, 1], label='Odom (GNN)')
+axs[0, 0].plot(t, odom_pos_flu[:, 0], label='Odom (GNN)')
 axs[0, 0].plot(t, vicon_pos_aligned[:, 0], label='Vicon (Aligned)')
 axs[0, 0].set_ylabel('X Position (m)')
 axs[0, 0].legend()
 axs[0, 0].grid(True)
 
 # Pos Y
-axs[1, 0].plot(t, odom_history[:, 2], label='Odom (GNN)')
+axs[1, 0].plot(t, odom_pos_flu[:, 1], label='Odom (GNN)')
 axs[1, 0].plot(t, vicon_pos_aligned[:, 1], label='Vicon (Aligned)')
 axs[1, 0].set_ylabel('Y Position (m)')
 axs[1, 0].legend()
 axs[1, 0].grid(True)
 
 # Pos Z
-axs[2, 0].plot(t, odom_history[:, 3], label='Odom (GNN)')
+axs[2, 0].plot(t, odom_pos_flu[:, 2], label='Odom (GNN)')
 axs[2, 0].plot(t, vicon_pos_aligned[:, 2], label='Vicon (Aligned)')
 axs[2, 0].set_ylabel('Z Position (m)')
 axs[2, 0].set_xlabel('Time (s)')

@@ -92,7 +92,7 @@ class PointCloudIntegratorTB(_TestBench):
             )
 
         if self.generate_dataset:
-
+            
             nodes,labels = self.point_cloud_integrator.get_nodes(normalize_frames=self.normalize_frames)
 
             if nodes.shape[0]>0:

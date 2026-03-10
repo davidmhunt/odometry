@@ -35,13 +35,13 @@ load_dotenv()
 # MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 # GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-DATASET_PATH = "/data/IcaRAus/datasets/UAV/Flow_datasets"
+DATASET_PATH = "/data/IcaRAus/datasets/UAV/Radar_datasets"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
 GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_gnn_two_stream_IcaRAus_UAV_flow_ds_{}fh_k_4".format(num_frames_history)
+config_label = "IcaRAus_gnn_two_stream_IcaRAus_UAV_radar_ds_{}fh_k_4".format(num_frames_history)
 results_parent_folder = "{}_eval".format(config_label)# _eval or _train
 
 
@@ -50,16 +50,34 @@ datasets_to_test = {
           "map":"north_vicon_1.yaml",
           "datasets":[
             "vicon_box_1",
-            "vicon_box_2",
+            "vicon_box_2_video",
             "vicon_box_3",
-            "vicon_box_4"
+            "vicon_box_4",
+            "vicon_box_5"
           ]
      },
-     "vicon_diamond":{
+    #  "vicon_diamond":{
+    #       "map":"north_vicon_1.yaml",
+    #       "datasets":[
+    #         "vicon_diamond_1"
+    #       ]
+    #  },
+     "vicon_cross":{
           "map":"north_vicon_1.yaml",
           "datasets":[
-            "vicon_diamond_1"
+            "vicon_cross_1",
+            "vicon_cross_2"
           ]
+     },
+     "vicon_box_rotate":{
+        "map":"north_vicon_1.yaml",
+        "datasets":[
+            "vicon_box_rotate_1",
+            # "vicon_box_rotate_2", #didn't contain vicon data
+            # "vicon_box_rotate_3",
+            # "vicon_box_rotate_4", #didn't contain flow data
+            # "vicon_box_rotate_5" #didn't contain flow data
+        ]
      }
 }
 
@@ -212,7 +230,7 @@ def analyze_dataset(
         create_dir(movie_folder)
         movie_generator.start_movie(
             video_file_name="{}/{}.mp4".format(movie_folder,file_name),
-            fps=20
+            fps=10
         )
     else:
         movie_generator=None

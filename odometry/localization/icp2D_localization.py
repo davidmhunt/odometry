@@ -84,4 +84,6 @@ class icp2DLocalization(icp2D):
 
             return new_heading_rad,new_pose_m
         else:
-            return None,None
+            self.current_heading_rad = estimated_heading_rad
+            self.current_pose_m = estimated_pose_m
+            return estimated_heading_rad,estimated_pose_m

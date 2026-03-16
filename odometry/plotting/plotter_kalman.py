@@ -31,12 +31,20 @@ class PlotterKalman:
                          fontsize=self.font_size_title)
         
         #plot the states individually
-        for i, title in zip(range(1, 5), ["X", "Y", "Phi", "Speed"]):
+        for i, title in zip(range(1, 4), ["X", "Y", "Phi"]):
             axs[i].plot(x_history[:idx,i - 1])
             if p_history is not None:
                 axs[i].plot(x_history[:idx, i - 1] + p_history[:idx, i - 1], "r--")
                 axs[i].plot(x_history[:idx, i - 1] - p_history[:idx, i - 1], "r--")
             axs[i].set_title(title)
+        
+        if len(x_history[0,:]) > 3:
+            for i, title in zip(range(4, 5), ["Speed"]):
+                axs[i].plot(x_history[:idx,i - 1])
+                if p_history is not None:
+                    axs[i].plot(x_history[:idx, i - 1] + p_history[:idx, i - 1], "r--")
+                    axs[i].plot(x_history[:idx, i - 1] - p_history[:idx, i - 1], "r--")
+                axs[i].set_title(title)
         
         #plot biases if available
         if len(x_history[0, :]) > 4:

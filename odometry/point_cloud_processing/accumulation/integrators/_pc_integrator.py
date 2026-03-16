@@ -66,6 +66,9 @@ class _PointCloudIntegrator:
             num_frames_history=num_frames_history
         )
 
+        self.num_frames_history = num_frames_history
+        self.num_frames_captured = 0
+
     def reset(self): 
         """
         Reset the integrator state.
@@ -74,6 +77,16 @@ class _PointCloudIntegrator:
         """
 
         self.raw_point_history.reset()
+        self.num_frames_captured = 0
+    
+    def check_valid_num_frames(self) -> bool:
+        """
+        Check if the number of frames captured is valid.
+
+        Returns:
+            bool: True if the number of frames captured is valid, False otherwise.
+        """
+        return self.num_frames_captured >= self.num_frames_history  
 
 
     def add_points(
@@ -119,6 +132,8 @@ class _PointCloudIntegrator:
         #save the previous pose
         self.previous_pose = current_pose
 
+        self.num_frames_captured += 1
+
     def get_points(self) -> np.ndarray:
         """
         Retrieve the integrated points.
@@ -128,6 +143,8 @@ class _PointCloudIntegrator:
             raw point history if not overridden.
         """
         #should be overridden by child classes
+        if not self.check_valid_num_frames():
+            return np.empty(shape=(0,3))
         return self.raw_point_history.get_points()
     
     def get_gt_points(self) -> np.ndarray:
@@ -137,6 +154,8 @@ class _PointCloudIntegrator:
         Returns:
             np.ndarray: Array of ground truth points.
         """
+        if not self.check_valid_num_frames():
+            return np.empty(shape=(0,3))
         return self.raw_point_history.get_gt_points()
     
     def get_raw_point_history(self) -> np.ndarray:

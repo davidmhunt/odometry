@@ -214,7 +214,7 @@ def generate_gnn_dataset(
         create_dir(movie_folder)
         movie_generator.start_movie(
             video_file_name="{}/{}.mp4".format(movie_folder,file_name),
-            fps=20
+            fps=10
         )
     else:
         movie_generator=None

@@ -99,6 +99,8 @@ class _TestBench:
         #localization histories
         self.history_position_m = None
         self.history_heading_deg = None
+        self.history_position_m_inertial = None
+        self.history_heading_deg_inertial = None
         self.history_position_m_gt = None
         self.history_heading_deg_gt = None
         self.history_localizers_reset()
@@ -148,6 +150,7 @@ class _TestBench:
     def init_localization(self,
                           est_start_heading_rad,
                           est_start_pose_m,
+                          start_frame=0,
                           show = False,
                           gyro_bias=-0.0024): #gyro bias for radnav dataset
         
@@ -164,7 +167,7 @@ class _TestBench:
             )
 
             #get the first points in the gt point cloud
-            init_gt_points = self.dataset.get_lidar_point_cloud(idx=0)
+            init_gt_points = self.dataset.get_lidar_point_cloud(idx=start_frame)
 
             new_heading_rad,new_pose_m = self.gt_localizer.update_odometry(
                 points=init_gt_points,
@@ -180,7 +183,7 @@ class _TestBench:
                 heading_rad=new_heading_rad
             )
         elif self.gt_source == GroundTruthSource.MOTION_CAPTURE:
-            vicon_sample = self.dataset.get_vicon_data(0)
+            vicon_sample = self.dataset.get_vicon_data(start_frame)
             new_pose_m = np.array([vicon_sample[0], vicon_sample[1]])
             rot = Rotation.from_quat([vicon_sample[4], vicon_sample[5], vicon_sample[6], vicon_sample[3]])
             new_heading_rad = rot.as_euler('xyz', degrees=False)[2]
@@ -200,7 +203,7 @@ class _TestBench:
             )
 
             #get the first points in the localizer point cloud
-            init_points = self.dataset.get_radar_point_cloud(idx=0)
+            init_points = self.dataset.get_radar_point_cloud(idx=start_frame)
             init_points = init_points[:,:2]
 
             if not self.gt_localizer:
@@ -255,12 +258,14 @@ class _TestBench:
             self.init_filter(
                 est_start_heading_rad=new_heading_rad,
                 est_start_position_m=new_pose_m,
-                start_time_s = self.get_dataset_start_time(idx=0),
+                start_time_s = self.get_dataset_start_time(idx=start_frame),
                 gyro_bias=gyro_bias
             )
         
         if self.prediction_source == PredictionSource.VEHICLE_ODOM:
-            self.init_vehicle_odometry()
+            self.init_vehicle_odometry(
+                start_frame=start_frame
+            )
         
         return new_heading_rad,new_pose_m
     
@@ -268,6 +273,7 @@ class _TestBench:
                     est_start_heading_rad:float,
                     est_start_position_m:np.ndarray,
                     start_time_s:float,
+                    start_frame:int=0,
                     gyro_bias:float = 0.0):
         
         #declare initial state [x,y,phi,speed,gyro bias, encoder bias]
@@ -281,7 +287,7 @@ class _TestBench:
         ])
 
         #declare initial state covariance matrix originally [5,5,0.1,1,1e-2,1e-2])
-        P0 = np.diag([5,5,0.1,1,1e-7,1e-2])
+        P0 = np.diag([0.5,0.5,0.1,1,1e-7,1e-2])
 
         if self.prediction_source == PredictionSource.VEHICLE_ODOM:
              self.filter_gt = KalmanXYPhi(
@@ -308,7 +314,7 @@ class _TestBench:
 
              #reset filter time
              self.filter_last_t = \
-                self.dataset.get_vehicle_odom_data(idx=0)[0,0]
+                self.dataset.get_vehicle_odom_data(idx=start_frame)[0,0]
 
         elif self.prediction_source == PredictionSource.IMU_AND_VEL:
             #filter for gt
@@ -340,7 +346,7 @@ class _TestBench:
 
             #reset filter time
             self.filter_last_t = \
-                self.dataset.get_imu_full_data(idx=0)[0,0]
+                self.dataset.get_imu_full_data(idx=start_frame)[0,0]
 
         #define the observation noise
         # self.filter_R = np.diag([1.0,1.0,1.0]) ** 2 #original values
@@ -349,6 +355,47 @@ class _TestBench:
 
         #reset filter histories
         self.history_filters_reset()
+    
+    def get_takeoff_frame(self,takeoff_altitude_m:float=0.5)->int:
+        """Get the frame index of the takeoff point
+
+        Args:
+            takeoff_altitude_m (float): the takeoff altitude
+
+        Returns:
+            int: the frame index of the takeoff point
+        """
+        
+
+        take_off_frame_detected = False
+        takeoff_frame_idx = 0
+
+        while not take_off_frame_detected:
+
+            #get the altitude:
+            assert takeoff_frame_idx < self.dataset.num_frames, "failed to detect takeoff"
+
+
+            altitude = self.get_odom_frame_as_pose(
+                    frame_idx=takeoff_frame_idx,
+                    sample_idx=0
+                ).position.z
+
+            if self.odom_frame == OdomCoordinateFrame.NED:
+                altitude = -1 * altitude
+            
+            if altitude > takeoff_altitude_m:
+                take_off_frame_detected = True
+                print("takeoff frame: {}".format(takeoff_frame_idx))
+                print("altitude: {}, takeoff altitude: {}".format(
+                    altitude,takeoff_altitude_m
+                ))
+                break
+            
+            else:
+                takeoff_frame_idx += 1
+        
+        return takeoff_frame_idx
             
     ####################################################################
     #Histories (localizers)
@@ -360,10 +407,12 @@ class _TestBench:
 
         #reset the pose histories
         self.history_position_m = np.zeros(shape=(n,2),dtype=np.double)
+        self.history_position_m_inertial = np.zeros(shape=(n,2),dtype=np.double)
         self.history_position_m_gt = np.zeros(shape=(n,2),dtype=np.double)
 
         #reset the orientation histories
         self.history_heading_deg = np.zeros(shape=(n),dtype=np.double)
+        self.history_heading_deg_inertial = np.zeros(shape=(n),dtype=np.double)
         self.history_heading_deg_gt = np.zeros(shape=(n),dtype=np.double)
     
     def history_update_pose(self,
@@ -379,6 +428,20 @@ class _TestBench:
         """
         self.history_position_m[idx] = position_m
         self.history_heading_deg[idx] = np.rad2deg(heading_rad)
+    
+    def history_update_pose_inertial(self,
+                                position_m:np.ndarray,
+                                heading_rad:np.ndarray,
+                                idx:int):
+        """Update the pose history for the inertial localizer
+
+        Args:
+            position_m (np.ndarray): the position from the localizer
+            heading_rad (np.ndarray): the heading from the localizer
+            idx (int): the index of the sample from the dataset
+        """
+        self.history_position_m_inertial[idx] = position_m
+        self.history_heading_deg_inertial[idx] = np.rad2deg(heading_rad)
     
     def history_update_pose_gt(self,
                                 position_m:np.ndarray,
@@ -596,42 +659,9 @@ class _TestBench:
             #compute dt
             dt = current_time - self.filter_last_t
             
-            x = current_sample_data[1]
-            y = current_sample_data[2]
-            z = current_sample_data[3]
-            
-            qw = current_sample_data[4]
-            qx = current_sample_data[5]
-            qy = current_sample_data[6]
-            qz = current_sample_data[7]
-
-            if self.odom_frame == OdomCoordinateFrame.NED:
-                rot = Rotation.from_quat([qx, qy, qz, qw])
-                rot_180_x = Rotation.from_euler('x', 180, degrees=True)
-                rot = rot_180_x * rot * rot_180_x
-                quat = rot.as_quat()
-                qx = quat[0]
-                qy = quat[1]
-                qz = quat[2]
-                qw = quat[3]
-
-                x = x
-                y = -y
-                z = -z
-
-            #create a Pose object for the current sample
-            current_sample_pose = Pose(
-                position=Position(
-                    x=x,
-                    y=y,
-                    z=z
-                ),
-                orientation=Orientation(
-                    qw=qw,
-                    qx=qx,
-                    qy=qy,
-                    qz=qz
-                )
+            current_sample_pose = self.get_odom_frame_as_pose(
+                frame_idx=idx,
+                sample_idx=i
             )
             
             #compute the body delta from the previous pose to the current sample pose
@@ -789,22 +819,21 @@ class _TestBench:
     ####################################################################
     #Vehicle odom updates
     ####################################################################
-    def init_vehicle_odometry(
-            self
-    ):
+    def get_odom_frame_as_pose(
+        self,
+        frame_idx:int,
+        sample_idx:int
+    )->Pose:
+        odom_data = self.dataset.get_vehicle_odom_data(idx=frame_idx)[sample_idx,1:8]
         
-        #get the initial odometry point
-        #indexed by [time,x,y,z,quat_w,quat_x,quat_y,quat_z,vx,vy,vz,wx,wy,wz]
-        initial_odom_data = self.dataset.get_vehicle_odom_data(idx=0)[-1,1:8]
+        x = odom_data[0]
+        y = odom_data[1]
+        z = odom_data[2]
         
-        x = initial_odom_data[0]
-        y = initial_odom_data[1]
-        z = initial_odom_data[2]
-        
-        qw = initial_odom_data[3]
-        qx = initial_odom_data[4]
-        qy = initial_odom_data[5]
-        qz = initial_odom_data[6]
+        qw = odom_data[3]
+        qx = odom_data[4]
+        qy = odom_data[5]
+        qz = odom_data[6]
 
         if self.odom_frame == OdomCoordinateFrame.NED:
                 rot = Rotation.from_quat([qx, qy, qz, qw])
@@ -821,7 +850,7 @@ class _TestBench:
                 y = -y
                 z = -z
 
-        self.previous_vehicle_odom_pose = Pose(
+        return Pose(
             position=Position(
                 x=x,
                 y=y,
@@ -833,6 +862,19 @@ class _TestBench:
                 qy=qy,
                 qz=qz
             )
+        )
+    
+    def init_vehicle_odometry(
+            self,
+            start_frame:int=0
+    ):
+        
+        #get the initial odometry point
+        #indexed by [time,x,y,z,quat_w,quat_x,quat_y,quat_z,vx,vy,vz,wx,wy,wz]
+
+        self.previous_vehicle_odom_pose = self.get_odom_frame_as_pose(
+            frame_idx=start_frame,
+            sample_idx=-1
         )
     
     def compute_relative_body_delta(
@@ -921,12 +963,16 @@ class _TestBench:
 
     def run(
             self,
+            start_frame=0,
             max_frame=-1,
             gt_enabled=True,
-            movie_generator:MovieGenerator = None):
+            movie_generator:MovieGenerator = None,
+            **kwargs):
         """Run the test bench
 
         Args:
+            start_frame (int, optional): The frame to start the test bench from.
+                Defaults to 0.
             max_frame (int, optional): The frame to run the test bench up to.
                 -1 indicates to run the entire dataset. Defaults to -1.
             gt_enabled (bool, optional): On True, additionally computes
@@ -937,7 +983,8 @@ class _TestBench:
         if max_frame == -1:
             max_frame = self.dataset.num_frames
 
-        for i in tqdm(range(max_frame)):
+
+        for i in tqdm(range(start_frame,max_frame)):
 
             #start time tracking
             start_time = time.time()
@@ -1055,12 +1102,24 @@ class _TestBench:
                     )
                 )
 
+                #get the inertial pose
+                inertial_pose = Pose(
+                    position=Position(
+                        x = self.inertial_integrator.x[0],
+                        y = self.inertial_integrator.x[1]
+                    ),
+                    orientation=Orientation.from_euler(
+                        yaw=self.inertial_integrator.x[2],
+                        degrees=False
+                    )
+                )
+
                 #process the point cloud
                 pc = self.process_point_cloud(
                     point_cloud_raw=radar_points,
                     static_points=static_points,
                     dynamic_points=dynamic_points,
-                    current_pose=current_pose,
+                    current_pose=inertial_pose,
                     gt_points=gt_points
                 )
 
@@ -1111,6 +1170,12 @@ class _TestBench:
             self.history_update_pose(
                 position_m=self.latest_pose_m,
                 heading_rad=self.latest_heading_rad,
+                idx=i
+            )
+
+            self.history_update_pose_inertial(
+                position_m=self.inertial_integrator.x[0:2],
+                heading_rad=self.inertial_integrator.x[2],
                 idx=i
             )
 

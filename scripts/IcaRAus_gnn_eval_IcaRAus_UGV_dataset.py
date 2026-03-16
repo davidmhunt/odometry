@@ -12,7 +12,7 @@ from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
-from odometry.test_benches._test_bench import _TestBench, PredictionSource
+from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator_gnn_runner import _PointCloudIntegratorGnnRunner
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
@@ -35,14 +35,15 @@ load_dotenv()
 # MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 # GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-DATASET_PATH = "/data/IcaRAus/datasets"
+DATASET_PATH = "/data/IcaRAus/datasets/UGV"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
 GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_gnn_two_stream_IcaRAus_ds_{}fh_k_4".format(num_frames_history)
-results_parent_folder = "{}_train".format(config_label)
+#config_label = "IcaRAus_gnn_two_stream_IcaRAus_ds_50fh_k_4_train"
+config_label = "IcaRAus_gnn_two_stream_IcaRAus_UGV_radar_ds_{}fh_k_4".format(num_frames_history)
+results_parent_folder = "{}".format(config_label)
 
 
 datasets_to_test = {
@@ -60,6 +61,26 @@ datasets_to_test = {
             #  'IcaRAus_ugv_cpsl_1_5m',
              'IcaRAus_ugv_cpsl_2_5m',
              'IcaRAus_ugv_cpsl_3_5m',
+         ]
+     },
+     "NORTH_1ST":{
+         "map":"north_1st_map.yaml",
+         "datasets":[
+            #  'north_1st_1', #unmapped area
+             'north_1st_2', #unmapped area
+             'north_1st_3',
+             'north_1st_4',
+             'north_1st_5'
+         ]
+     },
+     "NORTH_VICON":{
+         "map":"north_vicon_1.yaml",
+         "datasets":[
+            #  'north_vicon_1',
+            #  'north_vicon_2',
+             'north_vicon_3',
+             'north_vicon_4',
+             'north_vicon_5'
          ]
      },
 }
@@ -138,7 +159,7 @@ def analyze_dataset(
     runner = GNNRunner(
         model= model,
         state_dict_path = "/home/david/Downloads/IcaRAus_TwoStreamSpatioTemporalGnn_IcaRAus_ds_50fh_k4.pth",
-        cuda_device="cpu",
+        cuda_device="cuda:0",
         edge_radius=10.0, #unused for this model
         enable_downsampling=True,
         downsample_keep_ratio=0.50,
@@ -150,8 +171,9 @@ def analyze_dataset(
         gnn_runner=runner,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=4.0,
-        normalize_frames=True
+        max_detection_radius=5.0,
+        normalize_frames=True,
+        gt_distance_threshold_m=0.25
     )
 
     #dynamic point cloud integrator
@@ -159,7 +181,7 @@ def analyze_dataset(
         gt_distance_threshold_m=0.5,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=4.0
+        max_detection_radius=5.0
     )
 
     #initialize the test bench
@@ -172,10 +194,17 @@ def analyze_dataset(
         dynamic_point_cloud_integrator=dynamic_point_cloud_integrator,
         model_dataset_generator=None,
         use_filters=True,
-        prediction_source=PredictionSource.VEHICLE_ODOM
+        prediction_source=PredictionSource.VEHICLE_ODOM,
+        gt_source=GroundTruthSource.LIDAR,
+        odom_frame=OdomCoordinateFrame.FLU
     )
-    start_heading = np.deg2rad(0)
-    start_pose = np.array([0.00,0.00])
+
+    if file_name== "north_1st_4":
+        start_heading = np.deg2rad(45)
+        start_pose = np.array([1.0,0.5])
+    else:
+        start_heading = np.deg2rad(0)
+        start_pose = np.array([0.00,0.00])
 
     #initialize the localization
     new_heading_rad,new_pose_m = test_bench.init_localization(
@@ -205,6 +234,13 @@ def analyze_dataset(
             ncols=3,
             figsize=(15,15)
         )
+        
+        movie_folder="{}/Movies".format(results_parent_folder)
+        create_dir(movie_folder)
+        movie_generator.start_movie(
+            video_file_name="{}/{}.mp4".format(movie_folder,file_name),
+            fps=10
+        )
     else:
         movie_generator=None
     
@@ -218,10 +254,7 @@ def analyze_dataset(
         normalize_frames=normalize_frames)
     
     if generate_movie:
-        movie_folder="{}/Movies".format(results_parent_folder)
-        create_dir(movie_folder)
-        movie_generator.save_movie(video_file_name="{}/{}.mp4".format(
-            movie_folder,file_name),fps=20)
+        movie_generator.save_movie()
     
     #save the analysis
     result_folder="{}/Results".format(results_parent_folder)

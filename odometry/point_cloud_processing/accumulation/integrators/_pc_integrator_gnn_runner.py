@@ -74,6 +74,9 @@ class _PointCloudIntegratorGnnRunner(_PointCloudIntegrator):
             raw point history if not overridden.
         """
         #should be overridden by child classes
+        if not self.check_valid_num_frames():
+            return np.empty(shape=(0,3))
+        
         nodes,labels = self.get_nodes(self.normalize_frames)
         
         pred = self.gnn_runner.make_prediction(

@@ -104,14 +104,18 @@ class PointCloudIntegratorTB(_TestBench):
         return self.point_cloud_integrator.get_points()
     
     def run(self, 
+        start_frame=0,
         max_frame=-1, 
         gt_enabled=True, 
         movie_generator = None,
         generate_dataset=False,
-        normalize_frames=False):
+        normalize_frames=False,
+        **kwargs):
         """Run the test bench
 
         Args:
+            start_frame (int, optional): The frame to start the test bench from.
+                Defaults to 0.
             max_frame (int, optional): The frame to run the test bench up to.
                 -1 indicates to run the entire dataset. Defaults to -1.
             gt_enabled (bool, optional): On True, additionally computes
@@ -130,7 +134,7 @@ class PointCloudIntegratorTB(_TestBench):
         self.generate_dataset = generate_dataset
         self.normalize_frames = normalize_frames
 
-        return super().run(max_frame, gt_enabled, movie_generator)
+        return super().run(start_frame,max_frame, gt_enabled, movie_generator)
 
     def plot_compilation(
             self,
@@ -154,6 +158,7 @@ class PointCloudIntegratorTB(_TestBench):
         self.plotter_localization.plot_position_history_m(
             history_position_m=self.history_position_m,
             history_position_m_gt=self.history_position_m_gt,
+            history_position_m_inertial=self.history_position_m_inertial,
             idx=idx+1,
             ax=axs[0,1],
             show=False
@@ -162,6 +167,7 @@ class PointCloudIntegratorTB(_TestBench):
         self.plotter_localization.plot_heading_history_deg(
             history_heading_deg=self.history_heading_deg,
             history_heading_deg_gt=self.history_heading_deg_gt,
+            history_heading_deg_inertial=self.history_heading_deg_inertial,
             idx=idx+1,
             ax=axs[0,2],
             show=False

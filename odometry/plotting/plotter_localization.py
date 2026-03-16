@@ -758,6 +758,7 @@ class PlotterLocalization:
     def plot_position_history_m(self,
                          history_position_m:np.ndarray,
                          history_position_m_gt:np.ndarray = np.empty(shape=(0,2)),
+                         history_position_m_inertial:np.ndarray = np.empty(shape=(0,2)),
                          idx=-1,
                          ax:plt.Axes=None,
                          show:bool=False):
@@ -766,6 +767,7 @@ class PlotterLocalization:
         Args:
             history_position_m (np.ndarray): history of the est position
             history_position_m_gt (np.ndarray): history of the gt position
+            history_position_m_inertial (np.ndarray): history of the inertial est position
             idx (int, optional): max index to plot to. Defaults to -1.
             ax (plt.Axes, optional): Axes to plot on. Defaults to None.
             show (bool, optional): displays plot on True. Defaults to False.
@@ -786,6 +788,14 @@ class PlotterLocalization:
                 history_position_m_gt[:idx,1],
                 color="green",
                 label="truth")
+
+        if history_position_m_inertial.shape[0] > 0:
+
+            ax.plot(
+                history_position_m_inertial[:idx,0],
+                history_position_m_inertial[:idx,1],
+                color="blue",
+                label="inertial")
 
         ax.set_xlim(
             np.min(history_position_m[:idx,0]) - 3,
@@ -809,8 +819,8 @@ class PlotterLocalization:
             color="blue")
         #show the legend
         handles,labels = ax.get_legend_handles_labels()
-        ax.legend(handles[:2],
-                labels[:2],
+        ax.legend(handles[:3],
+                labels[:3],
                 loc="lower right",
                 fontsize=self.font_size_legend)
         if show:
@@ -819,6 +829,7 @@ class PlotterLocalization:
     def plot_heading_history_deg(self,
                          history_heading_deg:list,
                          history_heading_deg_gt:list = [],
+                         history_heading_deg_inertial:list = [],
                          idx=-1,
                          ax:plt.Axes=None,
                          show:bool=False):
@@ -827,6 +838,7 @@ class PlotterLocalization:
         Args:
             history_heading_deg (list): history of the gt heading
             history_heading_deg_gt (list): history of the gt heading
+            history_heading_deg_inertial (list): history of the inertial est heading
             idx (int, optional): max index to plot to. Defaults to 0.
             ax (plt.Axes, optional): Axes to plot on. Defaults to None.
             show (bool, optional): displays plot on True. Defaults to False.
@@ -836,7 +848,7 @@ class PlotterLocalization:
         
         #plot the localization heading history
         ax.plot(history_heading_deg[:idx],
-                color="blue",
+                color="red",
                 label="estimated")
         
         #plot the gt heading if available
@@ -845,6 +857,13 @@ class PlotterLocalization:
                 history_heading_deg_gt[:idx],
                 color="green",
                 label="truth"
+            )
+
+        if len(history_heading_deg_inertial) > 0:
+            ax.plot(
+                history_heading_deg_inertial[:idx],
+                color="blue",
+                label="inertial"
             )
 
         ax.set_title("Heading over time(degrees)", fontsize=self.font_size_title)

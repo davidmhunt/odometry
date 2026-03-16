@@ -149,7 +149,7 @@ def analyze_dataset(
     runner = GNNRunner(
         model= model,
         state_dict_path = "/home/david/Downloads/IcaRAus_TwoStreamSpatioTemporalGnn_IcaRAus_ds_50fh_k4.pth",
-        cuda_device="cpu",
+        cuda_device="cuda:0",
         edge_radius=10.0, #unused for this model
         enable_downsampling=True,
         downsample_keep_ratio=0.50,
@@ -161,7 +161,7 @@ def analyze_dataset(
         gnn_runner=runner,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=4.0,
+        max_detection_radius=5.0,
         normalize_frames=True
     )
 
@@ -170,7 +170,7 @@ def analyze_dataset(
         gt_distance_threshold_m=0.5,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=4.0
+        max_detection_radius=5.0
     )
 
     #initialize the test bench
@@ -257,6 +257,7 @@ def analyze_dataset(
     test_bench.plotter_localization.plot_position_history_m(
         test_bench.history_position_m,
         test_bench.history_position_m_gt,
+        test_bench.history_position_m_inertial,
         idx=end_idx-1,
         ax=axs,
         show=False

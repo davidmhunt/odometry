@@ -23,6 +23,7 @@ class _PCGrid(PcAccumulator):
             grid_resolution_m: float = 5e-2,
             grid_max_distance_m: float = 3,
             num_frames_history: int = 30,
+            num_frames_history_gt: int = 30,
     ):
         """
         Initialize the _PCGrid.
@@ -34,17 +35,9 @@ class _PCGrid(PcAccumulator):
                 Defaults to 3.
             num_frames_history (int, optional): Number of frames to persist points.
                 Defaults to 30.
+            num_frames_history_gt (int, optional): Number of frames to persist gt points.
+                Defaults to 1.
         """
-
-        self.grid_resolution_m: float = grid_resolution_m
-        self.grid_max_distance_m: float = grid_max_distance_m
-
-        # Define the grid bins for storing samples
-        self.grid_bins: np.ndarray = np.arange(
-            start=-1 * self.grid_max_distance_m,
-            stop=self.grid_max_distance_m + self.grid_resolution_m,
-            step=self.grid_resolution_m
-        )
 
         # Initialize grids
         self.grid: np.ndarray = None
@@ -52,7 +45,10 @@ class _PCGrid(PcAccumulator):
         
         super().__init__(
             gt_distance_threshold_m=grid_resolution_m,
-            num_frames_history=num_frames_history
+            num_frames_history=num_frames_history,
+            num_frames_history_gt=num_frames_history_gt,
+            grid_resolution_m=grid_resolution_m,
+            max_detection_range=grid_max_distance_m
         )
 
     def reset(
@@ -162,9 +158,15 @@ class _PCGrid(PcAccumulator):
         super().apply_transformation(transformation)
 
         # Filter out points no longer in the grid
+        if self.points_raw.shape[0] > 0:
+            self.points_raw = self.filter_points_outside_grid(self.points_raw)
+            
         if self.points.shape[0] > 0:
             self.points = self.filter_points_outside_grid(self.points)
         
+        if self.gt_points_raw.shape[0] > 0:
+            self.gt_points_raw = self.filter_points_outside_grid(self.gt_points_raw)
+            
         if self.gt_points.shape[0] > 0:
             self.gt_points = self.filter_points_outside_grid(self.gt_points)
 
@@ -227,65 +229,6 @@ class _PCGrid(PcAccumulator):
         else:
             return self._get_points_from_pc_grid(self.gt_grid)
 
-    def _get_grid_from_points(self, points: np.ndarray) -> np.ndarray:
-        """
-        Convert a set of 3D points into a 2D grid representation.
-
-        Args:
-            points (np.ndarray): Nx3 array of [x, y, z] points.
-
-        Returns:
-            np.ndarray: MxM binary grid where 1 indicates occupancy.
-        
-        Raises:
-            ValueError: If input points dimensions are incorrect.
-        """
-        # Allow Nx4 input by slicing, but check dimension at least 3
-        if points.ndim > 1 and points.shape[1] >= 3:
-            ret_grid = np.zeros(
-                shape=(self.grid_bins.shape[0], self.grid_bins.shape[0]),
-                dtype=np.int8
-            )
-            
-            # Find the closest grid bin indices for x and y coordinates
-            # Note: Assuming points are already filtered to be within range
-            x_idx = np.argmin(np.abs(self.grid_bins[:, None] - points[:, 0]), axis=0)
-            y_idx = np.argmin(np.abs(self.grid_bins[:, None] - points[:, 1]), axis=0)
-
-            # Mark the grid cells as occupied (1)
-            ret_grid[x_idx, y_idx] = 1
-            return ret_grid
-        elif points.shape[0] == 0:
-             return np.zeros(
-                shape=(self.grid_bins.shape[0], self.grid_bins.shape[0]),
-                dtype=np.int8
-            )
-        else:
-            raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
-
-    def _get_points_from_pc_grid(self, pc_grid: np.ndarray) -> np.ndarray:
-        """
-        Convert a point cloud grid back into an array of points (cell centers).
-
-        Args:
-            pc_grid (np.ndarray): NxN grid representation.
-
-        Returns:
-            np.ndarray: Nx3 array of reconstructed points [x, y, 0].
-        """
-        # Identify the indices of occupied grid cells
-        x_idxs, y_idxs = np.nonzero(pc_grid)
-
-        if x_idxs.shape[0] > 0:
-            # Convert grid indices back to coordinate values
-            x_vals = self.grid_bins[x_idxs]
-            y_vals = self.grid_bins[y_idxs]
-            z_vals = np.zeros_like(x_vals)  # Assume z=0 as it’s a 2D representation
-
-            return np.column_stack((x_vals, y_vals, z_vals))
-        else:
-            return np.empty(shape=(0, 3))
-
     def _get_nodes_from_pc_grid(self, pc_grid: np.ndarray) -> np.ndarray:
         """
         Get a set of nodes (x, y, z, value) from a grid.
@@ -310,20 +253,7 @@ class _PCGrid(PcAccumulator):
         else:
              return np.empty(shape=(0, 4))
              
-    def filter_points_outside_grid(self, points: np.ndarray) -> np.ndarray:
-        """
-        Remove points that fall outside the defined grid boundaries.
-
-        Args:
-            points (np.ndarray): Nx3 (or Nx4) array of points.
-
-        Returns:
-            np.ndarray: Filtered array containing only points within `grid_max_distance_m`.
-        """
-        if points.shape[0] == 0:
-            return points
-        return points[np.all(np.abs(points[:, 0:3]) <= self.grid_max_distance_m, axis=1)]
-
+    
     def get_nodes(self, raw: bool = False) -> tuple:
         """
         Retrieve points as nodes with ground truth labels.

@@ -18,10 +18,14 @@ from odometry.point_cloud_processing.accumulation.integrators._pc_integrator_gnn
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 from mmwave_model_integrator.torch_training.models.TwoStreamSpatioTemporalGnn import TwoStreamSpatioTemporalGnn
 
+from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
+from odometry.point_cloud_processing.clustering.two_stage_occlusion_aware_clustering import TwoStageOcclusionAwareClustering
+from odometry.point_cloud_processing.accumulation.pc_accumulator import GtPointLabelingStrategy
+from odometry.test_benches.point_cloud_integrator_unet_tb import PointCloudIntegratorUnetTB
 
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
-from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
-from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
+from mmwave_model_integrator.input_encoders._input_encoder import _InputEncoder
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder import _GTEncoder
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
 
@@ -40,7 +44,7 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_ugv_gnn_{}fh_wilk_cpsl_north_1st".format(num_frames_history)
+config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -112,8 +116,8 @@ def generate_gnn_dataset(
     )
 
     #initialize the dataset encoders
-    input_encoder = _NodeEncoder()
-    gt_encoder = _GTNodeEncoder()
+    input_encoder = _InputEncoder()
+    gt_encoder = _GTEncoder()
 
     #initialize the dataset generator
     generated_dataset_path = os.path.join(GENERATED_DATASETS_PATH,"{}_train".format(config_label))
@@ -122,8 +126,8 @@ def generate_gnn_dataset(
         input_encoder=input_encoder,
         ground_truth_encoder=gt_encoder,
         generated_file_name="frame",
-        input_encoding_folder="nodes",
-        ground_truth_encoding_folder="labels",
+        input_encoding_folder="grids",
+        ground_truth_encoding_folder="gt_grids",
         clear_existing_data=clear_existing_train_data
     )
 
@@ -150,38 +154,57 @@ def generate_gnn_dataset(
 
     #initialize the probabilistic point cloud grid
     point_cloud_integrator = _PointCloudIntegrator(
-        gt_distance_threshold_m=0.25,
+        gt_distance_threshold_m=0.4,
+        num_frames_history_gt=1,
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=5.0, #originally 5.0
-        classify_gt_on_current_frame=True,
-        use_occlusion_aware_detector=True
+        max_detection_radius=8.0,
+        grid_resolution_m=0.1,
+        gt_point_labeling_strategy=GtPointLabelingStrategy.USE_GT_POINTS_FOR_GT_CLASSIFICATION,
+        gt_occlusion_aware_clustering=OcclusionAwareClustering(
+            clustering_eps=0.2,
+            clustering_min_samples=12,
+            angle_res_rad=0.017,
+            occlusion_threshold=0.7,
+            subsample_percentage=1.0
+        ),
+        occlusion_aware_clustering=OcclusionAwareClustering(
+            clustering_eps=0.1,
+            clustering_min_samples=5,
+            angle_res_rad=0.017,
+            occlusion_threshold=0.9,
+            subsample_percentage=0.40
+        )
     )
-    # point_cloud_integrator = RagnnarokPointCloudIntegrator(
-    #     grid_resolution_m_prob=0.1,
-    #     grid_max_distance_m_prob=5.0,
-    #     num_frames_history_prob=num_frames_history,
-    #     grid_resolution_m_hist=0.1,
-    #     grid_max_distance_m_hist=5.0,
-    #     num_frames_history_hist=num_frames_history,
-    #     min_detection_radius=0.25,
-    #     max_detection_radius=20.0, #originally 5.0   
-    # )
+
+    dynamic_point_cloud_integrator = _PointCloudIntegrator(
+        gt_distance_threshold_m=0.5,
+        num_frames_history=num_frames_history,
+        min_detection_radius=1.0,
+        max_detection_radius=4.0
+    )
+
     #initialize the test bench
-    test_bench = PointCloudIntegratorTB(
+    test_bench = PointCloudIntegratorUnetTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
         dataset=dataset,
         point_cloud_integrator=point_cloud_integrator,
+        dynamic_point_cloud_integrator=dynamic_point_cloud_integrator,
         model_dataset_generator=dataset_generator,
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
         gt_source=GroundTruthSource.LIDAR,
         odom_frame=OdomCoordinateFrame.FLU
     )
-    start_heading = np.deg2rad(0)
-    start_pose = np.array([0.00,0.00])
+
+    if file_name== "north_1st_4":
+        start_heading = np.deg2rad(45)
+        start_pose = np.array([1.0,0.5])
+    else:
+        start_heading = np.deg2rad(0)
+        start_pose = np.array([0.00,0.00])
 
     #initialize the localization
     new_heading_rad,new_pose_m = test_bench.init_localization(
@@ -268,7 +291,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=False,
+                generate_movie=True,
                 clear_existing_train_data=clear_existing_train_data
             )
 

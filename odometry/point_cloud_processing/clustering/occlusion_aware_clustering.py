@@ -1,0 +1,192 @@
+import numpy as np
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+from geometries.coordinate_systems.coordinate_system_conversions import cartesian_to_spherical
+
+class OcclusionAwareClustering:
+    """Detects and filters point cloud clusters based on density and visibility.
+    
+    This class performs DBSCAN clustering on a 2D/3D point cloud and then 
+    implements an angular depth-buffer (occlusion sweep) to remove clusters 
+    that are hidden behind closer objects from the sensor's perspective.
+    """
+
+    def __init__(
+            self,
+            clustering_eps: float = 0.3,
+            clustering_min_samples: int = 10,
+            angle_res_rad: float = 0.017,
+            occlusion_threshold: float = 0.7,
+            subsample_percentage: float = 1.0
+    ) -> None:
+        """Initializes the detector with clustering and visibility parameters.
+
+        Args:
+            clustering_eps (float): The maximum distance between two samples 
+                for one to be considered as in the neighborhood of the other.
+            clustering_min_samples (int): The number of samples in a neighborhood 
+                for a point to be considered a core point.
+            angle_res_rad (float): Resolution of the angular occlusion buffer 
+                in radians (~1 degree by default).
+            occlusion_threshold (float): Fraction of a cluster (0.0 to 1.0) 
+                that must be covered by closer objects to be pruned.
+            subsample_percentage (float): Percentage of points to subsample 
+                before clustering.
+        """
+        self.clusterer = DBSCAN(eps=clustering_eps, min_samples=clustering_min_samples)
+        self.angle_res_rad = angle_res_rad
+        self.occlusion_threshold = occlusion_threshold
+        self.scaler = StandardScaler()
+        self.subsample_percentage = subsample_percentage
+
+    def _get_spherical_coordinates(self, points: np.ndarray) -> np.ndarray:
+        """Converts input points to 3D spherical coordinates [r, theta, phi]."""
+        if points.shape[1] == 2:
+            points = np.hstack([points, np.zeros((points.shape[0], 1))])
+        return cartesian_to_spherical(points)
+
+    def _get_cluster_angular_bounds(self, thetas: np.ndarray, rs: np.ndarray) -> dict:
+        """Calculates angular span and min distance, handling pi/-pi wrap-around."""
+        ref_angle = thetas[0]
+        relative_thetas = (thetas - ref_angle + np.pi) % (2 * np.pi) - np.pi
+        return {
+            'dist': np.min(rs),
+            't_min': np.min(relative_thetas) + ref_angle,
+            't_max': np.max(relative_thetas) + ref_angle
+        }
+
+    def _get_occlusion_indices(self, t_min: float, t_max: float, num_bins: int) -> np.ndarray:
+        """Maps angular bounds to discrete indices in the 1D depth buffer."""
+        idx_start = int(((t_min + np.pi) / (2 * np.pi)) * num_bins)
+        idx_end = int(((t_max + np.pi) / (2 * np.pi)) * num_bins)
+
+        if idx_start <= idx_end:
+            indices = np.arange(idx_start, idx_end + 1)
+        else:
+            indices = np.concatenate([
+                np.arange(idx_start, num_bins), 
+                np.arange(0, idx_end + 1)
+            ])
+        return indices % num_bins
+
+    def _occlusion_aware_clustering(self, pc_cartesian: np.ndarray):
+        """Clusters the cloud and prunes occluded objects.
+
+        Args:
+            pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
+
+        Returns:
+            tuple: (filtered_points, labels, visible_labels)
+                - filtered_points: Only points belonging to visible clusters.
+                - labels: The cluster labels for the filtered points.
+                - visible_labels: List of unique labels that passed the filter.
+        """
+        if pc_cartesian.shape[0] == 0:
+            return np.empty((0, pc_cartesian.shape[1])), np.array([]), []
+
+        # 1. Clustering
+        scaled_points = self.scaler.fit_transform(pc_cartesian)
+        full_labels = self.clusterer.fit_predict(scaled_points)
+
+        # 2. Extract Spherical Data
+        spherical_points = self._get_spherical_coordinates(pc_cartesian[:,0:2])
+        unique_labels = np.unique(full_labels)
+        unique_labels = unique_labels[unique_labels != -1]
+
+        cluster_list = []
+        for label in unique_labels:
+            mask = (full_labels == label)
+            bounds = self._get_cluster_angular_bounds(
+                thetas=spherical_points[mask, 1], 
+                rs=spherical_points[mask, 0]
+            )
+            bounds['label'] = label
+            cluster_list.append(bounds)
+
+        # 3. Visibility Filter (Closest first)
+        cluster_list.sort(key=lambda x: x['dist'])
+        num_bins = int((2 * np.pi) / self.angle_res_rad)
+        angular_depth_buffer = np.zeros(num_bins, dtype=bool)
+        visible_labels = []
+
+        for cluster in cluster_list:
+            indices = self._get_occlusion_indices(cluster['t_min'], cluster['t_max'], num_bins)
+            if len(indices) == 0: continue
+
+            if np.mean(angular_depth_buffer[indices]) < self.occlusion_threshold:
+                visible_labels.append(cluster['label'])
+                angular_depth_buffer[indices] = True
+
+        # 4. Prepare Output
+        visibility_mask = np.isin(full_labels, visible_labels)
+        return (
+            pc_cartesian[visibility_mask], 
+            full_labels[visibility_mask], 
+            visible_labels
+        )
+    
+    # def _subsample_points(self, pc_cartesian: np.ndarray):
+    #     """Subsamples the point cloud."""
+    #     num_points = int(pc_cartesian.shape[0] * self.subsample_percentage)
+    #     indices = np.random.choice(pc_cartesian.shape[0], num_points, replace=False)
+    #     return pc_cartesian[indices]
+
+    def _subsample_points(self, pc_cartesian: np.ndarray, grid_size = 1.0) -> np.ndarray:
+        """
+        Subsamples the point cloud using Spatially Stratified Random Sampling 
+        to preserve density while guaranteeing even spatial coverage.
+        """
+        num_points = pc_cartesian.shape[0]
+        target_count = int(num_points * self.subsample_percentage)
+        
+        if target_count == 0 or target_count >= num_points:
+            return pc_cartesian
+
+        # 1. Quantize coordinates to create coarse spatial bins (e.g., 2-meter grids)
+        # This groups nearby points into the same logical bucket
+        x_bins = np.floor(pc_cartesian[:, 0] / grid_size)
+        y_bins = np.floor(pc_cartesian[:, 1] / grid_size)
+        
+        # 2. Sort the array spatially. 
+        # lexsort sorts by y_bins, then x_bins, then the actual y coordinate.
+        # Now, points next to each other in the array are physically next to each other in 3D space.
+        sort_indices = np.lexsort((pc_cartesian[:, 1], x_bins, y_bins))
+        sorted_pc = pc_cartesian[sort_indices]
+        
+        # 3. Stratified Sampling Step
+        # Divide the array into `target_count` chunks and pick a random point within each chunk.
+        step = num_points / target_count
+        
+        # Generate random offsets [0.0 to 1.0) and scale them to the chunk step size
+        random_offsets = np.random.rand(target_count) * step
+        
+        # Calculate the exact array indices to pull
+        base_indices = np.arange(target_count) * step
+        sample_indices = np.floor(base_indices + random_offsets).astype(np.int32)
+        
+        # Failsafe clip to ensure no index out of bounds due to floating point math
+        sample_indices = np.clip(sample_indices, 0, num_points - 1)
+        
+        # Return the systematically sampled points
+        return sorted_pc[sample_indices]
+
+    def process(self, pc_cartesian: np.ndarray):
+        """Clusters the cloud and prunes occluded objects.
+
+        Args:
+            pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
+
+        Returns:
+            tuple: (filtered_points, labels, visible_labels)
+                - filtered_points: Only points belonging to visible clusters.
+                - labels: The cluster labels for the filtered points.
+                - visible_labels: List of unique labels that passed the filter.
+        """
+
+        #1. Subsample points
+        pc_cartesian = self._subsample_points(pc_cartesian)
+
+        #2. perform occlusion aware clustering
+        filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+
+        return filtered_points, labels, visible_labels

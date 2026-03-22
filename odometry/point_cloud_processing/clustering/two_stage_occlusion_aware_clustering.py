@@ -19,7 +19,8 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
             clustering_min_samples: int = 10,
             angle_res_rad: float = 0.017,
             occlusion_threshold: float = 0.7,
-            subsample_percentage: float = 0.1
+            subsample_percentage: float = 0.1,
+            remove_occluded: bool = True
     ) -> None:
         """Initializes the detector with clustering and visibility parameters.
 
@@ -35,13 +36,17 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
                 in radians (~1 degree by default).
             occlusion_threshold (float): Fraction of a cluster (0.0 to 1.0) 
                 that must be covered by closer objects to be pruned.
+            subsample_percentage (float): Percentage of points to subsample 
+                before clustering.
+            remove_occluded (bool): Whether to remove occluded points after clustering.
         """
         super().__init__(
             clustering_eps=clustering_eps,
             clustering_min_samples=clustering_min_samples,
             angle_res_rad=angle_res_rad,
             occlusion_threshold=occlusion_threshold,
-            subsample_percentage=subsample_percentage
+            subsample_percentage=subsample_percentage,
+            remove_occluded=remove_occluded
         )
 
         self.knn_distance_threshold = knn_distance_threshold
@@ -90,8 +95,11 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
         #2. perform knn pre-clustering
         pc_cartesian = self._knn_pre_clustering(pc_cartesian)
 
-        #3. perform occlusion aware clustering
-        filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+        #3. perform clustering (with or without occlusion filter)
+        if self.remove_occluded:
+            filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+        else:
+            filtered_points, labels, visible_labels = self._cluster_points(pc_cartesian)
 
         return filtered_points, labels, visible_labels
 

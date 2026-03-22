@@ -44,7 +44,7 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st".format(num_frames_history)
+config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_keep_occluded_pts".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -166,14 +166,16 @@ def generate_gnn_dataset(
             clustering_min_samples=12,
             angle_res_rad=0.017,
             occlusion_threshold=0.7,
-            subsample_percentage=1.0
+            subsample_percentage=1.0,
+            remove_occluded=True
         ),
         occlusion_aware_clustering=OcclusionAwareClustering(
             clustering_eps=0.1,
             clustering_min_samples=5,
             angle_res_rad=0.017,
             occlusion_threshold=0.9,
-            subsample_percentage=0.40
+            subsample_percentage=0.40,
+            remove_occluded=False
         )
     )
 

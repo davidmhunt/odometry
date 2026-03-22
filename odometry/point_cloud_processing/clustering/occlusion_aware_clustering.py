@@ -17,7 +17,8 @@ class OcclusionAwareClustering:
             clustering_min_samples: int = 10,
             angle_res_rad: float = 0.017,
             occlusion_threshold: float = 0.7,
-            subsample_percentage: float = 1.0
+            subsample_percentage: float = 1.0,
+            remove_occluded: bool = True,
     ) -> None:
         """Initializes the detector with clustering and visibility parameters.
 
@@ -32,12 +33,14 @@ class OcclusionAwareClustering:
                 that must be covered by closer objects to be pruned.
             subsample_percentage (float): Percentage of points to subsample 
                 before clustering.
+            remove_occluded (bool): Whether to remove occluded points after clustering.
         """
         self.clusterer = DBSCAN(eps=clustering_eps, min_samples=clustering_min_samples)
         self.angle_res_rad = angle_res_rad
         self.occlusion_threshold = occlusion_threshold
         self.scaler = StandardScaler()
         self.subsample_percentage = subsample_percentage
+        self.remove_occluded = remove_occluded
 
     def _get_spherical_coordinates(self, points: np.ndarray) -> np.ndarray:
         """Converts input points to 3D spherical coordinates [r, theta, phi]."""
@@ -69,6 +72,32 @@ class OcclusionAwareClustering:
             ])
         return indices % num_bins
 
+    def _cluster_points(self, pc_cartesian: np.ndarray):
+        """Performs standard DBSCAN clustering and filters out noise points.
+        
+        Args:
+            pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
+            
+        Returns:
+            tuple: (filtered_points, labels, visible_labels)
+                - filtered_points: Points that are not classified as noise (label != -1).
+                - labels: The cluster labels for the filtered points.
+                - visible_labels: List of unique labels that passed the filter.
+        """
+        if pc_cartesian.shape[0] == 0:
+            return np.empty((0, pc_cartesian.shape[1])), np.array([]), []
+
+        scaled_points = self.scaler.fit_transform(pc_cartesian)
+        full_labels = self.clusterer.fit_predict(scaled_points)
+        
+        valid_mask = full_labels != -1
+        filtered_points = pc_cartesian[valid_mask]
+        labels = full_labels[valid_mask]
+        
+        visible_labels_arr = np.unique(labels)
+        
+        return filtered_points, labels, visible_labels_arr.tolist()
+
     def _occlusion_aware_clustering(self, pc_cartesian: np.ndarray):
         """Clusters the cloud and prunes occluded objects.
 
@@ -85,17 +114,17 @@ class OcclusionAwareClustering:
             return np.empty((0, pc_cartesian.shape[1])), np.array([]), []
 
         # 1. Clustering
-        scaled_points = self.scaler.fit_transform(pc_cartesian)
-        full_labels = self.clusterer.fit_predict(scaled_points)
+        pc_filtered, labels, unique_labels = self._cluster_points(pc_cartesian)
+        
+        if len(unique_labels) == 0:
+            return np.empty((0, pc_cartesian.shape[1])), np.array([]), []
 
         # 2. Extract Spherical Data
-        spherical_points = self._get_spherical_coordinates(pc_cartesian[:,0:2])
-        unique_labels = np.unique(full_labels)
-        unique_labels = unique_labels[unique_labels != -1]
+        spherical_points = self._get_spherical_coordinates(pc_filtered[:,0:2])
 
         cluster_list = []
         for label in unique_labels:
-            mask = (full_labels == label)
+            mask = (labels == label)
             bounds = self._get_cluster_angular_bounds(
                 thetas=spherical_points[mask, 1], 
                 rs=spherical_points[mask, 0]
@@ -118,10 +147,10 @@ class OcclusionAwareClustering:
                 angular_depth_buffer[indices] = True
 
         # 4. Prepare Output
-        visibility_mask = np.isin(full_labels, visible_labels)
+        visibility_mask = np.isin(labels, visible_labels)
         return (
-            pc_cartesian[visibility_mask], 
-            full_labels[visibility_mask], 
+            pc_filtered[visibility_mask], 
+            labels[visibility_mask], 
             visible_labels
         )
     
@@ -186,7 +215,10 @@ class OcclusionAwareClustering:
         #1. Subsample points
         pc_cartesian = self._subsample_points(pc_cartesian)
 
-        #2. perform occlusion aware clustering
-        filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+        #2. perform clustering (with or without occlusion filter)
+        if self.remove_occluded:
+            filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+        else:
+            filtered_points, labels, visible_labels = self._cluster_points(pc_cartesian)
 
         return filtered_points, labels, visible_labels

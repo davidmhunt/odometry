@@ -1003,8 +1003,8 @@ class _TestBench:
                     gt_points = self.dataset.get_lidar_point_cloud_raw(idx=i)
     
                     #filter out ground, set z coordinate to 0 for remaining points
-                    valid_points = gt_points[:,2] > -0.2 #filter out ground
-                    valid_points = valid_points & (gt_points[:,2] < 0.1) #higher elevation points
+                    valid_points = gt_points[:,2] > -0.1 #filter out ground
+                    valid_points = valid_points & (gt_points[:,2] < 0.5) #higher elevation points
                     gt_points = gt_points[valid_points,:3]
                     gt_points[:,2] = 0.0
                     

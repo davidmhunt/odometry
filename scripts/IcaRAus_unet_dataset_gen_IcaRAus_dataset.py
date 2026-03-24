@@ -44,7 +44,8 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_keep_occluded_pts".format(num_frames_history)
+#key {no}_occluded_{rt or olp}_gt_{rt or olp}_pts_{no}_gt_filter
+config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_no_occluded_rt_gt_olp_pts_gt_filter".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -144,7 +145,7 @@ def generate_gnn_dataset(
 
     lidar_odometry = icp2DLocalization(
         icp_matching_distance_threshold=0.1, #was 0.6, try 0.1
-        icp_best_points_percentile=50, #was 50 - try 75
+        icp_best_points_percentile=75, #was 50 - try 75
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
@@ -156,26 +157,29 @@ def generate_gnn_dataset(
     point_cloud_integrator = _PointCloudIntegrator(
         gt_distance_threshold_m=0.4,
         num_frames_history_gt=1,
+        valid_fovs_deg=[(-70,70),(110,-110)],
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
         max_detection_radius=8.0,
         grid_resolution_m=0.1,
         gt_point_labeling_strategy=GtPointLabelingStrategy.USE_GT_POINTS_FOR_GT_CLASSIFICATION,
         gt_occlusion_aware_clustering=OcclusionAwareClustering(
-            clustering_eps=0.2,
+            clustering_eps=0.5,
             clustering_min_samples=12,
             angle_res_rad=0.017,
             occlusion_threshold=0.7,
             subsample_percentage=1.0,
-            remove_occluded=True
+            remove_occluded=True,
+            filter_method='ray_trace'
         ),
         occlusion_aware_clustering=OcclusionAwareClustering(
-            clustering_eps=0.1,
-            clustering_min_samples=5,
+            clustering_eps=0.15,
+            clustering_min_samples=7,
             angle_res_rad=0.017,
             occlusion_threshold=0.9,
             subsample_percentage=0.40,
-            remove_occluded=False
+            remove_occluded=False,
+            filter_method='overlap' #ray_trace or overlap
         )
     )
 
@@ -198,7 +202,8 @@ def generate_gnn_dataset(
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
         gt_source=GroundTruthSource.LIDAR,
-        odom_frame=OdomCoordinateFrame.FLU
+        odom_frame=OdomCoordinateFrame.FLU,
+        filter_dets_for_gt_regions=True
     )
 
     if file_name== "north_1st_4":

@@ -15,6 +15,7 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             runner: GNNRunner,
             grid_resolution_m: float = 0.05,
             grid_max_distance_m: float = 3,
+            valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 10,
             occupancy_threshold: float = 0.5):
         """
@@ -26,6 +27,8 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
                 Defaults to 0.05.
             grid_max_distance_m (float, optional): Maximum distance from center in meters.
                 Defaults to 3.
+            valid_fovs_deg (list[tuple[float, float]], optional): A list of valid FOVs in degrees, e.g. [(-60, 60)].
+                0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_history (int, optional): Number of frames to average over.
                 Defaults to 10.
             occupancy_threshold (float, optional): Threshold probability (0.0 to 1.0)
@@ -34,6 +37,7 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
         super().__init__(
             grid_resolution_m=grid_resolution_m,
             grid_max_distance_m=grid_max_distance_m,
+            valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             occupancy_threshold=occupancy_threshold
         )

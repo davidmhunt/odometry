@@ -42,6 +42,7 @@ class _PointCloudIntegrator:
     def __init__(
             self,
             gt_distance_threshold_m: float = 0.1,
+            valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 20,
             num_frames_history_gt: int = 1,
             min_detection_radius: float = 0.25,
@@ -57,6 +58,8 @@ class _PointCloudIntegrator:
         Args:
             gt_distance_threshold_m (float, optional): Distance threshold for
                 associating ground truth points. Defaults to 0.1.
+            valid_fovs_deg (list[tuple[float, float]], optional): A list of valid FOVs in degrees, e.g. [(-60, 60)].
+                0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_history (int, optional): Number of frames to keep in history.
                 Defaults to 20.
             num_frames_history_gt (int, optional): Number of frames to keep gt points
@@ -69,9 +72,12 @@ class _PointCloudIntegrator:
                 of the point clouds. Defaults to 0.1.
             gt_point_labeling_strategy (GtPointLabelingStrategy, optional): Strategy for 
                 labeling the ground truth points.
-            use_occlusion_aware_detector (bool, optional): If True, the occlusion aware
-                detector is used to determine gt points. If False, the standard
-                detector is used. Defaults to False.
+            gt_occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
+                clustering is used to determine gt points. If None, the standard
+                clustering is used. Defaults to None.
+            occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
+                clustering is used to determine pre-filter radar detections. If None, the standard
+                clustering is used. Defaults to None.
         """
         
         #pose tracking
@@ -90,6 +96,7 @@ class _PointCloudIntegrator:
         #raw point cloud history/accumulation
         self.raw_point_history:PcAccumulator = PcAccumulator(
             gt_distance_threshold_m=gt_distance_threshold_m,
+            valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
             gt_point_labeling_strategy=gt_point_labeling_strategy,
@@ -216,17 +223,19 @@ class _PointCloudIntegrator:
         #should be overridden by child classes
         return self.raw_point_history.get_nodes(normalize_frames=normalize_frames)
     
-    def get_grid(self, density:bool = False) -> np.ndarray:
+    def get_grid(self, density:bool = False, filter_for_gt_regions:bool = False) -> np.ndarray:
         """
         Get the current grid.
 
         Args:
             density (bool, optional): If True, return the density grid. Defaults to False.
+            filter_for_gt_regions (bool, optional): If True, filter the points for only points near
+                gt points (used for generating grid with GT points nearby). Defaults to False.
 
         Returns:
             np.ndarray: MxM grid where 1 indicates occupancy or log-normalized point densities.
         """
-        return self.raw_point_history.get_grid(density=density)
+        return self.raw_point_history.get_grid(density=density, filter_for_gt_regions=filter_for_gt_regions)
     
     def get_gt_grid(self, density:bool = False) -> np.ndarray:
         """

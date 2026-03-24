@@ -25,6 +25,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
 
     def __init__(
             self,
+            valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             grid_resolution_m_prob: float = 0.10,
             grid_max_distance_m_prob: float = 5.0,
             num_frames_history_prob: int = 20,
@@ -38,6 +39,8 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
         Initialize the RagnnarokPointCloudIntegrator.
 
         Args:
+            valid_fovs_deg (list[tuple[float, float]], optional): A list of valid FOVs in degrees, e.g. [(-60, 60)].
+                0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             grid_resolution_m_prob (float, optional): Resolution for the probabilistic
                 grid. Defaults to 0.10.
             grid_max_distance_m_prob (float, optional): Max distance for the
@@ -58,6 +61,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
         
         super().__init__(
             gt_distance_threshold_m=grid_resolution_m_prob,
+            valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history_hist + num_frames_history_prob,
             min_detection_radius=min_detection_radius,
             max_detection_radius=max_detection_radius
@@ -68,12 +72,14 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
             ProbabilisticPCGrid(
                 grid_resolution_m=grid_resolution_m_prob,
                 grid_max_distance_m=grid_max_distance_m_prob,
+                valid_fovs_deg=valid_fovs_deg,
                 num_frames_history=num_frames_history_prob,
                 occupancy_threshold=0.20
             )      
         self.historical_pc_grid:HistoricalPCGrid = HistoricalPCGrid(
             grid_resolution_m=grid_resolution_m_hist,
             grid_max_distance_m=grid_max_distance_m_hist,
+            valid_fovs_deg=valid_fovs_deg,
             num_frames_persistance=num_frames_history_hist
         )
 

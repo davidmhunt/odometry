@@ -16,6 +16,16 @@ from odometry.test_benches._test_bench import OdomCoordinateFrame
 from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
 
 class PointCloudIntegratorUnetTB(PointCloudIntegratorTB):
+    """
+    Test bench for UNet-based point cloud integration and visualization.
+
+    Extends PointCloudIntegratorTB to handle UNet-specific processing steps,
+    such as generating dense grid maps or density-based dataset samples.
+
+    Attributes:
+        filter_dets_for_gt_regions (bool): Flag to configure whether detections
+            are filtered for ground truth regions before point cloud accumulation.
+    """
 
     def __init__(
             self,
@@ -29,8 +39,27 @@ class PointCloudIntegratorUnetTB(PointCloudIntegratorTB):
             use_filters:bool = True,
             prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
             gt_source=None,
-            odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU
+            odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU,
+            filter_dets_for_gt_regions:bool = False
             ):
+        """
+        Initializes the PointCloudIntegratorUnetTB.
+
+        Args:
+            gt_localizer (icp2DLocalization): Ground truth localizer.
+            map_handler (MapHandler): Handles map and static environment data.
+            dataset (CpslDS): The dataset containing the sensor logs.
+            point_cloud_integrator (_PointCloudIntegrator): Integrator for processing the radar point cloud.
+            dynamic_point_cloud_integrator (_PointCloudIntegrator, optional): Integrator for dynamic points. Defaults to None.
+            localizer (optional): The localizer module to be evaluated. Defaults to None.
+            model_dataset_generator (_OnlineDatasetGenerator, optional): Generator for online sample extraction. Defaults to None.
+            use_filters (bool, optional): If True, uses filtering during processing. Defaults to True.
+            prediction_source (PredictionSource, optional): Source for pose predictions. Defaults to PredictionSource.IMU_AND_VEL.
+            gt_source (optional): Source configuration for ground truth data. Defaults to None.
+            odom_frame (OdomCoordinateFrame, optional): Odometry coordinate frame specification. Defaults to OdomCoordinateFrame.FLU.
+            filter_dets_for_gt_regions (bool, optional): If True, filter the points for only points near
+                gt points (used for generating grid with GT points nearby). Defaults to False.
+        """
         
         super().__init__(
             gt_localizer,
@@ -45,6 +74,8 @@ class PointCloudIntegratorUnetTB(PointCloudIntegratorTB):
             gt_source=gt_source,
             odom_frame=odom_frame
         )
+
+        self.filter_dets_for_gt_regions = filter_dets_for_gt_regions
 
         return
     
@@ -93,7 +124,9 @@ class PointCloudIntegratorUnetTB(PointCloudIntegratorTB):
             
             if self.point_cloud_integrator.check_valid_num_frames():
 
-                grid = self.point_cloud_integrator.get_grid(density=True)
+                grid = self.point_cloud_integrator.get_grid(
+                    density=True,
+                    filter_for_gt_regions=self.filter_dets_for_gt_regions)
                 gt_grid = self.point_cloud_integrator.get_gt_grid()
             
                 self.model_dataset_generator.save_sample(
@@ -214,7 +247,8 @@ class PointCloudIntegratorUnetTB(PointCloudIntegratorTB):
 
         #bottom: grids
         grid = self.point_cloud_integrator.get_grid(
-            density=True
+            density=True,
+            filter_for_gt_regions=True
         )
         bins = self.point_cloud_integrator.raw_point_history.grid_bins
         self.plotter_pc_grid.plot_pc_grid(

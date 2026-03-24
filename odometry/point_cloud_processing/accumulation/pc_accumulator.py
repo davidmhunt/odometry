@@ -4,6 +4,7 @@ from geometries.transforms.transformation import Transformation
 from scipy.spatial import cKDTree
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
 from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
+from odometry.point_cloud_processing.pc_fov_filter import pcFovFilter
 
 class GtPointLabelingStrategy(Enum):
     USE_VALID_POINTS_FOR_GT_CLASSIFICATION = 0
@@ -29,13 +30,15 @@ class PcAccumulator:
     def __init__(
             self,
             gt_distance_threshold_m: float = 0.05,
+            valid_fovs_deg: list[tuple[float, float]] = [(-180,180)],
             num_frames_history:int = 30,
             num_frames_history_gt:int = 1,
             gt_point_labeling_strategy:GtPointLabelingStrategy = GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering:OcclusionAwareClustering=None,
             occlusion_aware_clustering:OcclusionAwareClustering=None,
             grid_resolution_m: float = 0.1,
-            max_detection_range: float = 20.0
+            max_detection_range: float = 20.0,
+            **kwargs
     ):
         """
         Initialize the PcAccumulator.
@@ -43,6 +46,8 @@ class PcAccumulator:
         Args:
             gt_distance_threshold_m (float, optional): Maximum distance in meters to
                 associate a detection with a ground truth point. Defaults to 0.05.
+            valid_fovs_deg (list[tuple[float, float]], optional): A list of valid FOVs in degrees, e.g. [(-60, 60)].
+                0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180,180)].
             num_frames_history (int, optional): The number of frames a point should
                 persist in the accumulator before expiring. Defaults to 30.
             num_frames_history_gt (int, optional): The number of frames a gt point should
@@ -81,6 +86,10 @@ class PcAccumulator:
         self.pc_range_filter:pcRangeFilter = pcRangeFilter(
             min_detection_radius_m=0.0,
             max_detection_radius_m=max_detection_range
+        )
+
+        self.pc_fov_filter:pcFovFilter = pcFovFilter(
+            valid_fovs_deg=valid_fovs_deg
         )
 
         # Collection of currently available points
@@ -173,7 +182,10 @@ class PcAccumulator:
             valid_idxs = self.points_raw[:,3] > 0
             self.points_raw = self.points_raw[valid_idxs]
 
-            #remove points outside the grid
+            #remove points outside the field of view
+            self.points_raw = self.pc_fov_filter.get_points_in_fov(self.points_raw)
+
+            #remove points outside the detection range
             self.points_raw = self.pc_range_filter.get_points_in_detection_range(self.points_raw)
         
         #prune any expired gt points
@@ -187,7 +199,10 @@ class PcAccumulator:
             valid_idxs = self.gt_points_raw[:,3] > 0
             self.gt_points_raw = self.gt_points_raw[valid_idxs]
 
-            #remove points outside the grid
+            #remove points outside the field of view
+            self.gt_points_raw = self.pc_fov_filter.get_points_in_fov(self.gt_points_raw)
+
+            #remove points outside the detection range
             self.gt_points_raw = self.pc_range_filter.get_points_in_detection_range(self.gt_points_raw)
         
     
@@ -199,6 +214,13 @@ class PcAccumulator:
             new_points (np.ndarray): Nx3 array of [x, y, z] detected points to add.
         """
         # Append new points to the existing collection
+        
+        #filter points outside the field of view
+        new_points = self.pc_fov_filter.get_points_in_fov(new_points)
+
+        #filter points outside the detection range
+        new_points = self.pc_range_filter.get_points_in_detection_range(new_points)
+
         new_points = np.hstack((
             new_points,
             np.zeros(shape=
@@ -473,20 +495,33 @@ class PcAccumulator:
         else:
             raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
 
-    def get_grid(self, density:bool = False) -> np.ndarray:
+    def get_grid(self, density:bool = False, filter_for_gt_regions:bool = False) -> np.ndarray:
         """
         Get the current grid.
 
         Args:
             density (bool, optional): If True, return the density grid. Defaults to False.
+            filter_for_gt_regions (bool, optional): If True, filter the points for only points near
+            gt points (used for generating grid with GT points nearby)
+            . Defaults to False.
 
         Returns:
             np.ndarray: MxM grid where 1 indicates occupancy or log-normalized point densities.
         """
-        if density:
-            return self._get_density_grid_from_points(self.points)
+
+        if filter_for_gt_regions:
+            grid_points = self._get_dets_close_to_gt_points(
+                dets=self.points[:,0:3],
+                gt_points=self.gt_points[:,0:3],
+                threshold=self.gt_distance_threshold_m
+            )
         else:
-            return self._get_grid_from_points(self.points)
+            grid_points = self.points[:,0:3]
+
+        if density:
+            return self._get_density_grid_from_points(grid_points)
+        else:
+            return self._get_grid_from_points(grid_points)
     
     def get_gt_grid(self, density:bool = False) -> np.ndarray:
         """

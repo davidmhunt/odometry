@@ -22,6 +22,7 @@ class _PCGrid(PcAccumulator):
             self,
             grid_resolution_m: float = 5e-2,
             grid_max_distance_m: float = 3,
+            valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 30,
             num_frames_history_gt: int = 30,
     ):
@@ -33,6 +34,8 @@ class _PCGrid(PcAccumulator):
                 Defaults to 5e-2.
             grid_max_distance_m (float, optional): Maximum distance from center in meters.
                 Defaults to 3.
+            valid_fovs_deg (list[tuple[float, float]], optional): A list of valid FOVs in degrees, e.g. [(-60, 60)].
+                0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_history (int, optional): Number of frames to persist points.
                 Defaults to 30.
             num_frames_history_gt (int, optional): Number of frames to persist gt points.
@@ -45,6 +48,7 @@ class _PCGrid(PcAccumulator):
         
         super().__init__(
             gt_distance_threshold_m=grid_resolution_m,
+            valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
             grid_resolution_m=grid_resolution_m,

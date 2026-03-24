@@ -20,7 +20,8 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
             angle_res_rad: float = 0.017,
             occlusion_threshold: float = 0.7,
             subsample_percentage: float = 0.1,
-            remove_occluded: bool = True
+            remove_occluded: bool = True,
+            filter_method: str = "overlap"
     ) -> None:
         """Initializes the detector with clustering and visibility parameters.
 
@@ -39,6 +40,8 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
             subsample_percentage (float): Percentage of points to subsample 
                 before clustering.
             remove_occluded (bool): Whether to remove occluded points after clustering.
+            filter_method (str): Method used to remove occluded points. Options
+                are "overlap" (default) or "ray_trace".
         """
         super().__init__(
             clustering_eps=clustering_eps,
@@ -46,7 +49,8 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
             angle_res_rad=angle_res_rad,
             occlusion_threshold=occlusion_threshold,
             subsample_percentage=subsample_percentage,
-            remove_occluded=remove_occluded
+            remove_occluded=remove_occluded,
+            filter_method=filter_method
         )
 
         self.knn_distance_threshold = knn_distance_threshold
@@ -97,7 +101,10 @@ class TwoStageOcclusionAwareClustering(OcclusionAwareClustering):
 
         #3. perform clustering (with or without occlusion filter)
         if self.remove_occluded:
-            filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+            if self.filter_method == "ray_trace":
+                filtered_points, labels, visible_labels = self._ray_trace_occlusion_clustering(pc_cartesian)
+            else:
+                filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
         else:
             filtered_points, labels, visible_labels = self._cluster_points(pc_cartesian)
 

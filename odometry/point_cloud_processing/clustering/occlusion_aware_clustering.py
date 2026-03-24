@@ -19,6 +19,7 @@ class OcclusionAwareClustering:
             occlusion_threshold: float = 0.7,
             subsample_percentage: float = 1.0,
             remove_occluded: bool = True,
+            filter_method: str = "overlap",
     ) -> None:
         """Initializes the detector with clustering and visibility parameters.
 
@@ -34,6 +35,8 @@ class OcclusionAwareClustering:
             subsample_percentage (float): Percentage of points to subsample 
                 before clustering.
             remove_occluded (bool): Whether to remove occluded points after clustering.
+            filter_method (str): Method used to remove occluded points. Options 
+                are "overlap" (default) or "ray_trace".
         """
         self.clusterer = DBSCAN(eps=clustering_eps, min_samples=clustering_min_samples)
         self.angle_res_rad = angle_res_rad
@@ -41,6 +44,7 @@ class OcclusionAwareClustering:
         self.scaler = StandardScaler()
         self.subsample_percentage = subsample_percentage
         self.remove_occluded = remove_occluded
+        self.filter_method = filter_method
 
     def _get_spherical_coordinates(self, points: np.ndarray) -> np.ndarray:
         """Converts input points to 3D spherical coordinates [r, theta, phi]."""
@@ -153,7 +157,112 @@ class OcclusionAwareClustering:
             labels[visibility_mask], 
             visible_labels
         )
-    
+
+    def _ray_trace_filtering(self, pc_cartesian: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Filters point cloud by retaining only the closest points per angular bin.
+
+        Converts the point cloud to spherical coordinates, discretizes the azimuthal
+        angle (theta) into bins based on `angle_res_rad`, and retains only the point
+        with the minimum distance (r) in each non-empty bin.
+
+        Args:
+            pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
+
+        Returns:
+            tuple:
+                - np.ndarray: Filtered point cloud containing only the closest points.
+                - np.ndarray: Indices of the closest points in the original point cloud.
+        """
+        if pc_cartesian.shape[0] == 0:
+            return pc_cartesian, np.array([])
+
+        spherical_points = self._get_spherical_coordinates(pc_cartesian[:, 0:2])
+        rs = spherical_points[:, 0]
+        thetas = spherical_points[:, 1]
+
+        num_bins = int((2 * np.pi) / self.angle_res_rad)
+        bin_indices = (((thetas + np.pi) / (2 * np.pi)) * num_bins).astype(int)
+        bin_indices = bin_indices % num_bins
+
+        sort_idx = np.argsort(rs)
+        sorted_bins = bin_indices[sort_idx]
+
+        _, unique_idx = np.unique(sorted_bins, return_index=True)
+        closest_point_indices = sort_idx[unique_idx]
+
+        return pc_cartesian[closest_point_indices], closest_point_indices
+
+    def _ray_trace_occlusion_clustering(self, pc_cartesian: np.ndarray):
+        """Applies ray-tracing filtering before clustering the point cloud.
+
+        This acts as an alternative to `_occlusion_aware_clustering`. Points are
+        first filtered via `_ray_trace_filtering` to remove occluded points,
+        followed by standard DBSCAN clustering.
+
+        Args:
+            pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
+
+        Returns:
+            tuple: (filtered_points, labels, visible_labels)
+                - filtered_points: Only points belonging to visible clusters.
+                - labels: The cluster labels for the filtered points.
+                - visible_labels: List of unique labels that passed the filter.
+        """
+        if pc_cartesian.shape[0] == 0:
+            return np.empty((0, pc_cartesian.shape[1])), np.array([]), []
+
+        points, labels, visible_labels = self._cluster_points(pc_cartesian)
+
+        # pc_filtered, closest_point_indices = self._ray_trace_filtering(points)
+
+        pc_filtered, closest_point_indices = self._ray_trace_filtering_with_threshold(
+            points,
+            threshold=0.1)
+
+        return pc_filtered, labels[closest_point_indices], visible_labels
+
+    def _ray_trace_filtering_with_threshold(
+        self,
+        pc_cartesian: np.ndarray,
+        threshold: float = 0.1):
+        """
+        Args:
+            pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
+            threshold (float): Threshold depth for filtering points.
+        Returns:
+            tuple: (filtered_points, closest_point_indices)
+                - filtered_points: Only points belonging to visible clusters.
+                - closest_point_indices: Indices of the closest points in the original point cloud.
+        """
+        if pc_cartesian.shape[0] == 0:
+            return pc_cartesian, np.array([])
+
+        # 1. Coordinate conversion & Binning
+        spherical_points = self._get_spherical_coordinates(pc_cartesian[:, 0:2])
+        rs, thetas = spherical_points[:, 0], spherical_points[:, 1]
+        num_bins = int((2 * np.pi) / self.angle_res_rad)
+        bin_indices = (((thetas + np.pi) / (2 * np.pi)) * num_bins).astype(int) % num_bins
+
+        # 2. Sort by bin (primary) and distance (secondary)
+        # This groups bins together and orders them by proximity
+        sort_idx = np.lexsort((rs, bin_indices))
+        sorted_bins = bin_indices[sort_idx]
+        sorted_rs = rs[sort_idx]
+
+        # 3. Find the minimum distance for each bin
+        # unique_idx points to the first (closest) point in each bin group
+        _, unique_idx = np.unique(sorted_bins, return_index=True)
+        
+        # Broadcast the minimum distances back to the shape of sorted_rs
+        # We create an array where every point knows the r_min of its bin
+        min_rs_per_point = np.repeat(sorted_rs[unique_idx], np.diff(np.append(unique_idx, len(sorted_rs))))
+
+        # 4. Filter by the threshold
+        mask = sorted_rs <= (min_rs_per_point + threshold)
+        final_indices = sort_idx[mask]
+
+        return pc_cartesian[final_indices], final_indices
+
     # def _subsample_points(self, pc_cartesian: np.ndarray):
     #     """Subsamples the point cloud."""
     #     num_points = int(pc_cartesian.shape[0] * self.subsample_percentage)
@@ -217,7 +326,10 @@ class OcclusionAwareClustering:
 
         #2. perform clustering (with or without occlusion filter)
         if self.remove_occluded:
-            filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
+            if self.filter_method == "ray_trace":
+                filtered_points, labels, visible_labels = self._ray_trace_occlusion_clustering(pc_cartesian)
+            else:
+                filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
         else:
             filtered_points, labels, visible_labels = self._cluster_points(pc_cartesian)
 

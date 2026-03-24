@@ -15,6 +15,19 @@ from mmwave_model_integrator.dataset_generators._online_dataset_generator import
 from odometry.test_benches._test_bench import OdomCoordinateFrame
 
 class PointCloudIntegratorTB(_TestBench):
+    """
+    Test bench for integrating and visualizing point cloud processing.
+
+    This class provides a test bench framework for evaluating point cloud integrators
+    and plotting the accumulated historical data alongside sensor and ground truth data.
+
+    Attributes:
+        point_cloud_integrator (_PointCloudIntegrator): The main point cloud integrator.
+        dynamic_point_cloud_integrator (_PointCloudIntegrator): Optional integrator for dynamic points.
+        model_dataset_generator (_OnlineDatasetGenerator): Optional generator for dataset generation.
+        normalize_frames (bool): Flag indicating if frames should be normalized.
+        generate_dataset (bool): Flag indicating if datasets should be generated.
+    """
 
     def __init__(
             self,
@@ -30,6 +43,22 @@ class PointCloudIntegratorTB(_TestBench):
             gt_source=None,
             odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU
             ):
+        """
+        Initializes the PointCloudIntegratorTB.
+
+        Args:
+            gt_localizer (icp2DLocalization): Ground truth localizer.
+            map_handler (MapHandler): Handles map and static environment data.
+            dataset (CpslDS): The dataset containing the sensor logs.
+            point_cloud_integrator (_PointCloudIntegrator): Integrator for processing the radar point cloud.
+            dynamic_point_cloud_integrator (_PointCloudIntegrator, optional): Integrator for dynamic points. Defaults to None.
+            localizer (optional): The localizer module to be evaluated. Defaults to None.
+            model_dataset_generator (_OnlineDatasetGenerator, optional): Generator for online sample extraction. Defaults to None.
+            use_filters (bool, optional): If True, uses filtering during processing. Defaults to True.
+            prediction_source (PredictionSource, optional): Source for pose predictions. Defaults to PredictionSource.IMU_AND_VEL.
+            gt_source (optional): Source configuration for ground truth data. Defaults to None.
+            odom_frame (OdomCoordinateFrame, optional): Odometry coordinate frame specification. Defaults to OdomCoordinateFrame.FLU.
+        """
         
         super().__init__(
             gt_localizer,

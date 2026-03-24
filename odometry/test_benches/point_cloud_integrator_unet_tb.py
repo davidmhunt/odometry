@@ -248,7 +248,7 @@ class PointCloudIntegratorUnetTB(PointCloudIntegratorTB):
         #bottom: grids
         grid = self.point_cloud_integrator.get_grid(
             density=True,
-            filter_for_gt_regions=True
+            filter_for_gt_regions=False
         )
         bins = self.point_cloud_integrator.raw_point_history.grid_bins
         self.plotter_pc_grid.plot_pc_grid(

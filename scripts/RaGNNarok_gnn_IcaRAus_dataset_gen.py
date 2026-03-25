@@ -11,21 +11,15 @@ from cpsl_datasets.map_handler import MapHandler
 from odometry.localization.icp2D_localization import icp2DLocalization
 from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
-from odometry.test_benches.point_cloud_integrator_tb import PointCloudIntegratorTB
+from odometry.test_benches.ragnnarok_point_cloud_integrator_tb import RaGNNPointCloudIntegratorTB
 from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
-from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
-from odometry.point_cloud_processing.accumulation.integrators._pc_integrator_gnn_runner import _PointCloudIntegratorGnnRunner
-from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
-from mmwave_model_integrator.torch_training.models.TwoStreamSpatioTemporalGnn import TwoStreamSpatioTemporalGnn
-
-from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
-from odometry.point_cloud_processing.clustering.two_stage_occlusion_aware_clustering import TwoStageOcclusionAwareClustering
-from odometry.point_cloud_processing.accumulation.pc_accumulator import GtPointLabelingStrategy
-from odometry.test_benches.point_cloud_integrator_unet_tb import PointCloudIntegratorUnetTB
+from odometry.point_cloud_processing.accumulation.integrators.ragnnarok_pc_integrator import RagnnarokPointCloudIntegrator
 
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
-from mmwave_model_integrator.input_encoders._input_encoder import _InputEncoder
-from mmwave_model_integrator.ground_truth_encoders._gt_encoder import _GTEncoder
+from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
+from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
+
+
 #analyzer
 from odometry.analyzers.analyzer import Analyzer
 
@@ -42,11 +36,8 @@ DATASET_PATH = "/data/IcaRAus/datasets/UGV"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
 GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
-normalize_frames = True
-num_frames_history = 25
-#key {no}_occluded_{rt or olp}_gt_{rt or olp}_pts_{no}_gt_filter
-# config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_no_occluded_rt_gt_olp_pts_gt_filter".format(num_frames_history)
-config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_no_clustering".format(num_frames_history)
+normalize_frame=True
+config_label = "RaGNNarok_1fp_20fh_0_50_th_5mRng_0_2_res"
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -118,8 +109,8 @@ def generate_gnn_dataset(
     )
 
     #initialize the dataset encoders
-    input_encoder = _InputEncoder()
-    gt_encoder = _GTEncoder()
+    input_encoder = _NodeEncoder()
+    gt_encoder = _GTNodeEncoder()
 
     #initialize the dataset generator
     generated_dataset_path = os.path.join(GENERATED_DATASETS_PATH,"{}_train".format(config_label))
@@ -128,25 +119,25 @@ def generate_gnn_dataset(
         input_encoder=input_encoder,
         ground_truth_encoder=gt_encoder,
         generated_file_name="frame",
-        input_encoding_folder="grids",
-        ground_truth_encoding_folder="gt_grids",
+        input_encoding_folder="nodes",
+        ground_truth_encoding_folder="labels",
         clear_existing_data=clear_existing_train_data
     )
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.25,#0.1
-        icp_best_points_percentile=60, #80
+        icp_matching_distance_threshold=0.5,#originally 0.1
+        icp_best_points_percentile=80, #originally 65
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7, #7
-        icp_max_iterations=5, #20
+        icp_point_pairs_threshold=7, #originally 5
+        icp_max_iterations=5,
         self_detection_radius_m=0 #originally 1.5
     )
 
     lidar_odometry = icp2DLocalization(
         icp_matching_distance_threshold=0.1, #was 0.6, try 0.1
-        icp_best_points_percentile=75, #was 50 - try 75
+        icp_best_points_percentile=50, #was 50 - try 75
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
@@ -155,64 +146,34 @@ def generate_gnn_dataset(
     )
 
     #initialize the probabilistic point cloud grid
-    point_cloud_integrator = _PointCloudIntegrator(
-        gt_distance_threshold_m=0.4,
-        num_frames_history_gt=1,
-        valid_fovs_deg=[(-70,70),(110,-110)],
-        num_frames_history=num_frames_history,
+    point_cloud_integrator = RagnnarokPointCloudIntegrator(
+        valid_fovs_deg=[(-180, 180)],
+        grid_resolution_m_prob=0.10,
+        grid_max_distance_m_prob=8.0,
+        num_frames_history_prob=50,
+        grid_resolution_m_hist=0.10,
+        grid_max_distance_m_hist=8.0,
+        num_frames_history_hist=10,
         min_detection_radius=1.0,
-        max_detection_radius=8.0,
-        grid_resolution_m=0.1,
-        gt_point_labeling_strategy=GtPointLabelingStrategy.USE_GT_POINTS_FOR_GT_CLASSIFICATION,
-        # gt_occlusion_aware_clustering=OcclusionAwareClustering(
-        #     clustering_eps=0.5,
-        #     clustering_min_samples=12,
-        #     angle_res_rad=0.017,
-        #     occlusion_threshold=0.7,
-        #     subsample_percentage=1.0,
-        #     remove_occluded=True,
-        #     filter_method='ray_trace'
-        # ),
-        # occlusion_aware_clustering=OcclusionAwareClustering(
-        #     clustering_eps=0.15,
-        #     clustering_min_samples=7,
-        #     angle_res_rad=0.017,
-        #     occlusion_threshold=0.9,
-        #     subsample_percentage=0.40,
-        #     remove_occluded=False,
-        #     filter_method='overlap' #ray_trace or overlap
-        # )
-    )
-
-    dynamic_point_cloud_integrator = _PointCloudIntegrator(
-        gt_distance_threshold_m=0.5,
-        num_frames_history=num_frames_history,
-        min_detection_radius=1.0,
-        max_detection_radius=4.0
+        max_detection_radius=5.0,
     )
 
     #initialize the test bench
-    test_bench = PointCloudIntegratorUnetTB(
+    test_bench = RaGNNPointCloudIntegratorTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
         dataset=dataset,
         point_cloud_integrator=point_cloud_integrator,
-        dynamic_point_cloud_integrator=dynamic_point_cloud_integrator,
         model_dataset_generator=dataset_generator,
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
         gt_source=GroundTruthSource.LIDAR,
-        odom_frame=OdomCoordinateFrame.FLU,
-        filter_dets_for_gt_regions=False
+        odom_frame=OdomCoordinateFrame.FLU
     )
 
-    if file_name== "north_1st_4":
-        start_heading = np.deg2rad(45)
-        start_pose = np.array([1.0,0.5])
-    else:
-        start_heading = np.deg2rad(0)
-        start_pose = np.array([0.00,0.00])
+    start_heading = np.deg2rad(0)
+    start_pose = np.array([0.00,0.00])
 
     #initialize the localization
     new_heading_rad,new_pose_m = test_bench.init_localization(
@@ -238,9 +199,9 @@ def generate_gnn_dataset(
             temp_dir_path=os.path.join(MOVIE_TEMP_DIRECTORY,results_parent_folder)
         )
         movie_generator.initialize_figure(
-            nrows=3,
+            nrows=4,
             ncols=3,
-            figsize=(15,15)
+            figsize=(15,20)
         )
         
         movie_folder="{}/Movies".format(results_parent_folder)
@@ -259,7 +220,7 @@ def generate_gnn_dataset(
         gt_enabled=True,
         movie_generator=movie_generator,
         generate_dataset=True,
-        normalize_frames=normalize_frames)
+        normalize_frames=normalize_frame)
     
     if generate_movie:
         movie_generator.save_movie()
@@ -299,11 +260,12 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True,
+                generate_movie=False,
                 clear_existing_train_data=clear_existing_train_data
             )
 
-            clear_existing_train_data = False    
+            clear_existing_train_data = False
+    
     analyzer = Analyzer()
     analyzer.show_cumulative_summary_from_csvs(
         save_folder="{}/Results".format(results_parent_folder)

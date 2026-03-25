@@ -157,6 +157,7 @@ class PcAccumulator:
             raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
         
         #prune out expired points
+        # print(f"adding {new_points.shape[0]} points")
         self._prune_points_array()
         
         self._update_points(new_points)
@@ -249,11 +250,10 @@ class PcAccumulator:
             new_gt_points, _, _ = self.gt_occlusion_aware_clustering.process(
                 pc_cartesian=new_gt_points
             )
-            
         new_gt_points = np.hstack((
             new_gt_points,
             np.zeros(shape=
-                        (new_gt_points.shape[0],self.num_frames_history_gt))
+                        (new_gt_points.shape[0],1))
         ))
         new_gt_points[:,3] = self.num_frames_history_gt
         self.gt_points_raw = np.vstack((self.gt_points_raw, new_gt_points))

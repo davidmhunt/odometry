@@ -24,7 +24,7 @@ class _PCGrid(PcAccumulator):
             grid_max_distance_m: float = 3,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 30,
-            num_frames_history_gt: int = 30,
+            num_frames_history_gt: int = 1,
     ):
         """
         Initialize the _PCGrid.
@@ -52,7 +52,8 @@ class _PCGrid(PcAccumulator):
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
             grid_resolution_m=grid_resolution_m,
-            max_detection_range=grid_max_distance_m
+            max_detection_range=grid_max_distance_m,
+            
         )
 
     def reset(

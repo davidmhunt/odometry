@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from odometry.supportFns import rotation_functions
+from scipy.spatial.transform import Rotation
+from geometries.transforms.transformation import Transformation
 from odometry.datasets.radnav_ds import radnavDS
 from odometry.datasets.map_handler import MapHandler
 
@@ -29,6 +30,30 @@ class PlotterLocalization:
         self.map_handler:MapHandler = map_handler
 
         return
+
+    def _apply_transform(self, points, rot_angle_rad, trans):
+        if len(points) == 0:
+            return points
+        points_3d = np.hstack([points, np.zeros((points.shape[0], 1))]) if points.shape[1] == 2 else points
+        transform = Transformation(
+            translation=np.array([trans[0], trans[1], 0.0]),
+            rotation=Rotation.from_euler('z', rot_angle_rad).as_quat()
+        )
+        aligned_points_3d = transform.apply_transformation(points_3d)
+        return aligned_points_3d[:, :points.shape[1]]
+
+    def _apply_inverse_transform(self, points, rot_angle_rad, trans):
+        if len(points) == 0:
+            return points
+        points_3d = np.hstack([points, np.zeros((points.shape[0], 1))]) if points.shape[1] == 2 else points
+        inv_rotation = Rotation.from_euler('z', -rot_angle_rad)
+        inv_translation = inv_rotation.apply(np.array([-trans[0], -trans[1], 0.0]))
+        transform = Transformation(
+            translation=inv_translation,
+            rotation=inv_rotation.as_quat()
+        )
+        aligned_points_3d = transform.apply_transformation(points_3d)
+        return aligned_points_3d[:, :points.shape[1]]
     
     def plot_detections(
             self,
@@ -103,7 +128,7 @@ class PlotterLocalization:
         """
         
         aligned_points = \
-            rotation_functions.apply_rot_trans(
+            self._apply_transform(
                 points=current_points,
                 rot_angle_rad=heading_rad,
                 trans=pose_m
@@ -207,7 +232,7 @@ class PlotterLocalization:
         """
         
         aligned_points = \
-            rotation_functions.apply_rot_trans(
+            self._apply_transform(
                 points=current_points,
                 rot_angle_rad=heading_rad,
                 trans=pose_m
@@ -305,7 +330,7 @@ class PlotterLocalization:
         """
         if len(static_points > 0):
             static_aligned_points = \
-                rotation_functions.apply_rot_trans(
+                self._apply_transform(
                     points=static_points,
                     rot_angle_rad=heading_rad,
                     trans=pose_m
@@ -313,7 +338,7 @@ class PlotterLocalization:
 
         if len(dynamic_points > 0):
             dynamic_aligned_points = \
-                rotation_functions.apply_rot_trans(
+                self._apply_transform(
                     points=dynamic_points,
                     rot_angle_rad=heading_rad,
                     trans=pose_m
@@ -411,13 +436,13 @@ class PlotterLocalization:
         """
         
         static_aligned_points = \
-            rotation_functions.apply_rot_trans(
+            self._apply_transform(
                 points=static_points,
                 rot_angle_rad=heading_rad,
                 trans=pose_m
             )
         dynamic_aligned_points = \
-            rotation_functions.apply_rot_trans(
+            self._apply_transform(
                 points = dynamic_points,
                 rot_angle_rad=heading_rad,
                 trans = pose_m
@@ -878,3 +903,170 @@ class PlotterLocalization:
         #plot the heading history
         if show:
             plt.show()
+
+    def plot_map_on_detections(
+            self,
+            current_points:np.ndarray,
+            heading_rad,
+            pose_m,
+            ax:plt.Axes=None,
+            show=False
+    ):
+        """Plots the known map onto the sensor's agent frame point cloud
+        Args:
+            current_points (np.ndarray): point cloud in agent frame
+            heading_rad (_type_): the heading of the vehicle in the global frame
+            pose_m (_type_): the position of the vehicle in the global frame
+            ax (plt.Axes, optional): A set of axes to plot on. Defaults to None.
+            show (bool, optional): on True, shows the plot. Defaults to False.
+        """
+        if not ax:
+            fig,ax = plt.subplots()
+        
+        #plot the map in agent frame
+        map_points = self.map_handler.map_points
+        aligned_map = self._apply_inverse_transform(
+            points=map_points,
+            rot_angle_rad=heading_rad,
+            trans=pose_m
+        )
+        ax.scatter(
+            aligned_map[:,0],
+            aligned_map[:,1],
+            label="map",
+            marker=".",
+            s=0.5,
+            color="blue")
+
+        #plot the detections (already in agent frame)
+        ax.scatter(
+            current_points[:,0],
+            current_points[:,1],
+            label="detections",
+            marker="D",
+            color="red",
+            s=self.marker_size)
+        
+        #plot the pose estimate at origin facing forward
+        ax.scatter(
+            0.0,
+            0.0,
+            marker="o",
+            color="cyan",
+            s=15.0,
+            label="est position"
+        )
+        
+        #plot an arrow showing heading direction (forward in ego frame)
+        arrow_length = 3.0
+        ax.quiver(
+            0.0,
+            0.0,
+            arrow_length,
+            0.0,
+            angles="xy",
+            scale_units="xy",
+            scale=1,
+            color="cyan",
+            width=0.005,
+            label="heading"
+        )
+
+        ax.set_title("Point cloud Detections: {}".format(current_points.shape[0]),fontsize=self.font_size_title)
+        ax.set_xlim(-self.plot_x_max, self.plot_x_max)
+        ax.set_ylim(-self.plot_y_max, self.plot_y_max)
+        ax.set_xlabel("X",fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("Y",fontsize=self.font_size_axis_labels)
+        ax.tick_params(labelsize=self.font_size_ticks)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.grid("True")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return
+
+    def plot_map_on_detection_clusters(
+            self,
+            current_points:np.ndarray,
+            labels:np.ndarray,
+            heading_rad,
+            pose_m,
+            ax:plt.Axes=None,
+            plot_raw_detections:bool = False,
+            show=False
+    ):
+        """Plots the known map onto the sensor's agent frame point cloud with clusters
+        Args: ...
+        """
+        if not ax:
+            fig,ax = plt.subplots()
+        
+        #plot the map
+        map_points = self.map_handler.map_points
+        aligned_map = self._apply_inverse_transform(
+            points=map_points,
+            rot_angle_rad=heading_rad,
+            trans=pose_m
+        )
+        ax.scatter(
+            aligned_map[:,0],
+            aligned_map[:,1],
+            label="map",
+            marker=".",
+            s=0.5,
+            color="blue")
+        
+        #plot the pose estimate at origin
+        ax.scatter(
+            0.0,
+            0.0,
+            marker="o",
+            color="cyan",
+            s=15.0,
+            label="est position"
+        )
+
+        if plot_raw_detections:
+            ax.scatter(
+                current_points[:,0],
+                current_points[:,1],
+                label="orig. detections",
+                marker="D",
+                color="red",
+                s=self.marker_size)
+        
+        #determine the colors
+        unique_labels = np.unique(labels)
+        colors = plt.cm.Spectral(np.linspace(0,1,len(unique_labels)))
+
+        #plot each cluster
+        for label, color in zip(unique_labels, colors):
+            if label != -1:
+                cluster_points = current_points[labels == label]
+                ax.scatter(
+                    cluster_points[:, 0],
+                    cluster_points[:, 1],
+                    color=color,
+                    s=self.marker_size + 5,
+                    label=f"Cluster {label}")
+
+        ax.set_title("Clusters: {}".format(unique_labels.shape[0] - 1),fontsize=self.font_size_title)
+        ax.set_xlim(-self.plot_x_max, self.plot_x_max)
+        ax.set_ylim(-self.plot_y_max, self.plot_y_max)
+        ax.set_xlabel("X",fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("Y",fontsize=self.font_size_axis_labels)
+        ax.tick_params(labelsize=self.font_size_ticks)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5.0))
+        ax.grid("True")
+        handles,labels = ax.get_legend_handles_labels()
+        ax.legend(handles[1:3], labels[1:3], loc="lower right",fontsize=self.font_size_legend)
+
+        if show:
+            plt.show()
+
+        return

@@ -174,7 +174,7 @@ class OcclusionAwareClustering:
                 - np.ndarray: Indices of the closest points in the original point cloud.
         """
         if pc_cartesian.shape[0] == 0:
-            return pc_cartesian, np.array([])
+            return pc_cartesian, np.array([], dtype=int)
 
         spherical_points = self._get_spherical_coordinates(pc_cartesian[:, 0:2])
         rs = spherical_points[:, 0]
@@ -219,6 +219,7 @@ class OcclusionAwareClustering:
             points,
             threshold=0.1)
 
+        
         return pc_filtered, labels[closest_point_indices], visible_labels
 
     def _ray_trace_filtering_with_threshold(
@@ -235,7 +236,7 @@ class OcclusionAwareClustering:
                 - closest_point_indices: Indices of the closest points in the original point cloud.
         """
         if pc_cartesian.shape[0] == 0:
-            return pc_cartesian, np.array([])
+            return pc_cartesian, np.array([], dtype=int)
 
         # 1. Coordinate conversion & Binning
         spherical_points = self._get_spherical_coordinates(pc_cartesian[:, 0:2])

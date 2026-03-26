@@ -207,7 +207,7 @@ test_bench.init_filter(
     gyro_bias=-0.0024 #originally -0.0024,
 )
 
-end_idx = 100 #for full dataset, use "dataset.num_frames" #point cloud sample: frame 1340 on Wilk_Multipath_test_5 (960 for pc compare, 980 for block diagram)
+end_idx = 437 #for full dataset, use "dataset.num_frames" #point cloud sample: frame 1340 on Wilk_Multipath_test_5 (960 for pc compare, 980 for block diagram)
 save_name = config_label + "radar_combined"
 test_bench.run(
     start_frame=0,
@@ -271,12 +271,13 @@ test_bench.plotter_localization.plot_detections_on_map(
 
 # --- Apply KNN Filtering ---
 tuning_clustering_class = OcclusionAwareClustering(
-    clustering_eps=0.15,
-    clustering_min_samples=7,
+    clustering_eps=0.25,
+    clustering_min_samples=10,
     angle_res_rad=0.017,
     occlusion_threshold=0.9,
-    subsample_percentage=0.20,
-    remove_occluded=False
+    subsample_percentage=0.2,
+    filter_method="ray_trace",
+    remove_occluded=True
 )
 
 # Fit NearestNeighbors on the x,y coordinates
@@ -391,7 +392,9 @@ test_bench.plotter_localization.plot_map_on_detections(
 )
 axs[0, 3].set_title("Map in Sensor FOV")
 
-plt.show()
+os.makedirs("cluster_tuning", exist_ok=True)
+plt.savefig("cluster_tuning/cluster_development_grid.png")
+plt.close()
 
 # --- Statistical Analysis of Clusters ---
 
@@ -498,4 +501,5 @@ for i, stat_name in enumerate(stats_to_plot):
 axs2[0].legend()
 plt.suptitle("Statistical Differences Between Valid and Invalid Clusters", fontsize=16)
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.show()
+plt.savefig("cluster_tuning/cluster_development_stats.png")
+plt.close()

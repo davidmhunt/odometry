@@ -18,6 +18,9 @@ from odometry.point_cloud_processing.accumulation.integrators._pc_integrator_gnn
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 from mmwave_model_integrator.torch_training.models.TwoStreamSpatioTemporalGnn import TwoStreamSpatioTemporalGnn
 
+from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
+from odometry.point_cloud_processing.clustering.two_stage_occlusion_aware_clustering import TwoStageOcclusionAwareClustering
+from odometry.point_cloud_processing.accumulation.pc_accumulator import GtPointLabelingStrategy
 
 from mmwave_model_integrator.dataset_generators._online_dataset_generator import _OnlineDatasetGenerator
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
@@ -40,7 +43,9 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
-config_label = "IcaRAus_ugv_gnn_{}fh_wilk_cpsl_north_1st".format(num_frames_history)
+#key {no}_occluded_{rt or olp}_gt_{rt or olp}_pts_{no}_gt_filter
+# config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_no_occluded_rt_gt_olp_pts_gt_filter".format(num_frames_history)
+config_label = "IcaRAus_ugv_gnn_{}fh_wilk_cpsl_north_1st_occluded_no_rt_gt_no_rt_pts_no_gt_filter_0_25_eps_10_min_20_sub".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -150,12 +155,32 @@ def generate_gnn_dataset(
 
     #initialize the probabilistic point cloud grid
     point_cloud_integrator = _PointCloudIntegrator(
-        gt_distance_threshold_m=0.25,
+        gt_distance_threshold_m=0.4,
+        num_frames_history_gt=1,
+        valid_fovs_deg=[(-70,70),(110,-110)],
         num_frames_history=num_frames_history,
         min_detection_radius=1.0,
-        max_detection_radius=5.0, #originally 5.0
-        classify_gt_on_current_frame=True,
-        use_occlusion_aware_detector=True
+        max_detection_radius=8.0,
+        grid_resolution_m=0.1,
+        gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
+        # gt_occlusion_aware_clustering=OcclusionAwareClustering(
+        #     clustering_eps=0.5,
+        #     clustering_min_samples=12,
+        #     angle_res_rad=0.017,
+        #     occlusion_threshold=0.7,
+        #     subsample_percentage=1.0,
+        #     remove_occluded=True,
+        #     filter_method='ray_trace'
+        # ),
+        occlusion_aware_clustering=OcclusionAwareClustering(
+            clustering_eps=0.25,
+            clustering_min_samples=10,
+            angle_res_rad=0.017,
+            occlusion_threshold=0.9,
+            subsample_percentage=0.20,
+            remove_occluded=False,
+            filter_method='ray_trace' #ray_trace or overlap
+        )
     )
     # point_cloud_integrator = RagnnarokPointCloudIntegrator(
     #     grid_resolution_m_prob=0.1,
@@ -268,7 +293,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=False,
+                generate_movie=True,
                 clear_existing_train_data=clear_existing_train_data
             )
 

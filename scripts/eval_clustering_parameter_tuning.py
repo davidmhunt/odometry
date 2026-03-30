@@ -22,19 +22,19 @@ from odometry.point_cloud_processing.clustering.occlusion_aware_clustering impor
 from odometry.point_cloud_processing.accumulation.pc_accumulator import GtPointLabelingStrategy
 
 # --- Configuration Parameters ---
-SUBSAMPLE_PERCENTAGE = 0.10
+SUBSAMPLE_PERCENTAGE = 0.20
 NUM_FRAMES_HISTORY = 50
 END_IDX = 437
 
 # EPS and Min Samples combinations for tuning (8 combinations for 2x4 grid)
 test_cases = [
     # (0.05, 5),  (0.05, 10), 
-    # (0.1, 5),   (0.1, 10), 
-    # (0.15, 7),  (0.15, 12), 
+    (0.1, 5),   (0.1, 10), 
+    (0.15, 7),  (0.15, 12), 
     (0.2, 7),   (0.2, 10),
     (0.25,7), (0.25,10),
-    (0.25,12), (0.25,15),
-    (0.3,7), (0.3,10),
+    # (0.25,12), (0.25,15),
+    # (0.3,7), (0.3,10),
     
 ]
 
@@ -100,12 +100,25 @@ point_cloud_integrator = _PointCloudIntegrator(
     )
 )
 
+dynamic_point_cloud_integrator = _PointCloudIntegrator(
+    gt_distance_threshold_m=0.4,
+    num_frames_history_gt=1,
+    valid_fovs_deg=[(-70, 70), (110, -110)],
+    num_frames_history=NUM_FRAMES_HISTORY,
+    min_detection_radius=1.0,
+    max_detection_radius=8.0,
+    grid_resolution_m=0.05,
+    gt_point_labeling_strategy=GtPointLabelingStrategy.USE_GT_POINTS_FOR_GT_CLASSIFICATION,
+    occlusion_aware_clustering=None
+)
+
 test_bench = PointCloudIntegratorTB(
     localizer=radar_odometry,
     gt_localizer=lidar_odometry,
     map_handler=map_handler,
     dataset=dataset,
     point_cloud_integrator=point_cloud_integrator,
+    dynamic_point_cloud_integrator=dynamic_point_cloud_integrator,
     use_filters=True,
     prediction_source=PredictionSource.VEHICLE_ODOM,
     gt_source=GroundTruthSource.LIDAR,
@@ -127,6 +140,7 @@ test_bench.run(start_frame=0, max_frame=END_IDX, gt_enabled=True)
 
 # Extract final accumulated points in ego frame
 radar_dets = test_bench.point_cloud_integrator.get_raw_point_history() # Nx4 [x,y,z,frame]
+dynamic_dets = test_bench.dynamic_point_cloud_integrator.get_raw_point_history()
 current_pose = test_bench.history_position_m_gt[END_IDX - 1]
 current_heading = test_bench.history_heading_deg_gt[END_IDX - 1]
 
@@ -149,8 +163,11 @@ for i, (eps, min_pts) in enumerate(test_cases):
         remove_occluded=True
     )
     
-    # Process the accumulated point cloud
+    # Perform clustering
     filtered_pts, labels, _ = clusterer.process(radar_dets)
+    
+    # Calculate number of clusters (excluding noise -1)
+    num_clusters = len(np.unique(labels[labels != -1]))
     
     # Plot results on the specific subplot
     test_bench.plotter_localization.plot_detection_clusters_on_map(
@@ -159,9 +176,10 @@ for i, (eps, min_pts) in enumerate(test_cases):
         heading_rad=np.deg2rad(current_heading),
         pose_m=current_pose,
         ax=axs_flat[i],
+        dynamic_points=dynamic_dets[:, 0:2],
         show=False
     )
-    axs_flat[i].set_title(f"eps={eps}, min_samples={min_pts}")
+    axs_flat[i].set_title(f"eps={eps}, min_pts={min_pts}, clusters={num_clusters}")
 
 plt.suptitle(f"Clustering Hyperparameter Sweep (subsample={SUBSAMPLE_PERCENTAGE})", fontsize=16)
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])

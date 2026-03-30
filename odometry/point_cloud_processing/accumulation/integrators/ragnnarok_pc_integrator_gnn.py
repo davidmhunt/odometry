@@ -151,11 +151,14 @@ class RagnnarokPointCloudIntegratorGNN(_PointCloudIntegrator):
         return self.historical_pc_grid.get_points()
     
     def get_nodes(self, **kwargs) -> tuple:
-        """
-        Retrieve nodes and labels from the probabilistic grid.
+        """Retrieve nodes and labels from the probabilistic grid.
+
+        Args:
+            **kwargs: Additional arguments passed to the probabilistic grid's 
+                get_nodes method (e.g., normalize_frames, raw).
 
         Returns:
             tuple: (nodes, labels) from the probabilistic grid.
         """
         
-        return self.probabilistic_pc_grid.get_nodes()
+        return self.probabilistic_pc_grid.get_nodes(**kwargs)

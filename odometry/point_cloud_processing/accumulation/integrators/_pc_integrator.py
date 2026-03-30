@@ -209,19 +209,21 @@ class _PointCloudIntegrator:
         return self.raw_point_history.get_points(raw=True)
         
     
-    def get_nodes(self, normalize_frames:bool = False) -> tuple:
-        """
-        Retrieve nodes and labels for graph-based processing.
+    def get_nodes(self, normalize_frames: bool = False, raw: bool = False) -> tuple:
+        """Retrieve nodes and labels for graph-based processing.
 
         Args:
             normalize_frames (bool, optional): If True, normalizes the frames
                 remaining by the total number of frames. Defaults to False.
+            raw (bool, optional): If True, returns nodes and labels derived from
+                the raw point history. If False, returns nodes and labels derived
+                from the processed (clustered/filtered) point history.
+                Defaults to False.
 
         Returns:
             tuple: (nodes, labels). behavior depends on implementation point history.
         """
-        #should be overridden by child classes
-        return self.raw_point_history.get_nodes(normalize_frames=normalize_frames)
+        return self.raw_point_history.get_nodes(normalize_frames=normalize_frames, raw=raw)
     
     def get_grid(self, density:bool = False, filter_for_gt_regions:bool = False) -> np.ndarray:
         """

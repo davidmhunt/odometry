@@ -259,21 +259,23 @@ class _PCGrid(PcAccumulator):
              return np.empty(shape=(0, 4))
              
     
-    def get_nodes(self, raw: bool = False) -> tuple:
-        """
-        Retrieve points as nodes with ground truth labels.
+    def get_nodes(self, normalize_frames: bool = False, raw: bool = False) -> tuple:
+        """Retrieve points as nodes with ground truth labels.
 
         Args:
+            normalize_frames (bool, optional): If True, normalizes the frames
+                remaining by the total number of frames (if raw=True). 
+                Defaults to False.
             raw (bool, optional): If True, uses the raw point cloud data.
                 If False, uses the quantized grid data. Defaults to False.
 
         Returns:
             tuple: (nodes, labels).
-                - nodes: Nx4 array of [x, y, z, value].
-                - labels: Boolean array of ground truth labels.
+                - nodes (np.ndarray): Nx4 array of [x, y, z, value].
+                - labels (np.ndarray): Boolean array of ground truth labels.
         """
         if raw:
-            return super().get_nodes()
+            return super().get_nodes(normalize_frames=normalize_frames, raw=True)
         else:
             # Reconstruct nodes and labels from the grid
             nodes = self._get_nodes_from_pc_grid(self.grid)

@@ -121,6 +121,10 @@ target_frames = np.linspace(NUM_FRAMES_HISTORY, 0.25 * dataset.num_frames - 1, N
 fig, axs = plt.subplots(2, 5, figsize=(30, 12))
 axs_flat = axs.flatten()
 
+# Add second figure for centroids
+fig_centroids, axs_centroids = plt.subplots(2, 5, figsize=(30, 12))
+axs_centroids_flat = axs_centroids.flatten()
+
 clusterer = OcclusionAwareClustering(
     clustering_eps=CLUSTERING_EPS,
     clustering_min_samples=CLUSTERING_MIN_SAMPLES,
@@ -149,7 +153,15 @@ for i, target_frame in enumerate(target_frames):
     # Perform clustering
     filtered_pts, labels, _ = clusterer.process(radar_dets)
     
-    # Plot results
+    # Calculate centroids
+    unique_labels = np.unique(labels)
+    centroids = []
+    for l in unique_labels:
+        if l != -1:
+            centroids.append(np.mean(filtered_pts[labels == l, 0:2], axis=0))
+    centroids = np.array(centroids) if len(centroids) > 0 else np.empty((0, 2))
+
+    # Plot results (clusters)
     test_bench.plotter_localization.plot_detection_clusters_on_map(
         current_points=filtered_pts[:, 0:2],
         labels=labels,
@@ -160,8 +172,27 @@ for i, target_frame in enumerate(target_frames):
     )
     axs_flat[i].set_title(f"Checkpoint {i+1}: Frame {target_frame}")
 
-plt.suptitle(f"Temporal Clustering Consistency (subsample={SUBSAMPLE_PERCENTAGE}, eps={CLUSTERING_EPS}, min={CLUSTERING_MIN_SAMPLES})", fontsize=16)
-plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    # Plot results (centroids)
+    original_marker_size = test_bench.plotter_localization.marker_size
+    test_bench.plotter_localization.marker_size = 3.0
+    test_bench.plotter_localization.plot_detections_on_map(
+        current_points=centroids,
+        heading_rad=np.deg2rad(current_heading),
+        pose_m=current_pose,
+        ax=axs_centroids_flat[i],
+        show=False
+    )
+    test_bench.plotter_localization.marker_size = original_marker_size
+    axs_centroids_flat[i].set_title(f"Centroids Checkpoint {i+1}: Frame {target_frame}")
+
+fig.suptitle(f"Temporal Clustering Consistency (subsample={SUBSAMPLE_PERCENTAGE}, eps={CLUSTERING_EPS}, min={CLUSTERING_MIN_SAMPLES})", fontsize=16)
+fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 os.makedirs("cluster_tuning", exist_ok=True)
-plt.savefig("cluster_tuning/temporal_performance_grid.png")
-plt.close()
+fig.savefig("cluster_tuning/temporal_performance_grid.png")
+
+# Save centroids figure
+fig_centroids.suptitle(f"Temporal Cluster Centroids (subsample={SUBSAMPLE_PERCENTAGE}, eps={CLUSTERING_EPS}, min={CLUSTERING_MIN_SAMPLES})", fontsize=16)
+fig_centroids.tight_layout(rect=[0, 0.03, 1, 0.95])
+fig_centroids.savefig("cluster_tuning/temporal_centroids_grid.png")
+
+plt.close('all')

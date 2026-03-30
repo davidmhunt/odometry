@@ -346,15 +346,20 @@ class PcAccumulator:
         else:
             return self.gt_points[:,0:3]
     
-    def get_nodes(self, normalize_frames:bool = False)->tuple:
-        """
-        Retrieve points as nodes with ground truth labels.
+    def get_nodes(self, normalize_frames: bool = False, raw: bool = False) -> tuple:
+        """Retrieve points as nodes with ground truth labels.
 
-        Useful for graph-based processing where points are treated as nodes.
+        Useful for graph-based processing where points are treated as nodes. 
+        Allows selection between raw accumulated points and processed 
+        (subsampled/clustered) points.
 
         Args:
             normalize_frames (bool, optional): If True, normalizes the frames
                 remaining by the total number of frames. Defaults to False.
+            raw (bool, optional): If True, returns nodes and labels derived from
+                the raw point history. If False, returns nodes and labels derived
+                from the processed (clustered/filtered) point history.
+                Defaults to False.
 
         Returns:
             tuple: A pair (nodes, labels).
@@ -363,26 +368,31 @@ class PcAccumulator:
                   the point is close to a ground truth point (true positive).
         """
         
-        if self.points_raw.shape[0] > 0:
+        if raw:
+            points_to_use = self.points_raw
+        else:
+            points_to_use = self.points
+
+        if points_to_use.shape[0] > 0:
                 
-            nodes = self.points_raw.copy()
+            nodes = points_to_use.copy()
 
             if normalize_frames:
-                nodes[:,3] = nodes[:,3] / self.num_frames_history
+                nodes[:, 3] = nodes[:, 3] / self.num_frames_history
 
             if self.gt_points.size > 0:
-                tree = cKDTree(self.gt_points[:,0:3])
-                dists, _ = tree.query(self.points[:,0:3], distance_upper_bound=1e-5)
+                tree = cKDTree(self.gt_points[:, 0:3])
+                # Query the points actually being used for nodes
+                dists, _ = tree.query(points_to_use[:, 0:3], distance_upper_bound=1e-5)
                 label = dists <= 1e-5
             else:
-                label = np.zeros(len(self.points), dtype=bool)
+                label = np.zeros(len(points_to_use), dtype=bool)
             
-            
-
             return nodes, label
 
         else:
-            return np.empty(shape=(0, 4)),np.empty(shape=0)
+            return np.empty(shape=(0, 4)), np.empty(shape=0)
+
 
     def _get_dets_close_to_gt_points(
             self,dets:np.ndarray,

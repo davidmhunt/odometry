@@ -212,6 +212,7 @@ class PlotterLocalization:
             pose_m,
             ax:plt.Axes=None,
             plot_raw_detections:bool = False,
+            dynamic_points:np.ndarray = None,
             show=False
     ):
         """Plots a point cloud onto the known map
@@ -227,6 +228,8 @@ class PlotterLocalization:
                 Defaults to None.
             plot_raw_detections (bool, optional): on True, plots the raw
                 detections. Defaults to False
+            dynamic_points (np.ndarray, optional): dynamic detections to plot.
+                Defaults to None.
             show (bool, optional): on True, shows the plot. 
                 Defaults to False.
         """
@@ -269,6 +272,20 @@ class PlotterLocalization:
                 marker="D",
                 color="red",
                 s=self.marker_size)
+        
+        if dynamic_points is not None and len(dynamic_points) > 0:
+            dynamic_aligned_points = self._apply_transform(
+                points=dynamic_points,
+                rot_angle_rad=heading_rad,
+                trans=pose_m
+            )
+            ax.scatter(
+                dynamic_aligned_points[:, 0],
+                dynamic_aligned_points[:, 1],
+                label="dynamic detections",
+                marker="x",
+                color="green",
+                s=self.marker_size + 10)
         
         #determine the colors
         unique_labels = np.unique(labels)

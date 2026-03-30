@@ -46,7 +46,7 @@ normalize_frames = True
 num_frames_history = 50
 #key {no}_occluded_{rt or olp}_gt_{rt or olp}_pts_{no}_gt_filter
 # config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_no_occluded_rt_gt_olp_pts_gt_filter".format(num_frames_history)
-config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_occluded_rt_gt_rt_pts_no_gt_filter_0_25_eps_10_min_20_sub".format(num_frames_history)
+config_label = "IcaRAus_ugv_unet_{}fh_wilk_cpsl_north_1st_occluded_rt_gt_no_rt_pts_no_gt_filter_0_25_eps_10_min_20_sub".format(num_frames_history)
 results_parent_folder = "{}_train".format(config_label)
 
 
@@ -179,7 +179,7 @@ def generate_gnn_dataset(
             angle_res_rad=0.017,
             occlusion_threshold=0.9,
             subsample_percentage=0.20,
-            remove_occluded=True,
+            remove_occluded=False,
             filter_method='ray_trace' #ray_trace or overlap
         )
     )

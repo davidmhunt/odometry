@@ -118,7 +118,7 @@ test_bench = PointCloudIntegratorTB(
     map_handler=map_handler,
     dataset=dataset,
     point_cloud_integrator=point_cloud_integrator,
-    dynamic_point_cloud_integrator=dynamic_point_cloud_integrator,
+    dynamic_point_cloud_integrator=None,
     use_filters=True,
     prediction_source=PredictionSource.VEHICLE_ODOM,
     gt_source=GroundTruthSource.LIDAR,
@@ -140,7 +140,7 @@ test_bench.run(start_frame=0, max_frame=END_IDX, gt_enabled=True)
 
 # Extract final accumulated points in ego frame
 radar_dets = test_bench.point_cloud_integrator.get_raw_point_history() # Nx4 [x,y,z,frame]
-dynamic_dets = test_bench.dynamic_point_cloud_integrator.get_raw_point_history()
+# dynamic_dets = test_bench.dynamic_point_cloud_integrator.get_raw_point_history()
 current_pose = test_bench.history_position_m_gt[END_IDX - 1]
 current_heading = test_bench.history_heading_deg_gt[END_IDX - 1]
 
@@ -176,7 +176,7 @@ for i, (eps, min_pts) in enumerate(test_cases):
         heading_rad=np.deg2rad(current_heading),
         pose_m=current_pose,
         ax=axs_flat[i],
-        dynamic_points=dynamic_dets[:, 0:2],
+        # dynamic_points=dynamic_dets[:, 0:2],
         show=False
     )
     axs_flat[i].set_title(f"eps={eps}, min_pts={min_pts}, clusters={num_clusters}")

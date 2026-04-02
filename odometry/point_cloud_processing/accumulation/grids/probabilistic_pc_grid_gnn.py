@@ -14,9 +14,9 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             self,
             runner: GNNRunner,
             grid_resolution_m: float = 0.05,
-            grid_max_distance_m: float = 3,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 10,
+            subsample_percentage: float = 1.0,
             occupancy_threshold: float = 0.5):
         """
         Initialize the ProbabilisticPCGridGNN.
@@ -31,6 +31,8 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
                 0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_history (int, optional): Number of frames to average over.
                 Defaults to 10.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             occupancy_threshold (float, optional): Threshold probability (0.0 to 1.0)
                 to consider a cell occupied. Defaults to 0.5.
         """
@@ -39,6 +41,7 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             grid_max_distance_m=grid_max_distance_m,
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
+            subsample_percentage=subsample_percentage,
             occupancy_threshold=occupancy_threshold
         )
         

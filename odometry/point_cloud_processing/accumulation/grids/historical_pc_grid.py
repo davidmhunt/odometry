@@ -12,7 +12,8 @@ class HistoricalPCGrid(_PCGrid):
             grid_resolution_m: float = 0.05,
             grid_max_distance_m: float = 10,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
-            num_frames_persistance: int = 30):
+            num_frames_persistance: int = 30,
+            subsample_percentage: float = 1.0):
         """
         Initialize the HistoricalPCGrid.
 
@@ -25,6 +26,8 @@ class HistoricalPCGrid(_PCGrid):
                 0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_persistance (int, optional): Number of frames to persist points.
                 Defaults to 30.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
         """
         # Map num_frames_persistance to num_frames_history for the base class
         self.num_frames_persistance = num_frames_persistance
@@ -32,5 +35,6 @@ class HistoricalPCGrid(_PCGrid):
             grid_resolution_m=grid_resolution_m,
             grid_max_distance_m=grid_max_distance_m,
             valid_fovs_deg=valid_fovs_deg,
-            num_frames_history=num_frames_persistance
+            num_frames_history=num_frames_persistance,
+            subsample_percentage=subsample_percentage
         )

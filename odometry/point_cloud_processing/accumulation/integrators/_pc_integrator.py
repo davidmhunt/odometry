@@ -45,6 +45,7 @@ class _PointCloudIntegrator:
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 20,
             num_frames_history_gt: int = 1,
+            subsample_percentage: float = 1.0,
             min_detection_radius: float = 0.25,
             max_detection_radius: float = 20.0,
             grid_resolution_m: float = 0.1,
@@ -64,6 +65,8 @@ class _PointCloudIntegrator:
                 Defaults to 20.
             num_frames_history_gt (int, optional): Number of frames to keep gt points
                 in history. Defaults to 1.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             min_detection_radius (float, optional): Minimum distance from origin to
                 keep points. Defaults to 0.25.
             max_detection_radius (float, optional): Maximum distance from origin to
@@ -99,6 +102,7 @@ class _PointCloudIntegrator:
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
+            subsample_percentage=subsample_percentage,
             gt_point_labeling_strategy=gt_point_labeling_strategy,
             gt_occlusion_aware_clustering=gt_occlusion_aware_clustering,
             occlusion_aware_clustering=occlusion_aware_clustering,

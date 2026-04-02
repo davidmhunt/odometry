@@ -32,6 +32,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
             grid_resolution_m_hist: float = 0.10,
             grid_max_distance_m_hist: float = 5.0,
             num_frames_history_hist: int = 20,
+            subsample_percentage: float = 1.0,
             min_detection_radius: float = 0.25,
             max_detection_radius: float = 20.0,
     ) -> None:
@@ -53,6 +54,8 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
                 historical grid. Defaults to 5.0.
             num_frames_history_hist (int, optional): History length for the
                 historical grid. Defaults to 20.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             min_detection_radius (float, optional): Minimum point detection radius.
                 Defaults to 0.25.
             max_detection_radius (float, optional): Maximum point detection radius.
@@ -63,6 +66,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
             gt_distance_threshold_m=grid_resolution_m_prob,
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history_hist + num_frames_history_prob,
+            subsample_percentage=subsample_percentage,
             min_detection_radius=min_detection_radius,
             max_detection_radius=max_detection_radius
         )
@@ -74,13 +78,15 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
                 grid_max_distance_m=grid_max_distance_m_prob,
                 valid_fovs_deg=valid_fovs_deg,
                 num_frames_history=num_frames_history_prob,
+                subsample_percentage=subsample_percentage,
                 occupancy_threshold=0.20
             )      
         self.historical_pc_grid:HistoricalPCGrid = HistoricalPCGrid(
             grid_resolution_m=grid_resolution_m_hist,
             grid_max_distance_m=grid_max_distance_m_hist,
             valid_fovs_deg=valid_fovs_deg,
-            num_frames_persistance=num_frames_history_hist
+            num_frames_persistance=num_frames_history_hist,
+            subsample_percentage=subsample_percentage
         )
 
     def reset(self): 

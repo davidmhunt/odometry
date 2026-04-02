@@ -26,6 +26,7 @@ class PcAccumulator:
         points_raw (np.ndarray): Nx4 array storing [x, y, z, frames_remaining] for detections.
         gt_points_raw (np.ndarray): Nx4 array storing [x, y, z, frames_remaining] for ground truth.
         gt_point_labeling_strategy (GtPointLabelingStrategy): The strategy to use for labeling gt points.
+        subsample_percentage (float): Percentage of new points to kept when adding a new point cloud.
     """
     def __init__(
             self,
@@ -33,6 +34,7 @@ class PcAccumulator:
             valid_fovs_deg: list[tuple[float, float]] = [(-180,180)],
             num_frames_history:int = 30,
             num_frames_history_gt:int = 1,
+            subsample_percentage:float = 1.0,
             gt_point_labeling_strategy:GtPointLabelingStrategy = GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering:OcclusionAwareClustering=None,
             occlusion_aware_clustering:OcclusionAwareClustering=None,
@@ -52,6 +54,8 @@ class PcAccumulator:
                 persist in the accumulator before expiring. Defaults to 30.
             num_frames_history_gt (int, optional): The number of frames a gt point should
                 persist in the accumulator before expiring. Defaults to 1.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             gt_point_labeling_strategy (GtPointLabelingStrategy, optional): The strategy to use for labeling gt points.
                 Defaults to GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION.
             gt_occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
@@ -67,6 +71,7 @@ class PcAccumulator:
         self.gt_distance_threshold_m:float = gt_distance_threshold_m
         self.num_frames_history:int = num_frames_history
         self.num_frames_history_gt:int = num_frames_history_gt
+        self.subsample_percentage:float = subsample_percentage
 
         #gt point labeling strategy
         self.gt_point_labeling_strategy:GtPointLabelingStrategy = gt_point_labeling_strategy
@@ -156,6 +161,13 @@ class PcAccumulator:
         if new_points.shape[1] != 3 :
             raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
         
+        # Take a random subsample if requested
+        if self.subsample_percentage < 1.0 and new_points.shape[0] > 0:
+            num_points = new_points.shape[0]
+            num_sample = max(1, int(num_points * self.subsample_percentage))
+            indices = np.random.choice(num_points, num_sample, replace=False)
+            new_points = new_points[indices]
+
         #prune out expired points
         # print(f"adding {new_points.shape[0]} points")
         self._prune_points_array()
@@ -182,9 +194,6 @@ class PcAccumulator:
             #prune any detections that have since decayed
             valid_idxs = self.points_raw[:,3] > 0
             self.points_raw = self.points_raw[valid_idxs]
-
-            #remove points outside the field of view
-            self.points_raw = self.pc_fov_filter.get_points_in_fov(self.points_raw)
 
             #remove points outside the detection range
             self.points_raw = self.pc_range_filter.get_points_in_detection_range(self.points_raw)
@@ -230,12 +239,13 @@ class PcAccumulator:
         new_points[:,3] = self.num_frames_history
         self.points_raw = np.vstack((self.points_raw, new_points))
 
+        #get a set of proposed points from the points in the current sensor fov
+        self.points = self.pc_fov_filter.get_points_in_fov(self.points_raw)
+
         if self.occlusion_aware_clustering is not None:
             self.points, _, _ = self.occlusion_aware_clustering.process(
-                pc_cartesian=self.points_raw
+                pc_cartesian=self.points
             )
-        else:
-            self.points = self.points_raw.copy()
 
     def _update_gt_points(self, new_gt_points:np.ndarray):
         """

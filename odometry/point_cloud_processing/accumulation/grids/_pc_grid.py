@@ -25,6 +25,10 @@ class _PCGrid(PcAccumulator):
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 30,
             num_frames_history_gt: int = 1,
+            subsample_percentage: float = 1.0,
+            density_grid_enabled: bool = False,
+            gt_distance_threshold_m: float = None,
+            **kwargs
     ):
         """
         Initialize the _PCGrid.
@@ -40,20 +44,31 @@ class _PCGrid(PcAccumulator):
                 Defaults to 30.
             num_frames_history_gt (int, optional): Number of frames to persist gt points.
                 Defaults to 1.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
+            density_grid_enabled (bool, optional): If True, the grid will store
+                log-normalized densities instead of binary occupancy. Defaults to False.
+            gt_distance_threshold_m (float, optional): Distance threshold for
+                associating ground truth points. If None, defaults to grid_resolution_m.
         """
 
         # Initialize grids
         self.grid: np.ndarray = None
         self.gt_grid: np.ndarray = None
+        self.density_grid_enabled: bool = density_grid_enabled
+
+        if gt_distance_threshold_m is None:
+            gt_distance_threshold_m = grid_resolution_m
         
         super().__init__(
-            gt_distance_threshold_m=grid_resolution_m,
+            gt_distance_threshold_m=gt_distance_threshold_m,
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
+            subsample_percentage=subsample_percentage,
             grid_resolution_m=grid_resolution_m,
             max_detection_range=grid_max_distance_m,
-            
+            **kwargs
         )
 
     def reset(
@@ -88,33 +103,20 @@ class _PCGrid(PcAccumulator):
             new_points (np.ndarray, optional): Nx3 array of [x, y, z] points.
             new_gt_points (np.ndarray, optional): Nx3 array of [x, y, z] ground truth points.
         """
-        # Initialize point cloud grid
-        if new_points.shape[0] > 0:
-            self.grid = self._get_grid_from_points(new_points)
-        else:
-            self.grid = np.zeros(
-                shape=(
-                    self.grid_bins.shape[0],
-                    self.grid_bins.shape[0]
-                ), dtype=np.int8
-            )
+        self._update_grids()
 
-        # Initialize ground truth grid
-        if new_gt_points.shape[0] > 0 and new_points.shape[0] > 0:
-            # Recalculate matches for grid initialization
-            matched_gt_points = self._get_dets_close_to_gt_points(
-                dets=new_points,
-                gt_points=new_gt_points,
-                threshold=self.gt_distance_threshold_m
-            )
-            self.gt_grid = self._get_grid_from_points(matched_gt_points)
-        else:
-             self.gt_grid = np.zeros(
-                shape=(
-                    self.grid_bins.shape[0],
-                    self.grid_bins.shape[0]
-                ), dtype=np.int8
-            )
+    def _update_grids(self):
+        """
+        Internal method to update the grid and ground truth grid based on current points.
+        """
+        # Update point cloud grid
+        self.grid = self.get_grid(density=self.density_grid_enabled)
+
+        # Update ground truth grid
+        self.gt_grid = self.get_gt_grid(density=False)
+        
+        # Apply intersection logic: GT cells are valid only if they are also in the detection grid
+        self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
 
     def add_points(self,
                     new_points: np.ndarray = np.empty(shape=(0, 3)),
@@ -137,17 +139,7 @@ class _PCGrid(PcAccumulator):
         super().add_points(new_points=new_points, new_gt_points=new_gt_points)
         
         # Update grid representations from the stored points
-        # usage of [:, 0:3] serves to drop the timestamp column
-        if self.points.shape[0] > 0:
-            self.grid = self._get_grid_from_points(self.points[:, 0:3])
-        else:
-            self.grid = np.zeros_like(self.grid)
-
-        if self.gt_points.shape[0] > 0:
-             self.gt_grid = self._get_grid_from_points(self.gt_points[:, 0:3])
-             self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
-        else:
-            self.gt_grid = np.zeros_like(self.gt_grid)
+        self._update_grids()
 
     def apply_transformation(self, transformation: Transformation):
         """
@@ -176,28 +168,7 @@ class _PCGrid(PcAccumulator):
             self.gt_points = self.filter_points_outside_grid(self.gt_points)
 
         # Re-compute the grid from the valid, transformed points
-        if self.points.shape[0] > 0:
-            self.grid = self._get_grid_from_points(self.points[:, 0:3])
-        else:
-            # It's possible all points moved out of frame
-            self.grid = np.zeros(
-                shape=(
-                    self.grid_bins.shape[0],
-                    self.grid_bins.shape[0]
-                ), dtype=np.int8
-            )
-
-        if self.gt_points is not None and self.gt_points.shape[0] > 0:
-            self.gt_grid = self._get_grid_from_points(self.gt_points[:, 0:3])
-            # Intersection logic as per PCGrid
-            self.gt_grid = ((self.grid > 0) & (self.gt_grid > 0)).astype(np.int8)
-        else:
-             self.gt_grid = np.zeros(
-                shape=(
-                    self.grid_bins.shape[0],
-                    self.grid_bins.shape[0]
-                ), dtype=np.int8
-            )
+        self._update_grids()
 
     def get_points(self, raw: bool = False) -> np.ndarray:
         """

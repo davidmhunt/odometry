@@ -18,6 +18,7 @@ class ProbabilisticPCGrid(_PCGrid):
             grid_max_distance_m: float = 3,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 10,
+            subsample_percentage: float = 1.0,
             occupancy_threshold: float = 0.5):
         """
         Initialize the ProbabilisticPCGrid.
@@ -31,6 +32,8 @@ class ProbabilisticPCGrid(_PCGrid):
                 0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_history (int, optional): Number of frames to average over.
                 Defaults to 10.
+            subsample_percentage (float, optional): Percentage of new points to keep.
+                Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             occupancy_threshold (float, optional): Threshold probability (0.0 to 1.0)
                 to consider a cell occupied. Defaults to 0.5.
         """
@@ -45,7 +48,8 @@ class ProbabilisticPCGrid(_PCGrid):
             grid_resolution_m=grid_resolution_m,
             grid_max_distance_m=grid_max_distance_m,
             valid_fovs_deg=valid_fovs_deg,
-            num_frames_history=num_frames_history
+            num_frames_history=num_frames_history,
+            subsample_percentage=subsample_percentage
         )
         
         # Re-initialize lists after super() might have reset things differently
@@ -151,6 +155,13 @@ class ProbabilisticPCGrid(_PCGrid):
         if new_points.shape[1] != 3:
             raise ValueError("Input points must be a 3D point (3,) or an Nx3 array of points.")
         
+        # Take a random subsample if requested
+        if self.subsample_percentage < 1.0 and new_points.shape[0] > 0:
+            num_points = new_points.shape[0]
+            num_sample = max(1, int(num_points * self.subsample_percentage))
+            indices = np.random.choice(num_points, num_sample, replace=False)
+            new_points = new_points[indices]
+
         # Remove the oldest frame
         self.frames_list.pop()
         # Insert new frame at the beginning

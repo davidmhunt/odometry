@@ -8,6 +8,7 @@ from odometry.point_cloud_processing.accumulation.pc_accumulator import PcAccumu
 
 from odometry.point_cloud_processing.accumulation.integrators._pc_integrator import _PointCloudIntegrator
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
+from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
 
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
 
@@ -41,6 +42,7 @@ class _PointCloudIntegratorGnnRunner(_PointCloudIntegrator):
     def __init__(
             self,
             gnn_runner:GNNRunner,
+            input_encoder:_NodeEncoder = None,
             normalize_frames:bool = False,
             gt_distance_threshold_m: float = 0.1,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
@@ -59,6 +61,8 @@ class _PointCloudIntegratorGnnRunner(_PointCloudIntegrator):
 
         Args:
             gnn_runner (GNNRunner): The GNN runner to use for processing.
+            input_encoder (_NodeEncoder, optional): The input encoder to use
+                for processing. Defaults to a base _NodeEncoder if None.
             normalize_frames (bool, optional): If True, normalizes the frames
                 to be from 0 to 1. Defaults to False.
             gt_distance_threshold_m (float, optional): Distance threshold for
@@ -104,6 +108,11 @@ class _PointCloudIntegratorGnnRunner(_PointCloudIntegrator):
         self.normalize_frames:bool = normalize_frames
         self.gnn_runner:GNNRunner = gnn_runner
 
+        if input_encoder is None:
+            self.input_encoder:_NodeEncoder = _NodeEncoder()
+        else:
+            self.input_encoder:_NodeEncoder = input_encoder
+
     def get_points(self) -> np.ndarray:
         """
         Retrieve the integrated points.
@@ -118,6 +127,9 @@ class _PointCloudIntegratorGnnRunner(_PointCloudIntegrator):
         
         nodes,labels = self.get_nodes(self.normalize_frames)
         
+        #encode the nodes
+        nodes = self.input_encoder.encode(nodes)
+
         pred = self.gnn_runner.make_prediction(
             nodes=nodes
         )

@@ -47,8 +47,8 @@ num_frames_history = 100
 #key for fov filtering: {no}_fov_{deg}
 #key for accumulation_subsampling: {subsample_percentage}_accu_subsample
 
-# config_label = "IcaRAus_ugv_gnn_grid_{}fh_wilk_cpsl_north_1st_rt_gt_no_rmv_occlusion_pts_0_25_eps_10_min_20_sub_70_fov_1_0_accu_subsample".format(num_frames_history)
-config_label = "IcaRAus_ugv_gnn_grid_{}fh_wilk_cpsl_north_1st_rt_gt_no_clustering_pts_70_fov_0_25_accu_subsample".format(num_frames_history)
+config_label = "IcaRAus_ugv_gnn_grid_{}fh_wilk_cpsl_north_1st_rt_gt_no_rmv_occlusion_pts_0_25_eps_10_min_20_sub_70_fov_0_5_accu_subsample".format(num_frames_history)
+# config_label = "IcaRAus_ugv_gnn_grid_{}fh_wilk_cpsl_north_1st_rt_gt_no_clustering_pts_70_fov_0_25_accu_subsample".format(num_frames_history)
 
 results_parent_folder = "{}_train".format(config_label)
 
@@ -166,7 +166,7 @@ def generate_gnn_dataset(
             min_detection_radius=1.0,
             max_detection_radius=8.0,
             grid_resolution_m=0.1,
-            subsample_percentage=0.25,
+            subsample_percentage=0.5,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering=OcclusionAwareClustering(
                 clustering_eps=0.5,
@@ -177,15 +177,15 @@ def generate_gnn_dataset(
                 remove_occluded=True,
                 filter_method='ray_trace'
             ),
-            # occlusion_aware_clustering=OcclusionAwareClustering(
-            #     clustering_eps=0.25,
-            #     clustering_min_samples=10,
-            #     angle_res_rad=0.017,
-            #     occlusion_threshold=0.9,
-            #     subsample_percentage=0.20,
-            #     remove_occluded=False,
-            #     filter_method='ray_trace' #ray_trace or overlap
-            # )
+            occlusion_aware_clustering=OcclusionAwareClustering(
+                clustering_eps=0.25,
+                clustering_min_samples=10,
+                angle_res_rad=0.017,
+                occlusion_threshold=0.9,
+                subsample_percentage=0.20,
+                remove_occluded=False,
+                filter_method='ray_trace' #ray_trace or overlap
+            )
         )
 
     #initialize the test bench

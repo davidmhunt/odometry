@@ -26,6 +26,7 @@ class TemporalDensityPCIntegratorGNN(TemporalDensityPCIntegrator):
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 20,
             num_frames_history_gt: int = 1,
+            num_frames_valid_point_history: int = 0,
             subsample_percentage: float = 1.0,
             min_detection_radius: float = 0.25,
             max_detection_radius: float = 20.0,
@@ -52,6 +53,8 @@ class TemporalDensityPCIntegratorGNN(TemporalDensityPCIntegrator):
                 Defaults to 20.
             num_frames_history_gt (int, optional): Number of frames to keep gt points in history.
                 Defaults to 1.
+            num_frames_valid_point_history (int, optional): Number of frames to keep valid points in history.
+                Defaults to 0.
             subsample_percentage (float, optional): Percentage of new points to keep.
                 Should be between 0.0 and 1.0. Defaults to 1.0.
             min_detection_radius (float, optional): Minimum distance from origin to keep points.
@@ -73,6 +76,7 @@ class TemporalDensityPCIntegratorGNN(TemporalDensityPCIntegrator):
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
+            num_frames_valid_point_history=num_frames_valid_point_history,
             subsample_percentage=subsample_percentage,
             min_detection_radius=min_detection_radius,
             max_detection_radius=max_detection_radius,
@@ -91,24 +95,34 @@ class TemporalDensityPCIntegratorGNN(TemporalDensityPCIntegrator):
         else:
             self.input_encoder: _NodeEncoder = input_encoder
 
-    def get_points(self) -> np.ndarray:
+    def _update_valid_points(self) -> None:
         """
-        Retrieve the integrated points processed by the GNN.
+        Update the valid point history using the GNN.
 
-        Returns:
-            np.ndarray: Array of integrated points after GNN processing.
-            Returns an empty array if not enough frames have been captured.
+        Applies the current transformation to the existing valid point history.
+        If valid frames exist, predicts point labels using the initialized GNN runner
+        and inserts the valid subset. Otherwise, falls back to empty arrays.
+        Ground truth points are unpopulated for valid history.
         """
+        if self.current_transformation:
+            self.valid_point_history.apply_transformation(self.current_transformation)
+            
         if not self.check_valid_num_frames():
-            return np.empty(shape=(0, 3))
-        
-        nodes, labels = self.get_nodes(self.normalize_frames)
-        
-        # Encode the nodes
-        nodes = self.input_encoder.encode(nodes)
+            valid_points = np.empty(shape=(0, 3))
+        else:
+            nodes, labels = self.get_nodes(self.normalize_frames)
+            
+            # Encode the nodes
+            nodes = self.input_encoder.encode(nodes)
 
-        pred = self.gnn_runner.make_prediction(
-            nodes=nodes
-        )
+            pred = self.gnn_runner.make_prediction(
+                nodes=nodes
+            )
+            valid_points = pred[:, 0:3]
+            
+        self.valid_points = valid_points
         
-        return pred[:, 0:3]
+        self.valid_point_history.add_points(
+            new_points=self.valid_points,
+            new_gt_points=np.empty(shape=(0, 3))
+        )

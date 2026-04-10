@@ -26,6 +26,7 @@ class _PCGrid(PcAccumulator):
             num_frames_history: int = 30,
             num_frames_history_gt: int = 1,
             subsample_percentage: float = 1.0,
+            efficient: bool = False,
             density_grid_enabled: bool = False,
             gt_distance_threshold_m: float = None,
             **kwargs
@@ -46,6 +47,8 @@ class _PCGrid(PcAccumulator):
                 Defaults to 1.
             subsample_percentage (float, optional): Percentage of new points to keep.
                 Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
+            efficient (bool, optional): If True, utilizes a spatial KNN validation to 
+                avoid duplication of redundant overlapping points. Defaults to False.
             density_grid_enabled (bool, optional): If True, the grid will store
                 log-normalized densities instead of binary occupancy. Defaults to False.
             gt_distance_threshold_m (float, optional): Distance threshold for
@@ -66,6 +69,7 @@ class _PCGrid(PcAccumulator):
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
             subsample_percentage=subsample_percentage,
+            efficient=efficient,
             grid_resolution_m=grid_resolution_m,
             max_detection_range=grid_max_distance_m,
             **kwargs

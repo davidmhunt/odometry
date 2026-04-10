@@ -35,6 +35,7 @@ class PcAccumulator:
             num_frames_history:int = 30,
             num_frames_history_gt:int = 1,
             subsample_percentage:float = 1.0,
+            efficient: bool = False,
             gt_point_labeling_strategy:GtPointLabelingStrategy = GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering:OcclusionAwareClustering=None,
             occlusion_aware_clustering:OcclusionAwareClustering=None,
@@ -56,6 +57,8 @@ class PcAccumulator:
                 persist in the accumulator before expiring. Defaults to 1.
             subsample_percentage (float, optional): Percentage of new points to keep.
                 Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
+            efficient (bool, optional): If True, utilizes a spatial KNN validation to 
+                avoid duplication of perfectly overlapping points. Defaults to False.
             gt_point_labeling_strategy (GtPointLabelingStrategy, optional): The strategy to use for labeling gt points.
                 Defaults to GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION.
             gt_occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
@@ -72,6 +75,7 @@ class PcAccumulator:
         self.num_frames_history:int = num_frames_history
         self.num_frames_history_gt:int = num_frames_history_gt
         self.subsample_percentage:float = subsample_percentage
+        self.efficient: bool = efficient
 
         #gt point labeling strategy
         self.gt_point_labeling_strategy:GtPointLabelingStrategy = gt_point_labeling_strategy
@@ -237,6 +241,17 @@ class PcAccumulator:
                         (new_points.shape[0],1))
         ))
         new_points[:,3] = self.num_frames_history
+
+        if self.efficient and self.points_raw.shape[0] > 0 and new_points.shape[0] > 0:
+            tree = cKDTree(self.points_raw[:, 0:3])
+            dists, indices = tree.query(new_points[:, 0:3], distance_upper_bound=self.grid_resolution_m)
+            
+            matched_mask = dists <= self.grid_resolution_m
+            matched_indices = indices[matched_mask]
+            
+            self.points_raw[matched_indices, 3] = self.num_frames_history
+            new_points = new_points[~matched_mask]
+
         self.points_raw = np.vstack((self.points_raw, new_points))
 
         #get a set of proposed points from the points in the current sensor fov
@@ -266,6 +281,17 @@ class PcAccumulator:
                         (new_gt_points.shape[0],1))
         ))
         new_gt_points[:,3] = self.num_frames_history_gt
+
+        if self.efficient and self.gt_points_raw.shape[0] > 0 and new_gt_points.shape[0] > 0:
+            tree = cKDTree(self.gt_points_raw[:, 0:3])
+            dists, indices = tree.query(new_gt_points[:, 0:3], distance_upper_bound=1e-3)
+            
+            matched_mask = dists <= 1e-3
+            matched_indices = indices[matched_mask]
+            
+            self.gt_points_raw[matched_indices, 3] = self.num_frames_history_gt
+            new_gt_points = new_gt_points[~matched_mask]
+
         self.gt_points_raw = np.vstack((self.gt_points_raw, new_gt_points))
         
     

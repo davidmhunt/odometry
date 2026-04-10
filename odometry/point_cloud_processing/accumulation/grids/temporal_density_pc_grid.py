@@ -19,6 +19,7 @@ class TemporalDensityPCGrid(_PCGrid):
             num_frames_history: int = 30,
             num_frames_history_gt: int = 1,
             subsample_percentage: float = 1.0,
+            efficient: bool = False,
             gt_distance_threshold_m: float = None,
             **kwargs
     ):
@@ -33,6 +34,8 @@ class TemporalDensityPCGrid(_PCGrid):
             num_frames_history_gt (int, optional): Frames remaining for gt.
             subsample_percentage (float, optional): Percentage of new points to keep.
                 Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
+            efficient (bool, optional): If True, utilizes a spatial KNN validation to 
+                avoid duplication of redundant overlapping points. Defaults to False.
             gt_distance_threshold_m (float, optional): Distance threshold for gt.
             **kwargs: Additional parameters for PcAccumulator.
         """
@@ -45,6 +48,7 @@ class TemporalDensityPCGrid(_PCGrid):
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
             subsample_percentage=subsample_percentage,
+            efficient=efficient,
             density_grid_enabled=True,
             gt_distance_threshold_m=gt_distance_threshold_m,
             **kwargs

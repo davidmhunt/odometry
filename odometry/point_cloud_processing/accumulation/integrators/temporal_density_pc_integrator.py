@@ -26,6 +26,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 20,
             num_frames_history_gt: int = 1,
+            num_frames_valid_point_history: int = 0,
             subsample_percentage: float = 1.0,
             min_detection_radius: float = 0.25,
             max_detection_radius: float = 20.0,
@@ -43,6 +44,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             valid_fovs_deg (list[tuple[float, float]], optional): List of valid FOVs.
             num_frames_history (int, optional): History length for detections.
             num_frames_history_gt (int, optional): History length for gt.
+            num_frames_valid_point_history (int, optional): History length for valid points.
             subsample_percentage (float, optional): Percentage of new points to keep.
                 Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             min_detection_radius (float, optional): Min point distance.
@@ -58,6 +60,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             num_frames_history_gt=num_frames_history_gt,
+            num_frames_valid_point_history=num_frames_valid_point_history,
             subsample_percentage=subsample_percentage,
             min_detection_radius=min_detection_radius,
             max_detection_radius=max_detection_radius,
@@ -65,6 +68,29 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             gt_point_labeling_strategy=gt_point_labeling_strategy,
             gt_occlusion_aware_clustering=gt_occlusion_aware_clustering,
             occlusion_aware_clustering=occlusion_aware_clustering,
+            **kwargs
+        )
+
+        self.valid_point_history: TemporalDensityPCGrid = TemporalDensityPCGrid(
+            grid_resolution_m=grid_resolution_m,
+            grid_max_distance_m=max_detection_radius,
+            valid_fovs_deg=[(-180, 180)],
+            num_frames_history=num_frames_valid_point_history,
+            num_frames_history_gt=0,
+            subsample_percentage=1.0,
+            efficient=True,
+            gt_distance_threshold_m=gt_distance_threshold_m,
+            gt_point_labeling_strategy=gt_point_labeling_strategy,
+            gt_occlusion_aware_clustering=None,
+            # occlusion_aware_clustering=OcclusionAwareClustering(
+            #     clustering_eps=0.25,
+            #     clustering_min_samples=10,
+            #     angle_res_rad=0.017,
+            #     occlusion_threshold=0.9,
+            #     subsample_percentage=1.0,
+            #     remove_occluded=False,
+            #     filter_method='overlap' #ray_trace or overlap
+            # ),
             **kwargs
         )
 
@@ -82,3 +108,4 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             occlusion_aware_clustering=occlusion_aware_clustering,
             **kwargs
         )
+        

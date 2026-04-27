@@ -36,6 +36,7 @@ class RagnnarokPointCloudIntegratorGNN(_PointCloudIntegrator):
             subsample_percentage: float = 1.0,
             min_detection_radius: float = 0.25,
             max_detection_radius: float = 20.0,
+            gt_distance_threshold_m_prob: float = 0.4,
     ) -> None:
         """
         Initialize the RagnnarokPointCloudIntegrator.
@@ -63,10 +64,12 @@ class RagnnarokPointCloudIntegratorGNN(_PointCloudIntegrator):
                 Defaults to 0.25.
             max_detection_radius (float, optional): Maximum point detection radius.
                 Defaults to 20.0.
+            gt_distance_threshold_m_prob (float, optional): Distance threshold for associating
+                detections with ground truth points. Defaults to 0.4.
         """
         
         super().__init__(
-            gt_distance_threshold_m=grid_resolution_m_prob,
+            gt_distance_threshold_m=gt_distance_threshold_m_prob,
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history_hist + num_frames_history_prob,
             subsample_percentage=subsample_percentage,
@@ -83,7 +86,8 @@ class RagnnarokPointCloudIntegratorGNN(_PointCloudIntegrator):
                 valid_fovs_deg=valid_fovs_deg,
                 num_frames_history=num_frames_history_prob,
                 subsample_percentage=subsample_percentage,
-                occupancy_threshold=0.20
+                occupancy_threshold=0.20,
+                gt_distance_threshold_m=gt_distance_threshold_m_prob
             )      
         self.historical_pc_grid:HistoricalPCGrid = HistoricalPCGrid(
             grid_resolution_m=grid_resolution_m_hist,

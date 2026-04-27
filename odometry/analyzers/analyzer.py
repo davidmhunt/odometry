@@ -720,4 +720,129 @@ class Analyzer:
 
         return        
 
+    def generate_pc_quality_comparison_table(self, config: dict, percentile: float = 0.9, save_path: str = None):
+        """
+        Generate a Point Cloud Quality metrics comparison table across multiple datasets and methods.
+
+        Args:
+            config (dict): Nested dictionary mapping Datasets -> Methods -> result folder paths.
+            percentile (float): Tail error percentile. Defaults to 0.90.
+            save_path (str, optional): Path to save the resulting CSV wrapper.
+        """
+        
+        # We will build a list of dictionaries to easily convert to multi-index dataframe later
+        records = []
+        index_tuples = []
+
+        percentile_str = f"{int(percentile*100)}th Percentile"
+
+        for dataset_name, methods in config.items():
+            for method_name, folder_path in methods.items():
+                if not os.path.exists(folder_path):
+                    raise FileNotFoundError(f"Results directory not found for Dataset: '{dataset_name}', Method: '{method_name}'. Checked path: '{folder_path}'")
+                
+                # Fetch statistics
+                avg_dist, max_dist, num_pts, num_quality_points = self.get_pc_quality_stats_from_csvs(folder_path)
+                
+                if not avg_dist:
+                    print(f"Warning: No valid CSV files found in {folder_path} for Dataset: {dataset_name}, Method: {method_name}")
+                    continue
+
+                pc_quality_avg_dist = np.array(avg_dist)
+                pc_quality_max_dist = np.array(max_dist)
+                pc_quality_num_pts = np.array(num_pts)
+                num_quality_points_arr = np.array(num_quality_points)
+
+                record = {
+                    ("Average Point Cloud Dist", "Mean"): np.mean(pc_quality_avg_dist),
+                    ("Average Point Cloud Dist", percentile_str): self.get_percentile(pc_quality_avg_dist, percentile),
+                    ("Max Point Cloud Dist", "Mean"): np.mean(pc_quality_max_dist),
+                    ("Max Point Cloud Dist", percentile_str): self.get_percentile(pc_quality_max_dist, percentile),
+                    ("Number of Points", "Mean"): np.mean(pc_quality_num_pts),
+                    ("Number of Points", percentile_str): self.get_percentile(pc_quality_num_pts, percentile),
+                    ("Quality Points", "Mean"): np.mean(num_quality_points_arr),
+                    ("Quality Points", percentile_str): self.get_percentile(num_quality_points_arr, percentile),
+                }
+                
+                records.append(record)
+                index_tuples.append((dataset_name, method_name))
+        
+        if not records:
+            print("No valid data retrieved from configuration.")
+            return None
+
+        # Create MultiIndex for rows and columns
+        row_index = pd.MultiIndex.from_tuples(index_tuples, names=["Dataset", "Method"])
+        
+        df = pd.DataFrame(records, index=row_index)
+        df.columns = pd.MultiIndex.from_tuples(df.columns, names=["Metric", "Statistic"])
+        
+        display(df)
+        
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            df.to_csv(save_path)
+            print(f"Saved PC Quality Comparison Table to {save_path}")
+            
+        return df
+
+    def generate_odom_error_comparison_table(self, config: dict, percentile: float = 0.9, save_path: str = None):
+        """
+        Generate an Odometry Error metrics comparison table across multiple datasets and methods.
+
+        Args:
+            config (dict): Nested dictionary mapping Datasets -> Methods -> result folder paths.
+            percentile (float): Tail error percentile. Defaults to 0.90.
+            save_path (str, optional): Path to save the resulting CSV wrapper.
+        """
+        
+        records = []
+        index_tuples = []
+        percentile_str = f"{int(percentile*100)}th Percentile"
+
+        for dataset_name, methods in config.items():
+            for method_name, folder_path in methods.items():
+                if not os.path.exists(folder_path):
+                    raise FileNotFoundError(f"Results directory not found for Dataset: '{dataset_name}', Method: '{method_name}'. Checked path: '{folder_path}'")
+                
+                # Fetch statistics
+                absolute_errors_pos, absolute_errors_heading = self.get_absolute_errors_from_csvs(folder_path)
+                relative_errors_pos, relative_errors_heading = self.get_relative_errors_from_csvs(folder_path)
+                
+                if len(absolute_errors_pos) == 0:
+                    print(f"Warning: No valid CSV files found in {folder_path} for Dataset: {dataset_name}, Method: {method_name}")
+                    continue
+
+                record = {
+                    ("Absolute position (m)", "Mean"): np.mean(absolute_errors_pos),
+                    ("Absolute position (m)", percentile_str): self.get_percentile(absolute_errors_pos, percentile),
+                    ("Relative position (m)", "Mean"): np.mean(relative_errors_pos),
+                    ("Relative position (m)", percentile_str): self.get_percentile(relative_errors_pos, percentile),
+                    ("Absolute heading (deg)", "Mean"): np.mean(absolute_errors_heading),
+                    ("Absolute heading (deg)", percentile_str): self.get_percentile(absolute_errors_heading, percentile),
+                    ("Relative heading (deg)", "Mean"): np.mean(relative_errors_heading),
+                    ("Relative heading (deg)", percentile_str): self.get_percentile(relative_errors_heading, percentile),
+                }
+                
+                records.append(record)
+                index_tuples.append((dataset_name, method_name))
+        
+        if not records:
+            print("No valid data retrieved from configuration.")
+            return None
+
+        # Create MultiIndex for rows and columns
+        row_index = pd.MultiIndex.from_tuples(index_tuples, names=["Dataset", "Method"])
+        
+        df = pd.DataFrame(records, index=row_index)
+        df.columns = pd.MultiIndex.from_tuples(df.columns, names=["Metric", "Statistic"])
+        
+        display(df)
+        
+        if save_path:
+            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+            df.to_csv(save_path)
+            print(f"Saved Odometry Error Comparison Table to {save_path}")
+            
+        return df
 

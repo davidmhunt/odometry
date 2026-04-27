@@ -14,10 +14,12 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             self,
             runner: GNNRunner,
             grid_resolution_m: float = 0.05,
+            grid_max_distance_m: float = 3.0,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 10,
             subsample_percentage: float = 1.0,
-            occupancy_threshold: float = 0.5):
+            occupancy_threshold: float = 0.5,
+            gt_distance_threshold_m: float = None):
         """
         Initialize the ProbabilisticPCGridGNN.
 
@@ -26,7 +28,7 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             grid_resolution_m (float, optional): Resolution of the grid in meters.
                 Defaults to 0.05.
             grid_max_distance_m (float, optional): Maximum distance from center in meters.
-                Defaults to 3.
+                Defaults to 3.0.
             valid_fovs_deg (list[tuple[float, float]], optional): A list of valid FOVs in degrees, e.g. [(-60, 60)].
                 0 degrees is the +x axis, +90 degrees is the +y axis. Defaults to [(-180, 180)].
             num_frames_history (int, optional): Number of frames to average over.
@@ -35,6 +37,8 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
                 Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             occupancy_threshold (float, optional): Threshold probability (0.0 to 1.0)
                 to consider a cell occupied. Defaults to 0.5.
+            gt_distance_threshold_m (float, optional): Distance threshold for
+                associating ground truth points. If None, defaults to grid_resolution_m.
         """
         super().__init__(
             grid_resolution_m=grid_resolution_m,
@@ -42,7 +46,8 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
             subsample_percentage=subsample_percentage,
-            occupancy_threshold=occupancy_threshold
+            occupancy_threshold=occupancy_threshold,
+            gt_distance_threshold_m=gt_distance_threshold_m
         )
         
         self.input_encoder = _NodeEncoder()

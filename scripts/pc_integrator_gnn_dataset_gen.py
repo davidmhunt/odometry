@@ -33,6 +33,10 @@ DATASET_PATH=os.getenv("DATASET_DIRECTORY")
 MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
 GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
+DATASET_PATH = "/data/RaGNNarok/ugv_datasets/"
+MAP_DIRECTORY = "/data/RaGNNarok/ugv_datasets/maps/"
+GENERATED_DATASETS_PATH = "/data/RaGNNarok/generated_datasets/"
+
 config_label = "RaGNNarok_1fp_20fh_0_50_th_5mRng_0_2_res"
 results_parent_folder = "{}_train".format(config_label)
 

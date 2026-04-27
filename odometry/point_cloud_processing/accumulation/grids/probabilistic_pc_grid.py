@@ -19,7 +19,8 @@ class ProbabilisticPCGrid(_PCGrid):
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_history: int = 10,
             subsample_percentage: float = 1.0,
-            occupancy_threshold: float = 0.5):
+            occupancy_threshold: float = 0.5,
+            **kwargs):
         """
         Initialize the ProbabilisticPCGrid.
 
@@ -49,7 +50,8 @@ class ProbabilisticPCGrid(_PCGrid):
             grid_max_distance_m=grid_max_distance_m,
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_history,
-            subsample_percentage=subsample_percentage
+            subsample_percentage=subsample_percentage,
+            **kwargs
         )
         
         # Re-initialize lists after super() might have reset things differently
@@ -127,7 +129,7 @@ class ProbabilisticPCGrid(_PCGrid):
             matched_gt_points = self._get_dets_close_to_gt_points(
                 dets=new_points,
                 gt_points=new_gt_points,
-                threshold=self.grid_resolution_m # Using grid_res to match original probabilistic behavior
+                threshold=self.gt_distance_threshold_m
             )
             self.gt_grid = self._get_grid_from_points(matched_gt_points).astype(np.float32)
             # Intersection logic
@@ -174,7 +176,7 @@ class ProbabilisticPCGrid(_PCGrid):
             matched_gt_points = self._get_dets_close_to_gt_points(
                 dets=new_points,
                 gt_points=new_gt_points,
-                threshold=self.grid_resolution_m
+                threshold=self.gt_distance_threshold_m
             )
             self.gt_frames_list.insert(0, matched_gt_points)
         else:

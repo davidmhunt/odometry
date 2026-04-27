@@ -15,12 +15,9 @@ from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.temporal_density_pc_integrator_tb import TemporalDensityPCIntegratorTB
 from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
 from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator_gnn import TemporalDensityPCIntegratorGNN
+
 from odometry.point_cloud_processing.accumulation.integrators.ragnnarok_pc_integrator_gnn import RagnnarokPointCloudIntegratorGNN
 from odometry.test_benches.ragnnarok_point_cloud_integrator_tb import RaGNNPointCloudIntegratorTB
-
-from mmwave_model_integrator.torch_training.models.SAGEGnn import SageGNNClassifier
-
-
 
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
 from odometry.point_cloud_processing.accumulation.pc_accumulator import GtPointLabelingStrategy
@@ -47,12 +44,13 @@ MAP_DIRECTORY = "/data/RaGNNarok/ugv_datasets/maps/"
 GENERATED_DATASETS_PATH = "/data/RaGNNarok/generated_datasets/"
 
 normalize_frames = True
+gt_enable = True
 
-config_label = "eval_RaGNNarok_ugv_RaGNNarok_ds_icp_tuning"
+config_label = "eval_IcaRAus_ugv_RaGNNarok_ds_and_format_icp_tuning"
 
 #model information
-model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.py"
-model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.pth"
+model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_RaGNNarok_ds_and_format.py"
+model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_RaGNNarok_ds_and_format.pth"
 
 results_parent_folder = "{}_eval".format(config_label)
 
@@ -163,10 +161,12 @@ def analyze_dataset(
     config = Config(model_config_path)
     model_cfg = config.model
     model_type = model_cfg.pop('type')
-    model = SageGNNClassifier(**model_cfg)
+    model = DensifyingDeepDynamicEdgeConvGnn(**model_cfg)
 
     dataset_cfg = config.trainer["dataset"]
     enable_downsampling = dataset_cfg.get("enable_downsampling", False)
+    downsample_keep_ratio = dataset_cfg.get("downsample_keep_ratio", 1.0)
+    downsample_min_points = dataset_cfg.get("downsample_min_points", 0)
 
     runner = GNNRunner(
         model=model,
@@ -174,7 +174,9 @@ def analyze_dataset(
         cuda_device="cuda:0" if torch.cuda.is_available() else "cpu",
         edge_radius=10.0,
         enable_downsampling=enable_downsampling,
-        use_sigmoid=False,
+        downsample_keep_ratio=downsample_keep_ratio,
+        downsample_min_points=downsample_min_points,
+        use_sigmoid=True,
         print_stats=False
     )
 
@@ -251,7 +253,7 @@ def analyze_dataset(
     end_idx = dataset.num_frames
     test_bench.run(
         max_frame=end_idx,
-        gt_enabled=True,
+        gt_enabled=gt_enable,
         movie_generator=movie_generator,
         generate_dataset=False,
         normalize_frames=normalize_frames)
@@ -262,11 +264,13 @@ def analyze_dataset(
     #save the analysis
     result_folder="{}/Results".format(results_parent_folder)
     create_dir(result_folder)
-    test_bench.analyze(
-        save_folder_path=result_folder,
-        file_name=file_name,
-        export_to_csv=True
-    )
+
+    if gt_enable:
+        test_bench.analyze(
+            save_folder_path=result_folder,
+            file_name=file_name,
+            export_to_csv=True
+        )
 
     #save the position history plot for checking
     position_history_folder = \

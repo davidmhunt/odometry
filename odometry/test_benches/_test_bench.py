@@ -1062,6 +1062,25 @@ class _TestBench:
                         if self.use_filters:
                             self.filter_gt.x[0:2] = new_pose_m
                             self.filter_gt.x[2] = new_heading_rad
+                        
+                        # Use map points as ground truth points transformed to the ego frame
+                        map_points = self.map_handler.map_points
+                        if map_points is not None and map_points.shape[0] > 0:
+                            if map_points.shape[1] == 2:
+                                padded_map_points = np.hstack([map_points, np.zeros((map_points.shape[0], 1))])
+                            else:
+                                padded_map_points = map_points[:, :3].copy()
+                                padded_map_points[:, 2] = 0.0 # ensure z is 0 for 2D checking
+                                
+                            original_pose = Pose()
+                            new_pose = Pose(
+                                position=Position(x=new_pose_m[0], y=new_pose_m[1], z=0.0),
+                                orientation=Orientation(qw=rot.as_quat()[3], qx=rot.as_quat()[0], qy=rot.as_quat()[1], qz=rot.as_quat()[2])
+                            )
+                            transformation = Transformation.from_orig_to_new(original_pose=original_pose, new_pose=new_pose)
+                            gt_points_3d = transformation.apply_transformation(padded_map_points)
+                            gt_points = gt_points_3d.copy()
+                            gt_points[:, 2] = 0.0
                 
             else:
                 gt_points = np.empty(shape=(0,3))

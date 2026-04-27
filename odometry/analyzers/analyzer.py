@@ -118,7 +118,11 @@ class Analyzer:
         estimated_heading_deg = np.array(history_heading_deg)
         gt_heading_deg = np.array(history_heading_deg_gt)
 
-        return np.abs(estimated_heading_deg - gt_heading_deg)
+        # Compute shortest angular difference
+        diff = estimated_heading_deg - gt_heading_deg
+        diff_wrapped = ((diff + 180) % 360) - 180
+
+        return np.abs(diff_wrapped)
     
     def compute_relative_errors_heading(
             self,
@@ -140,10 +144,18 @@ class Analyzer:
         estimated_heading_deg = np.array(history_heading_deg)
         gt_heading_deg = np.array(history_heading_deg_gt)
 
+        # wrap relative trajectories to capture shortest frame-to-frame angular distance
         est_relative_trajectories = estimated_heading_deg[1:] - estimated_heading_deg[:-1]
         gt_relative_trajectories = gt_heading_deg[1:] - gt_heading_deg[:-1]
 
-        return np.absolute(est_relative_trajectories - gt_relative_trajectories)
+        est_rel_wrapped = ((est_relative_trajectories + 180) % 360) - 180
+        gt_rel_wrapped = ((gt_relative_trajectories + 180) % 360) - 180
+
+        # compute the shortest angular difference between the two relative trajectories
+        err_diff = est_rel_wrapped - gt_rel_wrapped
+        err_diff_wrapped = ((err_diff + 180) % 360) - 180
+
+        return np.abs(err_diff_wrapped)
     
     def compute_total_distance_traveled(self,history_pose_gt:np.ndarray):
         """Compute the total distance for a given trial

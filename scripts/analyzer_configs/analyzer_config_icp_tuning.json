@@ -1,0 +1,22 @@
+{
+    "IcaRAus UGV": {
+        "IcaRAus": "/home/david/Documents/odometry/eval_IcaRAus_ugv_IcaRAus_ds_icp_tuning_0_9_eval/Results",
+        "RaGNNarok": "/home/david/Documents/odometry/eval_RaGNNarok_ugv_IcaRAus_ds_and_format_icp_tuning_0_9_eval/Results",
+        "Naive Radar": "/home/david/Documents/odometry/eval_naive_radar_ugv_IcaRAus_ds_eval/Results"
+    },
+    "IcaRAus UAV (Radar)": {
+        "IcaRAus": "/home/david/Documents/odometry/eval_IcaRAus_uav_radar_IcaRAus_ds_icp_tuning_eval/Results",
+        "RaGNNarok": "/home/david/Documents/odometry/eval_RaGNNarok_uav_radar_IcaRAus_ds_and_format_icp_tuning_eval/Results",
+        "Naive Radar": "/home/david/Documents/odometry/eval_naive_radar_uav_radar_IcaRAus_ds_eval/Results"
+    },
+    "IcaRAus UAV (Flow)": {
+        "IcaRAus": "/home/david/Documents/odometry/eval_IcaRAus_uav_flow_IcaRAus_ds_icp_tuning_eval/Results",
+        "RaGNNarok": "/home/david/Documents/odometry/eval_RaGNNarok_uav_flow_IcaRAus_ds_and_format_icp_tuning_eval/Results",
+        "Naive Radar": "/home/david/Documents/odometry/eval_naive_radar_uav_flow_IcaRAus_ds_eval/Results"
+    },
+    "RaGNNarok UGV": {
+        "IcaRAus": "/home/david/Documents/odometry/eval_IcaRAus_ugv_RaGNNarok_ds_and_format_icp_tuning_eval/Results",
+        "RaGNNarok": "/home/david/Documents/odometry/eval_RaGNNarok_ugv_RaGNNarok_ds_icp_tuning_eval/Results",
+        "Naive Radar": "/home/david/Documents/odometry/eval_naive_radar_ugv_RaGNNarok_ds_eval/Results"
+    }
+}

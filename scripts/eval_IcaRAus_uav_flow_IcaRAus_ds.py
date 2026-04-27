@@ -47,7 +47,7 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 normalize_frames = True
 num_frames_history = 50
 
-config_label = "eval_IcaRAus_uav_flow_IcaRAus_ds"
+config_label = "eval_IcaRAus_uav_flow_IcaRAus_ds_icp_tuning"
 
 #model information
 model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
@@ -116,13 +116,13 @@ def analyze_dataset(
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.25,#0.1
-        icp_best_points_percentile=60, #80
+        icp_matching_distance_threshold=0.25,
+        icp_best_points_percentile=85, #was 60
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7, #7
-        icp_max_iterations=5, #20
-        self_detection_radius_m=0 #originally 1.5
+        icp_point_pairs_threshold=7,
+        icp_max_iterations=5,
+        self_detection_radius_m=0
     )
 
     lidar_odometry = icp2DLocalization(

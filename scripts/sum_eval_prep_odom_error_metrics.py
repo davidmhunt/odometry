@@ -9,7 +9,7 @@ from odometry.analyzers.analyzer import Analyzer
 CONFIG_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "analyzer_configs",
-    "analyzer_config.json"
+    "analyzer_config_icp_tuning.json"
 )
 
 #desired results folder and file path

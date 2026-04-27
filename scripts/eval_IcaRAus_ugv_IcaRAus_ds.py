@@ -43,8 +43,9 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
+gt_enable = True
 
-config_label = "eval_IcaRAus_ugv_IcaRAus_ds"
+config_label = "eval_IcaRAus_ugv_IcaRAus_ds_icp_tuning_0_9"
 
 #model information
 model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
@@ -124,13 +125,13 @@ def analyze_dataset(
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.25,#0.1
-        icp_best_points_percentile=60, #80
+        icp_matching_distance_threshold=0.25,
+        icp_best_points_percentile=90, #was 60
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7, #7
-        icp_max_iterations=5, #20
-        self_detection_radius_m=0 #originally 1.5
+        icp_point_pairs_threshold=7,
+        icp_max_iterations=5,
+        self_detection_radius_m=0
     )
 
     lidar_odometry = icp2DLocalization(
@@ -263,7 +264,7 @@ def analyze_dataset(
     end_idx = dataset.num_frames
     test_bench.run(
         max_frame=end_idx,
-        gt_enabled=True,
+        gt_enabled=gt_enable,
         movie_generator=movie_generator,
         generate_dataset=False,
         normalize_frames=normalize_frames)
@@ -274,11 +275,13 @@ def analyze_dataset(
     #save the analysis
     result_folder="{}/Results".format(results_parent_folder)
     create_dir(result_folder)
-    test_bench.analyze(
-        save_folder_path=result_folder,
-        file_name=file_name,
-        export_to_csv=True
-    )
+
+    if gt_enable:
+        test_bench.analyze(
+            save_folder_path=result_folder,
+            file_name=file_name,
+            export_to_csv=True
+        )
 
     #save the position history plot for checking
     position_history_folder = \

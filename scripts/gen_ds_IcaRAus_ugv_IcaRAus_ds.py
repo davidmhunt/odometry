@@ -29,6 +29,7 @@ from odometry.analyzers.analyzer import Analyzer
 
 from dotenv import load_dotenv
 import os
+import yaml
 
 #loading enviroment variables
 load_dotenv()
@@ -40,58 +41,6 @@ DATASET_PATH = "/data/IcaRAus/datasets/UGV"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
 GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
-normalize_frames = True
-num_frames_history = 50
-#key for occlusion aware clustering: {rt or olp or no_rmv_occlusion}_gt_{rt or olp or no_rmv_occlusion}_pts_{eps}_eps_{min_samples}_min_samples_{subsample_percentage}_subsample_percentage
-#key for no occlusion aware clustering: no_clustering
-#key for fov filtering: {no}_fov_{deg}
-#key for accumulation_subsampling: {subsample_percentage}_accu_subsample
-
-# config_label = "IcaRAus_ugv_gnn_grid_{}fh_wilk_cpsl_north_1st_rt_gt_no_rmv_occlusion_pts_0_25_eps_10_min_20_sub_70_fov_0_5_accu_subsample".format(num_frames_history)
-# config_label = "IcaRAus_ugv_gnn_grid_{}fh_wilk_cpsl_north_1st_rt_gt_no_clustering_pts_70_fov_0_25_accu_subsample".format(num_frames_history)
-config_label = "IcaRAus_ugv_IcaRAus_ds_wilk_cpsl_north_1st"
-results_parent_folder = "{}_train".format(config_label)
-
-
-datasets_to_test = {
-     "WILK":{
-          "map":"wilk_map.yaml",
-          "datasets":[
-            "IcaRAus_ugv_wilk_1_5m", #train
-            # "IcaRAus_ugv_wilk_2_5m",
-            # "IcaRAus_ugv_wilk_3_5m"
-          ]
-     },
-     "CPSL":{
-         "map":"cpsl_map.yaml",
-         "datasets":[
-             'IcaRAus_ugv_cpsl_1_5m', #train
-            #  'IcaRAus_ugv_cpsl_2_5m',
-            #  'IcaRAus_ugv_cpsl_3_5m',
-         ]
-     },
-     "NORTH_1ST":{
-         "map":"north_1st_map.yaml",
-         "datasets":[
-            #  'north_1st_1', #unmapped area
-            #  'north_1st_2', #unmapped area
-             'north_1st_3', #train
-            #  'north_1st_4',
-            #  'north_1st_5'
-         ]
-     },
-     "NORTH_VICON":{
-         "map":"north_vicon_1.yaml",
-         "datasets":[
-            #  'north_vicon_1',
-            #  'north_vicon_2',
-            #  'north_vicon_3',
-            #  'north_vicon_4',
-            #  'north_vicon_5'
-         ]
-     },
-}
-
 def create_dir(path):
 
         if not os.path.isdir(path):
@@ -102,6 +51,10 @@ def generate_gnn_dataset(
         folder_name,
         file_name,
         map_file,
+        config_label,
+        results_parent_folder,
+        num_frames_history=50,
+        normalize_frames=True,
         generate_movie=False,
         clear_existing_train_data=False):
 
@@ -138,23 +91,23 @@ def generate_gnn_dataset(
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.25,#0.1
-        icp_best_points_percentile=60, #80
+        icp_matching_distance_threshold=0.25,
+        icp_best_points_percentile=80,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7, #7
-        icp_max_iterations=5, #20
-        self_detection_radius_m=0 #originally 1.5
+        icp_point_pairs_threshold=7,
+        icp_max_iterations=5,
+        self_detection_radius_m=0
     )
 
     lidar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.1, #was 0.6, try 0.1
-        icp_best_points_percentile=50, #was 50 - try 75
+        icp_matching_distance_threshold=0.1,
+        icp_best_points_percentile=50,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
-        icp_max_iterations=20,
-        self_detection_radius_m=1.0 #was 0.25, try 1.0
+        icp_max_iterations=5,
+        self_detection_radius_m=1.0
     )
 
     #initialize the probabilistic point cloud grid
@@ -285,22 +238,51 @@ def generate_gnn_dataset(
 
 
 if __name__ == "__main__":
-    clear_existing_train_data = True
-    for folder_name in datasets_to_test.keys():
-         map_name = datasets_to_test[folder_name]["map"]
-         for file_name in datasets_to_test[folder_name]["datasets"]:
-            print("analyzing: {}".format(file_name))
-            
-            generate_gnn_dataset(
-                folder_name=folder_name,
-                file_name=file_name,
-                map_file=map_name,
-                generate_movie=True,
-                clear_existing_train_data=clear_existing_train_data
-            )
 
-            clear_existing_train_data = False    
-    analyzer = Analyzer()
-    analyzer.show_cumulative_summary_from_csvs(
-        save_folder="{}/Results".format(results_parent_folder)
-    )
+    #dataset parameters
+    normalize_frames = True
+    num_frames_history = 50
+
+    config_dir = os.path.join(os.path.dirname(__file__), "dataset_configs")
+    config_filenames = [
+        "IcaRAus_ugv_train_f1.yaml",
+        "IcaRAus_ugv_train_f2.yaml",
+        "IcaRAus_ugv_train_f3.yaml",
+        "IcaRAus_ugv_train_f4.yaml",
+    ]
+
+    for config_file in config_filenames:
+        config_path = os.path.join(config_dir, config_file)
+        print("processing config: {}".format(config_file))
+
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        
+        config_label = config["config_label"]
+        datasets_to_test = config["datasets_to_test"]
+        results_parent_folder = "{}_train".format(config_label)
+
+        clear_existing_train_data = True
+        for folder_name in datasets_to_test.keys():
+            map_name = datasets_to_test[folder_name]["map"]
+            for file_name in datasets_to_test[folder_name]["datasets"]:
+                print("analyzing: {}".format(file_name))
+                
+                generate_gnn_dataset(
+                    folder_name=folder_name,
+                    file_name=file_name,
+                    map_file=map_name,
+                    config_label=config_label,
+                    results_parent_folder=results_parent_folder,
+                    num_frames_history=num_frames_history,
+                    normalize_frames=normalize_frames,
+                    generate_movie=False,
+                    clear_existing_train_data=clear_existing_train_data
+                )
+
+                clear_existing_train_data = False    
+
+        analyzer = Analyzer()
+        analyzer.show_cumulative_summary_from_csvs(
+            save_folder="{}/Results".format(results_parent_folder)
+        )

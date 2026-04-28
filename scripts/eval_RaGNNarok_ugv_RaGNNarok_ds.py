@@ -48,7 +48,7 @@ GENERATED_DATASETS_PATH = "/data/RaGNNarok/generated_datasets/"
 
 normalize_frames = True
 
-config_label = "eval_RaGNNarok_ugv_RaGNNarok_ds_icp_tuning"
+config_label = "eval_RaGNNarok_ugv_RaGNNarok_ds"
 
 #model information
 model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.py"

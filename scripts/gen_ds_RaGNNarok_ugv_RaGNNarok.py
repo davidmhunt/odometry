@@ -25,70 +25,13 @@ from odometry.analyzers.analyzer import Analyzer
 
 from dotenv import load_dotenv
 import os
+import yaml
 
 #loading enviroment variables
 load_dotenv()
 DATASET_PATH = "/data/RaGNNarok/ugv_datasets/"
 MAP_DIRECTORY = "/data/RaGNNarok/ugv_datasets/maps/"
 GENERATED_DATASETS_PATH = "/data/RaGNNarok/generated_datasets/"
-
-# config_label = "RaGNNarok_1fp_20fh_0_50_th_5mRng_0_2_res"
-config_label = "RaGNNarok_ugv_RaGNNarok_ds_wilk_basement"
-results_parent_folder = "{}_train".format(config_label)
-
-normalize_frames = True
-
-
-datasets_to_test = {
-    #  "WILK":{
-    #       "map":"wilkinson.yaml",
-    #       "datasets":[
-    #         #    'WILK_Path_1_With_Dynamic',
-    #         #     'WILK_Multipath_Test_4', #test
-    #             'WILK_Multipath_Test_5', #train
-    #         #     'WILK_Slow_4',
-    #         #     'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
-    #         #     'WILK_Path_1_Slow_No_Dynamic_1',
-    #         #     'WILK_Slow_Walk_Test_1',
-    #         #     'WILK_Path_1_With_Dynamic_2',
-    #         #     'WILK_Path_1_No_Dynamic',
-    #         #     'WILK_Slow_Walk_Test_2',
-    #         #     'WILK_Path_1_Slow_Dynamic_1',
-    #         #     'WILK_Multipath_Test_1',
-    #         #     'WILK_Multipath_Test_3', #train
-    #         #     'WILK_Slow_1',
-    #         #     'WILK_vel_cfg_1', #test
-    #         #     'WILK_Slow_2',
-    #         #     'WILK_Path_1_Same_Side_Dynamic_1',
-    #         #     'WILK_vel_cfg_2', #train
-    #         #     'WILK_Multipath_Test_1_spin_recal',
-    #         #     'WILK_Multipath_Test_2', #test
-    #         #     'WILK_Slow_3'
-    #       ]
-    #  },
-    #  "CPSL":{
-    #      "map":"cpsl_full.yaml",
-    #      "datasets":[
-    #          'CPSL_Walk_1', #train
-    #          'CPSL_Vel_2', #train
-    #          'CPSL_NoVel_2',
-    #          'CPSL_Walk_2', #train
-    #          'CPSL_Vel_1', #train
-    #          'CPSL_NoVel_1',
-    #         #  'CONFIG_TEST',
-    #          'CPSL_Vel_3', #test
-    #         #  'CPSL_No_Move',
-    #          'CPSL_Lidar_Test',
-    #          'CPSL_vel_cfg_1'] #test
-    #  },
-     "WILK_BASEMENT":{
-         "map":"wilk_basement_revB.yaml",
-         "datasets":[
-            #  'wilk_basement_1', #train
-            #  'wilk_basement_2',] #train
-             'wilk_basement_3'] #train Rag
-     }
-}
 
 def create_dir(path):
 
@@ -100,6 +43,9 @@ def generate_gnn_dataset(
         folder_name,
         file_name,
         map_file,
+        config_label,
+        results_parent_folder,
+        normalize_frames=True,
         generate_movie=False,
         clear_existing_train_data=False):
 
@@ -138,23 +84,23 @@ def generate_gnn_dataset(
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.5,#originally 0.1
-        icp_best_points_percentile=80, #originally 65
+        icp_matching_distance_threshold=0.5,
+        icp_best_points_percentile=85,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7, #originally 5
+        icp_point_pairs_threshold=7,
         icp_max_iterations=5,
-        self_detection_radius_m=0 #originally 1.5
+        self_detection_radius_m=0
     )
 
     lidar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.1, #was 0.6, try 0.1
-        icp_best_points_percentile=50, #was 50 - try 75
+        icp_matching_distance_threshold=0.1,
+        icp_best_points_percentile=50,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
-        icp_max_iterations=20,
-        self_detection_radius_m=1.0 #was 0.25, try 1.0
+        icp_max_iterations=5,
+        self_detection_radius_m=1.0
     )
 
     #initialize the ragnnarok point cloud integrator
@@ -258,23 +204,48 @@ def generate_gnn_dataset(
 
 
 if __name__ == "__main__":
-    clear_existing_train_data = True
-    for folder_name in datasets_to_test.keys():
-         map_name = datasets_to_test[folder_name]["map"]
-         for file_name in datasets_to_test[folder_name]["datasets"]:
-            print("analyzing: {}".format(file_name))
-            
-            generate_gnn_dataset(
-                folder_name=folder_name,
-                file_name=file_name,
-                map_file=map_name,
-                generate_movie=False,
-                clear_existing_train_data=clear_existing_train_data
-            )
 
-            clear_existing_train_data = False
-    
-    analyzer = Analyzer()
-    analyzer.show_cumulative_summary_from_csvs(
-        save_folder="{}/Results".format(results_parent_folder)
-    )
+    #dataset parameters
+    normalize_frames = True
+
+    config_dir = os.path.join(os.path.dirname(__file__), "dataset_configs")
+    config_filenames = [
+        "RaGNNarok_ugv_train_f1.yaml",
+        "RaGNNarok_ugv_train_f2.yaml",
+        "RaGNNarok_ugv_train_f3.yaml",
+    ]
+
+    for config_file in config_filenames:
+        config_path = os.path.join(config_dir, config_file)
+        print("processing config: {}".format(config_file))
+
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        
+        config_label = config["config_label"]
+        datasets_to_test = config["datasets_to_test"]
+        results_parent_folder = "{}_train".format(config_label)
+
+        clear_existing_train_data = True
+        for folder_name in datasets_to_test.keys():
+            map_name = datasets_to_test[folder_name]["map"]
+            for file_name in datasets_to_test[folder_name]["datasets"]:
+                print("analyzing: {}".format(file_name))
+                
+                generate_gnn_dataset(
+                    folder_name=folder_name,
+                    file_name=file_name,
+                    map_file=map_name,
+                    config_label=config_label,
+                    results_parent_folder=results_parent_folder,
+                    normalize_frames=normalize_frames,
+                    generate_movie=False,
+                    clear_existing_train_data=clear_existing_train_data
+                )
+
+                clear_existing_train_data = False
+        
+        analyzer = Analyzer()
+        analyzer.show_cumulative_summary_from_csvs(
+            save_folder="{}/Results".format(results_parent_folder)
+        )

@@ -1,0 +1,38 @@
+config_label: RaGNNarok_ugv_RaGNNarok_ds_f3
+datasets_to_test:
+  WILK:
+    map: wilkinson.yaml
+    datasets:
+      - 'WILK_Path_1_With_Dynamic'
+      - 'WILK_Multipath_Test_4'
+      - 'WILK_Multipath_Test_5'
+      - 'WILK_Slow_4'
+      - 'WILK_Path_1_Slow_With_Dynamic_Trickery_1'
+      - 'WILK_Path_1_Slow_No_Dynamic_1'
+      - 'WILK_Slow_Walk_Test_1'
+      - 'WILK_Path_1_With_Dynamic_2'
+      - 'WILK_Path_1_No_Dynamic'
+      - 'WILK_Slow_Walk_Test_2'
+      - 'WILK_Path_1_Slow_Dynamic_1'
+      - 'WILK_Multipath_Test_1'
+      - 'WILK_Multipath_Test_3'
+      - 'WILK_Slow_1'
+      - 'WILK_vel_cfg_1'
+      - 'WILK_Slow_2'
+      - 'WILK_Path_1_Same_Side_Dynamic_1'
+      - 'WILK_vel_cfg_2'
+      - 'WILK_Multipath_Test_1_spin_recal'
+      - 'WILK_Multipath_Test_2'
+      - 'WILK_Slow_3'
+  CPSL:
+    map: cpsl_full.yaml
+    datasets:
+      - 'CPSL_Walk_1'
+      - 'CPSL_Vel_2'
+      - 'CPSL_NoVel_2'
+      - 'CPSL_Walk_2'
+      - 'CPSL_Vel_1'
+      - 'CPSL_NoVel_1'
+      - 'CPSL_Vel_3'
+      - 'CPSL_Lidar_Test'
+      - 'CPSL_vel_cfg_1'

@@ -14,7 +14,7 @@ from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.temporal_density_pc_integrator_tb import TemporalDensityPCIntegratorTB
 from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
-from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator_gnn import TemporalDensityPCIntegratorGNN
+from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator import TemporalDensityPCIntegrator
 
 
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
@@ -36,60 +36,61 @@ import os
 
 #loading enviroment variables
 load_dotenv()
-# DATASET_PATH=os.getenv("DATASET_DIRECTORY")
-# MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
-# GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-DATASET_PATH = "/data/IcaRAus/datasets/UAV/Radar_datasets"
+DATASET_PATH = "/data/IcaRAus/datasets/UGV"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
 GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 
 normalize_frames = True
 num_frames_history = 50
+gt_enable = True
 
-config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_icp_tuning"
+config_label = "eval_naive_integrator_ugv_IcaRAus_ds_icp_tuning_0_85_clustering"
 
 #model information
 model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
 model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds.pth"
 
-
 results_parent_folder = "{}_eval".format(config_label)
 
+
 datasets_to_test = {
-     "vicon_box":{
-          "map":"north_vicon_1.yaml",
+     "WILK":{
+          "map":"wilk_map.yaml",
           "datasets":[
-            "vicon_box_1",
-            "vicon_box_2_video",
-            "vicon_box_3",
-            "vicon_box_4",
-            "vicon_box_5"
+            # "IcaRAus_ugv_wilk_1_5m",
+            "IcaRAus_ugv_wilk_2_5m",
+            "IcaRAus_ugv_wilk_3_5m"
           ]
      },
-    #  "vicon_diamond":{
-    #       "map":"north_vicon_1.yaml",
-    #       "datasets":[
-    #         "vicon_diamond_1"
-    #       ]
-    #  },
-     "vicon_cross":{
-          "map":"north_vicon_1.yaml",
-          "datasets":[
-            "vicon_cross_1",
-            "vicon_cross_2"
-          ]
+     "CPSL":{
+         "map":"cpsl_map.yaml",
+         "datasets":[
+            #  'IcaRAus_ugv_cpsl_1_5m',
+             'IcaRAus_ugv_cpsl_2_5m',
+             'IcaRAus_ugv_cpsl_3_5m',
+         ]
      },
-     "vicon_box_rotate":{
-        "map":"north_vicon_1.yaml",
-        "datasets":[
-            "vicon_box_rotate_1",
-            # "vicon_box_rotate_2", #didn't contain vicon data
-            # "vicon_box_rotate_3",
-            # "vicon_box_rotate_4", #didn't contain flow data
-            # "vicon_box_rotate_5" #didn't contain flow data
-        ]
-     }
+     "NORTH_1ST":{
+         "map":"north_1st_map.yaml",
+         "datasets":[
+            #  'north_1st_1', #unmapped area
+            #  'north_1st_2', #unmapped area
+             'north_1st_3',
+             'north_1st_4',
+             'north_1st_5'
+         ]
+     },
+     "NORTH_VICON":{
+         "map":"north_vicon_1.yaml",
+         "datasets":[
+            #  'north_vicon_1',
+            #  'north_vicon_2',
+             'north_vicon_3',
+             'north_vicon_4',
+             'north_vicon_5'
+         ]
+     },
 }
 
 def create_dir(path):
@@ -108,8 +109,9 @@ def analyze_dataset(
     dataset = CpslDS(
         dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
         radar_pc_folder="radar_combined_pc",
-        vehicle_odom_folder="vehicle_odom",
-        vicon_folder="vicon_x500_8"
+        lidar_folder="lidar",
+        camera_folder="camera",
+        vehicle_odom_folder="vehicle_odom"
     )
 
     #initialize the map handler
@@ -117,9 +119,6 @@ def analyze_dataset(
         maps_folder=MAP_DIRECTORY,
         map_file=map_file
     )
-
-    #initialize the dataset encoders
-    input_encoder = _NodeEncoder()
 
     #initialize the localizers
     radar_odometry = icp2DLocalization(
@@ -138,37 +137,11 @@ def analyze_dataset(
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
-        icp_max_iterations=20,
+        icp_max_iterations=5,
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
-    #instantiate the model
-    config = Config(model_config_path)
-    model_cfg = config.model
-    model_type = model_cfg.pop('type')
-    model = DensifyingDeepDynamicEdgeConvGnn(**model_cfg)
-
-    dataset_cfg = config.trainer["dataset"]
-    enable_downsampling = dataset_cfg.get("enable_downsampling", False)
-    downsample_keep_ratio = dataset_cfg.get("downsample_keep_ratio", 1.0)
-    downsample_min_points = dataset_cfg.get("downsample_min_points", 0)
-
-    runner = GNNRunner(
-        model=model,
-        state_dict_path=model_state_dict_path,
-        cuda_device="cuda:0" if torch.cuda.is_available() else "cpu",
-        edge_radius=10.0,
-        enable_downsampling=enable_downsampling,
-        downsample_keep_ratio=downsample_keep_ratio,
-        downsample_min_points=downsample_min_points,
-        use_sigmoid=True,
-        print_stats=False
-    )
-
-    point_cloud_integrator = TemporalDensityPCIntegratorGNN(
-            gnn_runner=runner,
-            input_encoder=input_encoder,
-            normalize_frames=normalize_frames,
+    point_cloud_integrator = TemporalDensityPCIntegrator(
             gt_distance_threshold_m=0.4,
             num_frames_history_gt=1,
             valid_fovs_deg=[(-70,70),(110,-110)],
@@ -178,15 +151,7 @@ def analyze_dataset(
             grid_resolution_m=0.1,
             subsample_percentage=1.0,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            gt_occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.5,
-                clustering_min_samples=12,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.7,
-                subsample_percentage=1.0,
-                remove_occluded=True,
-                filter_method='ray_trace'
-            ),
+            gt_occlusion_aware_clustering=None,
             occlusion_aware_clustering=OcclusionAwareClustering(
                 clustering_eps=0.25,
                 clustering_min_samples=10,
@@ -209,8 +174,8 @@ def analyze_dataset(
         model_dataset_generator=None,
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
-        gt_source=GroundTruthSource.MOTION_CAPTURE,
-        odom_frame=OdomCoordinateFrame.NED
+        gt_source=GroundTruthSource.LIDAR,
+        odom_frame=OdomCoordinateFrame.FLU
     )
 
     if file_name== "north_1st_4":
@@ -262,7 +227,7 @@ def analyze_dataset(
     end_idx = dataset.num_frames
     test_bench.run(
         max_frame=end_idx,
-        gt_enabled=True,
+        gt_enabled=gt_enable,
         movie_generator=movie_generator,
         generate_dataset=False,
         normalize_frames=normalize_frames)
@@ -273,11 +238,13 @@ def analyze_dataset(
     #save the analysis
     result_folder="{}/Results".format(results_parent_folder)
     create_dir(result_folder)
-    test_bench.analyze(
-        save_folder_path=result_folder,
-        file_name=file_name,
-        export_to_csv=True
-    )
+
+    if gt_enable:
+        test_bench.analyze(
+            save_folder_path=result_folder,
+            file_name=file_name,
+            export_to_csv=True
+        )
 
     #save the position history plot for checking
     position_history_folder = \
@@ -305,7 +272,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True,
+                generate_movie=False
             )
     
     analyzer = Analyzer()

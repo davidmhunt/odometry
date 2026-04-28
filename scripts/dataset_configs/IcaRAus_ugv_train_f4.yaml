@@ -1,0 +1,20 @@
+config_label: IcaRAus_ugv_IcaRAus_ds_f4
+datasets_to_test:
+  WILK:
+    map: wilk_map.yaml
+    datasets:
+      - IcaRAus_ugv_wilk_1_5m
+      - IcaRAus_ugv_wilk_2_5m
+      - IcaRAus_ugv_wilk_3_5m
+  CPSL:
+    map: cpsl_map.yaml
+    datasets:
+      - IcaRAus_ugv_cpsl_1_5m
+      - IcaRAus_ugv_cpsl_2_5m
+      - IcaRAus_ugv_cpsl_3_5m
+  NORTH_1ST:
+    map: north_1st_map.yaml
+    datasets:
+      - north_1st_3
+      - north_1st_4
+      - north_1st_5

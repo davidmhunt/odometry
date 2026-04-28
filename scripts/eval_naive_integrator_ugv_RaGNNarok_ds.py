@@ -15,6 +15,11 @@ from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.temporal_density_pc_integrator_tb import TemporalDensityPCIntegratorTB
 from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
 from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator_gnn import TemporalDensityPCIntegratorGNN
+from odometry.point_cloud_processing.accumulation.integrators.ragnnarok_pc_integrator import RagnnarokPointCloudIntegrator
+from odometry.test_benches.ragnnarok_point_cloud_integrator_tb import RaGNNPointCloudIntegratorTB
+
+from mmwave_model_integrator.torch_training.models.SAGEGnn import SageGNNClassifier
+
 
 
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
@@ -36,59 +41,68 @@ import os
 
 #loading enviroment variables
 load_dotenv()
-# DATASET_PATH=os.getenv("DATASET_DIRECTORY")
-# MAP_DIRECTORY=os.getenv("MAP_DIRECTORY")
-# GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
-DATASET_PATH = "/data/IcaRAus/datasets/UAV/Radar_datasets"
-MAP_DIRECTORY = "/data/IcaRAus/maps"
-GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
+DATASET_PATH = "/data/RaGNNarok/ugv_datasets/"
+MAP_DIRECTORY = "/data/RaGNNarok/ugv_datasets/maps/"
+GENERATED_DATASETS_PATH = "/data/RaGNNarok/generated_datasets/"
 
 normalize_frames = True
-num_frames_history = 50
 
-config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_icp_tuning"
+config_label = "eval_naive_integrator_ugv_RaGNNarok_ds"
 
 #model information
-model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
-model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds.pth"
-
+model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.py"
+model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.pth"
 
 results_parent_folder = "{}_eval".format(config_label)
 
+
 datasets_to_test = {
-     "vicon_box":{
-          "map":"north_vicon_1.yaml",
+ "WILK":{
+          "map":"wilkinson.yaml",
           "datasets":[
-            "vicon_box_1",
-            "vicon_box_2_video",
-            "vicon_box_3",
-            "vicon_box_4",
-            "vicon_box_5"
+               'WILK_Path_1_With_Dynamic',
+                'WILK_Multipath_Test_4',
+                'WILK_Multipath_Test_5',
+                'WILK_Slow_4',
+                'WILK_Path_1_Slow_With_Dynamic_Trickery_1',
+                'WILK_Path_1_Slow_No_Dynamic_1',
+                'WILK_Slow_Walk_Test_1',
+                'WILK_Path_1_With_Dynamic_2',
+                'WILK_Path_1_No_Dynamic',
+                'WILK_Slow_Walk_Test_2',
+                'WILK_Path_1_Slow_Dynamic_1',
+                'WILK_Multipath_Test_1',
+                'WILK_Multipath_Test_3',
+                'WILK_Slow_1',
+                'WILK_vel_cfg_1',
+                'WILK_Slow_2',
+                'WILK_Path_1_Same_Side_Dynamic_1',
+                'WILK_vel_cfg_2',
+                'WILK_Multipath_Test_1_spin_recal',
+                'WILK_Multipath_Test_2',
+                'WILK_Slow_3'
           ]
      },
-    #  "vicon_diamond":{
-    #       "map":"north_vicon_1.yaml",
-    #       "datasets":[
-    #         "vicon_diamond_1"
-    #       ]
-    #  },
-     "vicon_cross":{
-          "map":"north_vicon_1.yaml",
-          "datasets":[
-            "vicon_cross_1",
-            "vicon_cross_2"
-          ]
+     "CPSL":{
+         "map":"cpsl_full.yaml",
+         "datasets":[
+             'CPSL_Walk_1',
+             'CPSL_Vel_2',
+             'CPSL_NoVel_2',
+             'CPSL_Walk_2',
+             'CPSL_Vel_1',
+             'CPSL_NoVel_1',
+             'CPSL_Vel_3',
+             'CPSL_Lidar_Test',
+             'CPSL_vel_cfg_1']
      },
-     "vicon_box_rotate":{
-        "map":"north_vicon_1.yaml",
-        "datasets":[
-            "vicon_box_rotate_1",
-            # "vicon_box_rotate_2", #didn't contain vicon data
-            # "vicon_box_rotate_3",
-            # "vicon_box_rotate_4", #didn't contain flow data
-            # "vicon_box_rotate_5" #didn't contain flow data
-        ]
+     "WILK_BASEMENT":{
+         "map":"wilk_basement_revB.yaml",
+         "datasets":[
+             'wilk_basement_1',
+             'wilk_basement_2',]
+            #  'wilk_basement_3'] #train RaGNNarok
      }
 }
 
@@ -107,9 +121,12 @@ def analyze_dataset(
     #initialize the dataset
     dataset = CpslDS(
         dataset_path=os.path.join(DATASET_PATH,folder_name,file_name),
-        radar_pc_folder="radar_combined_pc",
-        vehicle_odom_folder="vehicle_odom",
-        vicon_folder="vicon_x500_8"
+        radar_pc_folder="radar_combined",
+        lidar_folder="lidar",
+        camera_folder="camera",
+        imu_orientation_folder="imu_data",
+        imu_full_folder="imu_data_full",
+        vehicle_vel_folder="vehicle_vel"
     )
 
     #initialize the map handler
@@ -118,18 +135,15 @@ def analyze_dataset(
         map_file=map_file
     )
 
-    #initialize the dataset encoders
-    input_encoder = _NodeEncoder()
-
-    #initialize the localizers
+    #initialize the localizers (RaGNNarok tuned parameters)
     radar_odometry = icp2DLocalization(
-        icp_matching_distance_threshold=0.25,
-        icp_best_points_percentile=85, #was 60
+        icp_matching_distance_threshold=0.25, #was 0.5
+        icp_best_points_percentile=85, #was 80 
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7,
+        icp_point_pairs_threshold=7, 
         icp_max_iterations=5,
-        self_detection_radius_m=0
+        self_detection_radius_m=0 
     )
 
     lidar_odometry = icp2DLocalization(
@@ -142,83 +156,35 @@ def analyze_dataset(
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
-    #instantiate the model
-    config = Config(model_config_path)
-    model_cfg = config.model
-    model_type = model_cfg.pop('type')
-    model = DensifyingDeepDynamicEdgeConvGnn(**model_cfg)
-
-    dataset_cfg = config.trainer["dataset"]
-    enable_downsampling = dataset_cfg.get("enable_downsampling", False)
-    downsample_keep_ratio = dataset_cfg.get("downsample_keep_ratio", 1.0)
-    downsample_min_points = dataset_cfg.get("downsample_min_points", 0)
-
-    runner = GNNRunner(
-        model=model,
-        state_dict_path=model_state_dict_path,
-        cuda_device="cuda:0" if torch.cuda.is_available() else "cpu",
-        edge_radius=10.0,
-        enable_downsampling=enable_downsampling,
-        downsample_keep_ratio=downsample_keep_ratio,
-        downsample_min_points=downsample_min_points,
-        use_sigmoid=True,
-        print_stats=False
+    point_cloud_integrator = RagnnarokPointCloudIntegrator(
+        grid_resolution_m_prob=0.1,
+        grid_max_distance_m_prob=5.0,
+        num_frames_history_prob=20,
+        grid_resolution_m_hist=0.2,
+        grid_max_distance_m_hist=5.0,
+        num_frames_history_hist=10,
+        min_detection_radius=1.0,
+        max_detection_radius=5.0,
+        gt_distance_threshold_m_prob=0.2
     )
 
-    point_cloud_integrator = TemporalDensityPCIntegratorGNN(
-            gnn_runner=runner,
-            input_encoder=input_encoder,
-            normalize_frames=normalize_frames,
-            gt_distance_threshold_m=0.4,
-            num_frames_history_gt=1,
-            valid_fovs_deg=[(-70,70),(110,-110)],
-            num_frames_history=num_frames_history,
-            min_detection_radius=1.0,
-            max_detection_radius=8.0,
-            grid_resolution_m=0.1,
-            subsample_percentage=1.0,
-            gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            gt_occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.5,
-                clustering_min_samples=12,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.7,
-                subsample_percentage=1.0,
-                remove_occluded=True,
-                filter_method='ray_trace'
-            ),
-            occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.25,
-                clustering_min_samples=10,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.9,
-                subsample_percentage=0.20,
-                remove_occluded=False,
-                filter_method='ray_trace' #ray_trace or overlap
-            )
-        )
-
     #initialize the test bench
-    test_bench = TemporalDensityPCIntegratorTB(
+    test_bench = RaGNNPointCloudIntegratorTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
         dataset=dataset,
         point_cloud_integrator=point_cloud_integrator,
-        dynamic_point_cloud_integrator=None,
         model_dataset_generator=None,
         use_filters=True,
-        prediction_source=PredictionSource.VEHICLE_ODOM,
-        gt_source=GroundTruthSource.MOTION_CAPTURE,
-        odom_frame=OdomCoordinateFrame.NED
+        prediction_source=PredictionSource.IMU_AND_VEL,
+        gt_source=GroundTruthSource.LIDAR,
+        odom_frame=OdomCoordinateFrame.FLU
     )
 
-    if file_name== "north_1st_4":
-        start_heading = np.deg2rad(45)
-        start_pose = np.array([1.0,0.5])
-    else:
-        start_heading = np.deg2rad(0)
-        start_pose = np.array([0.00,0.00])
+    
+    start_heading = np.deg2rad(0)
+    start_pose = np.array([0.00,0.00])
 
     #initialize the localization
     new_heading_rad,new_pose_m = test_bench.init_localization(
@@ -232,7 +198,7 @@ def analyze_dataset(
         est_start_heading_rad=new_heading_rad,
         est_start_position_m=new_pose_m,
         start_time_s=test_bench.get_dataset_start_time(idx=0),
-        gyro_bias=-0.0024 #irrelevant here as using odom samples
+        gyro_bias=-0.0024
     )
 
     if generate_movie:
@@ -305,7 +271,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True,
+                generate_movie=False
             )
     
     analyzer = Analyzer()

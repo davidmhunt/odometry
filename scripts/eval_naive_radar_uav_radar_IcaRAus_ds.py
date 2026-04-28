@@ -202,7 +202,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=False
+                generate_movie=True
             )
     
     analyzer = Analyzer()

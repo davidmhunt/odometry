@@ -14,7 +14,7 @@ from odometry.plotting.plotter_kalman import PlotterKalman
 from odometry.plotting.movies import MovieGenerator
 from odometry.test_benches.temporal_density_pc_integrator_tb import TemporalDensityPCIntegratorTB
 from odometry.test_benches._test_bench import _TestBench, PredictionSource, GroundTruthSource, OdomCoordinateFrame
-from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator_gnn import TemporalDensityPCIntegratorGNN
+from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator import TemporalDensityPCIntegrator
 
 
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
@@ -47,14 +47,14 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 normalize_frames = True
 num_frames_history = 50
 
-config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_icp_tuning"
+config_label = "eval_naive_integrator_uav_radar_IcaRAus_ds_icp_tuning_clustering"
 
 #model information
 model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
 model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds.pth"
 
-
 results_parent_folder = "{}_eval".format(config_label)
+
 
 datasets_to_test = {
      "vicon_box":{
@@ -118,9 +118,6 @@ def analyze_dataset(
         map_file=map_file
     )
 
-    #initialize the dataset encoders
-    input_encoder = _NodeEncoder()
-
     #initialize the localizers
     radar_odometry = icp2DLocalization(
         icp_matching_distance_threshold=0.25,
@@ -142,33 +139,7 @@ def analyze_dataset(
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 
-    #instantiate the model
-    config = Config(model_config_path)
-    model_cfg = config.model
-    model_type = model_cfg.pop('type')
-    model = DensifyingDeepDynamicEdgeConvGnn(**model_cfg)
-
-    dataset_cfg = config.trainer["dataset"]
-    enable_downsampling = dataset_cfg.get("enable_downsampling", False)
-    downsample_keep_ratio = dataset_cfg.get("downsample_keep_ratio", 1.0)
-    downsample_min_points = dataset_cfg.get("downsample_min_points", 0)
-
-    runner = GNNRunner(
-        model=model,
-        state_dict_path=model_state_dict_path,
-        cuda_device="cuda:0" if torch.cuda.is_available() else "cpu",
-        edge_radius=10.0,
-        enable_downsampling=enable_downsampling,
-        downsample_keep_ratio=downsample_keep_ratio,
-        downsample_min_points=downsample_min_points,
-        use_sigmoid=True,
-        print_stats=False
-    )
-
-    point_cloud_integrator = TemporalDensityPCIntegratorGNN(
-            gnn_runner=runner,
-            input_encoder=input_encoder,
-            normalize_frames=normalize_frames,
+    point_cloud_integrator = TemporalDensityPCIntegrator(
             gt_distance_threshold_m=0.4,
             num_frames_history_gt=1,
             valid_fovs_deg=[(-70,70),(110,-110)],
@@ -178,15 +149,7 @@ def analyze_dataset(
             grid_resolution_m=0.1,
             subsample_percentage=1.0,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            gt_occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.5,
-                clustering_min_samples=12,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.7,
-                subsample_percentage=1.0,
-                remove_occluded=True,
-                filter_method='ray_trace'
-            ),
+            gt_occlusion_aware_clustering=None,
             occlusion_aware_clustering=OcclusionAwareClustering(
                 clustering_eps=0.25,
                 clustering_min_samples=10,
@@ -305,7 +268,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True,
+                generate_movie=False,
             )
     
     analyzer = Analyzer()

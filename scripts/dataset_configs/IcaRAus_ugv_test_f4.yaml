@@ -1,0 +1,10 @@
+config_label: IcaRAus_ugv_ds_f4
+datasets_to_test:
+  NORTH_VICON:
+    map: north_vicon_1.yaml
+    datasets:
+      - north_vicon_1
+      - north_vicon_2
+      - north_vicon_3
+      - north_vicon_4
+      - north_vicon_5

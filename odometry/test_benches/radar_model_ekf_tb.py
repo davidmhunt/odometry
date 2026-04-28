@@ -483,6 +483,9 @@ class RadarModelEKFTB:
                               estimated_heading_rad:np.ndarray,
                               t:float):
         
+        if estimated_position_m is None or estimated_heading_rad is None:
+            return
+
         z = np.array([
             estimated_position_m[0],
             estimated_position_m[1],
@@ -505,6 +508,9 @@ class RadarModelEKFTB:
                               estimated_heading_rad:np.ndarray,
                               t:float):
         
+        if estimated_position_m is None or estimated_heading_rad is None:
+            return
+
         z = np.array([
             estimated_position_m[0],
             estimated_position_m[1],

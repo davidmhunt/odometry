@@ -27,14 +27,17 @@ NUM_FRAMES_HISTORY = 50
 NUM_EVAL_POINTS = 10
 
 # Fixed clustering parameters for temporal evaluation
+# CLUSTERING_EPS = 0.25
+# CLUSTERING_MIN_SAMPLES = 10
+
 CLUSTERING_EPS = 0.35
 CLUSTERING_MIN_SAMPLES = 10
 
 # Dataset and Map configuration
-DATASET_PATH = "/data/IcaRAus/datasets/UGV"
+DATASET_PATH = "/data/IcaRAus/datasets/UAV/Flow_datasets"
 MAP_DIRECTORY = "/data/IcaRAus/maps"
-folder_name = "WILK"
-file_name = "IcaRAus_ugv_wilk_2_5m"
+folder_name = "vicon_diamond"
+file_name = "vicon_diamond_1"
 
 # --- Initialization ---
 dataset = CpslDS(
@@ -48,13 +51,13 @@ dataset = CpslDS(
 
 map_handler = MapHandler(
     maps_folder=MAP_DIRECTORY,
-    map_file="wilk_map.yaml"
+    map_file="north_vicon_1.yaml"
 )
 
 # Radar and Lidar localizers
 radar_odometry = icp2DLocalization(
     icp_matching_distance_threshold=0.25,
-    icp_best_points_percentile=60,
+    icp_best_points_percentile=85, #was 60
     icp_convergence_translation_threshold=1e-3,
     icp_convergence_rotation_threshold=1e-4,
     icp_point_pairs_threshold=7,
@@ -63,13 +66,13 @@ radar_odometry = icp2DLocalization(
 )
 
 lidar_odometry = icp2DLocalization(
-    icp_matching_distance_threshold=0.1,
-    icp_best_points_percentile=50,
+    icp_matching_distance_threshold=0.1, #was 0.6, try 0.1
+    icp_best_points_percentile=50, #was 50 - try 75
     icp_convergence_translation_threshold=1e-3,
     icp_convergence_rotation_threshold=1e-4,
     icp_point_pairs_threshold=10,
     icp_max_iterations=20,
-    self_detection_radius_m=1.0
+    self_detection_radius_m=1.0 #was 0.25, try 1.0
 )
 
 # Integrator setup
@@ -100,8 +103,8 @@ test_bench = PointCloudIntegratorTB(
     point_cloud_integrator=point_cloud_integrator,
     use_filters=True,
     prediction_source=PredictionSource.VEHICLE_ODOM,
-    gt_source=GroundTruthSource.LIDAR,
-    odom_frame=OdomCoordinateFrame.FLU
+    gt_source=GroundTruthSource.MOTION_CAPTURE,
+    odom_frame=OdomCoordinateFrame.NED
 )
 
 # Initialize positions
@@ -188,11 +191,11 @@ for i, target_frame in enumerate(target_frames):
 fig.suptitle(f"Temporal Clustering Consistency (subsample={SUBSAMPLE_PERCENTAGE}, eps={CLUSTERING_EPS}, min={CLUSTERING_MIN_SAMPLES})", fontsize=16)
 fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 os.makedirs("cluster_tuning", exist_ok=True)
-fig.savefig("cluster_tuning/temporal_performance_grid.png")
+fig.savefig("cluster_tuning/temporal_performance_grid_uav.png")
 
 # Save centroids figure
 fig_centroids.suptitle(f"Temporal Cluster Centroids (subsample={SUBSAMPLE_PERCENTAGE}, eps={CLUSTERING_EPS}, min={CLUSTERING_MIN_SAMPLES})", fontsize=16)
 fig_centroids.tight_layout(rect=[0, 0.03, 1, 0.95])
-fig_centroids.savefig("cluster_tuning/temporal_centroids_grid.png")
+fig_centroids.savefig("cluster_tuning/temporal_centroids_grid_uav.png")
 
 plt.close('all')

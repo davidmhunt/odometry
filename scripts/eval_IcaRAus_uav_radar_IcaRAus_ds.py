@@ -47,7 +47,7 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 normalize_frames = True
 num_frames_history = 50
 
-config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_icp_tuning"
+config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_radar_eps_35"
 
 #model information
 model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
@@ -188,7 +188,7 @@ def analyze_dataset(
                 filter_method='ray_trace'
             ),
             occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.25,
+                clustering_eps=0.35,
                 clustering_min_samples=10,
                 angle_res_rad=0.017,
                 occlusion_threshold=0.9,
@@ -305,7 +305,7 @@ if __name__ == "__main__":
                 folder_name=folder_name,
                 file_name=file_name,
                 map_file=map_name,
-                generate_movie=True,
+                generate_movie=False,
             )
     
     analyzer = Analyzer()

@@ -1,0 +1,14 @@
+config_label: RaGNNarok_ugv_ds_f2
+datasets_to_test:
+  CPSL:
+    map: cpsl_full.yaml
+    datasets:
+      - 'CPSL_Walk_1'
+      - 'CPSL_Vel_2'
+      - 'CPSL_NoVel_2'
+      - 'CPSL_Walk_2'
+      - 'CPSL_Vel_1'
+      - 'CPSL_NoVel_1'
+      - 'CPSL_Vel_3'
+      - 'CPSL_Lidar_Test'
+      - 'CPSL_vel_cfg_1'

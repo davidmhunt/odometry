@@ -1,0 +1,8 @@
+config_label: RaGNNarok_ugv_ds_f3
+datasets_to_test:
+  WILK_BASEMENT:
+    map: wilk_basement_revB.yaml
+    datasets:
+      - 'wilk_basement_1'
+      - 'wilk_basement_2'
+      - 'wilk_basement_3'

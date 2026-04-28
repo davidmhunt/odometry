@@ -1,0 +1,11 @@
+config_label: IcaRAus_ugv_IcaRAus_ds_0_35_eps
+datasets_to_test:
+  WILK:
+    map: wilk_map.yaml
+    datasets:
+      - IcaRAus_ugv_wilk_1_5m
+  CPSL:
+    map: cpsl_map.yaml
+    datasets:
+      - IcaRAus_ugv_cpsl_1_5m
+

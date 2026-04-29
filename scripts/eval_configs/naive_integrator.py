@@ -32,7 +32,7 @@ def get_test_bench(dataset, map_handler, model_info=None, **kwargs):
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
-        icp_max_iterations=20,
+        icp_max_iterations=5,
         self_detection_radius_m=1.0
     )
 

@@ -160,6 +160,7 @@ def generate_ds_fold(config_file, num_frames_history=50, normalize_frames=True):
             test_bench.plotter_localization.plot_position_history_m(
                 test_bench.history_position_m,
                 test_bench.history_position_m_gt,
+                test_bench.history_position_m_inertial,
                 idx=dataset.num_frames - 1,
                 ax=axs,
                 show=False

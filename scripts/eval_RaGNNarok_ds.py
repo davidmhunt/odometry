@@ -150,6 +150,7 @@ def run_evaluation(base_eval_mode, model_label, dataset_config_file, results_bas
             test_bench.plotter_localization.plot_position_history_m(
                 test_bench.history_position_m,
                 test_bench.history_position_m_gt,
+                test_bench.history_position_m_inertial,
                 idx=dataset.num_frames - 1,
                 ax=axs,
                 show=False

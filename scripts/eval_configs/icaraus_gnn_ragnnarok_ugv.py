@@ -2,10 +2,8 @@ import torch
 import os
 import numpy as np
 from odometry.localization.icp2D_localization import icp2DLocalization
-from odometry.point_cloud_processing.accumulation.integrators.temporal_density_pc_integrator_gnn import TemporalDensityPCIntegratorGNN
-from odometry.test_benches.temporal_density_pc_integrator_tb import TemporalDensityPCIntegratorTB
-from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
-from odometry.point_cloud_processing.accumulation.pc_accumulator import GtPointLabelingStrategy
+from odometry.point_cloud_processing.accumulation.integrators.ragnnarok_pc_integrator_gnn import RagnnarokPointCloudIntegratorGNN
+from odometry.test_benches.ragnnarok_point_cloud_integrator_tb import RaGNNPointCloudIntegratorTB
 from mmwave_model_integrator.config import Config
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 from mmwave_model_integrator.torch_training.models.DensifyingDeepDynamicEdgeConvGnn import DensifyingDeepDynamicEdgeConvGnn
@@ -13,7 +11,7 @@ from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
 from odometry.test_benches._test_bench import PredictionSource, OdomCoordinateFrame, GroundTruthSource
 
 
-def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50, normalize_frames=True):
+def get_test_bench(dataset, map_handler, model_info=None, **kwargs):
     """Initializes and returns a TemporalDensityPCIntegratorTB for IcaRAus GNN on RaGNNarok UGV evaluation.
     """
     
@@ -71,46 +69,25 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
         print_stats=False
     )
 
-    point_cloud_integrator = TemporalDensityPCIntegratorGNN(
-            gnn_runner=runner,
-            input_encoder=input_encoder,
-            normalize_frames=normalize_frames,
-            gt_distance_threshold_m=0.2, # RaGNNarok uses 0.2
-            num_frames_history_gt=1,
-            valid_fovs_deg=[(-180,180)], # RaGNNarok datasets are 360
-            num_frames_history=num_frames_history,
-            min_detection_radius=1.0,
-            max_detection_radius=5.0, # RaGNNarok uses 5.0m
-            grid_resolution_m=0.1,
-            subsample_percentage=1.0,
-            gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            gt_occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.5,
-                clustering_min_samples=12,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.7,
-                subsample_percentage=1.0,
-                remove_occluded=True,
-                filter_method='ray_trace'
-            ),
-            occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.25,
-                clustering_min_samples=10,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.9,
-                subsample_percentage=0.20,
-                remove_occluded=False,
-                filter_method='ray_trace'
-            )
-        )
+    point_cloud_integrator = RagnnarokPointCloudIntegratorGNN(
+        gnn_runner=runner,
+        grid_resolution_m_prob=0.1,
+        grid_max_distance_m_prob=5.0,
+        num_frames_history_prob=20,
+        grid_resolution_m_hist=0.2,
+        grid_max_distance_m_hist=5.0,
+        num_frames_history_hist=10,
+        min_detection_radius=1.0,
+        max_detection_radius=5.0,
+        gt_distance_threshold_m_prob=0.2
+    )
     
-    return TemporalDensityPCIntegratorTB(
+    return RaGNNPointCloudIntegratorTB(
         localizer=radar_odometry,
         gt_localizer=lidar_odometry,
         map_handler=map_handler,
         dataset=dataset,
         point_cloud_integrator=point_cloud_integrator,
-        dynamic_point_cloud_integrator=None,
         model_dataset_generator=None,
         use_filters=True,
         prediction_source=PredictionSource.IMU_AND_VEL,

@@ -76,6 +76,8 @@ def run_evaluation(base_eval_mode, model_label, dataset_config_file, results_bas
             eval_module_name = f"icaraus_gnn_{platform}"
         elif base_eval_mode == "ragnnarok_gnn":
             eval_module_name = f"ragnnarok_gnn_icaraus_{platform}"
+        elif base_eval_mode == "naive_integrator":
+            eval_module_name = f"naive_integrator_icaraus_{platform}"
         else:
             eval_module_name = f"{base_eval_mode}_{platform}"
             

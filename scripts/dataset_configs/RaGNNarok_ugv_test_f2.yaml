@@ -3,6 +3,7 @@ datasets_to_test:
   CPSL:
     dataset_path: /data/RaGNNarok/ugv_datasets/
     map: cpsl_full.yaml
+    platform: ugv
     test_bench_module: ragnnarok_gnn_ugv_ds_gen
     radar_pc_folder: radar_combined
     lidar_folder: lidar

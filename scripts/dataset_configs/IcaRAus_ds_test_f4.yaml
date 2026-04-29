@@ -3,6 +3,7 @@ datasets_to_test:
   NORTH_VICON:
     dataset_path: /data/IcaRAus/datasets/UGV
     map: north_vicon_1.yaml
+    platform: ugv
     test_bench_module: icaraus_gnn_ugv_ds_gen
     lidar_folder: lidar
     camera_folder: camera

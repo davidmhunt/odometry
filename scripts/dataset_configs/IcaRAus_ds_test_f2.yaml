@@ -3,6 +3,7 @@ datasets_to_test:
   CPSL:
     dataset_path: /data/IcaRAus/datasets/UGV
     map: cpsl_map.yaml
+    platform: ugv
     test_bench_module: icaraus_gnn_ugv_ds_gen
     lidar_folder: lidar
     camera_folder: camera

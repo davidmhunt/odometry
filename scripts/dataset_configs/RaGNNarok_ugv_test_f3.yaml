@@ -3,6 +3,7 @@ datasets_to_test:
   WILK_BASEMENT:
     dataset_path: /data/RaGNNarok/ugv_datasets/
     map: wilk_basement_revB.yaml
+    platform: ugv
     test_bench_module: ragnnarok_gnn_ugv_ds_gen
     radar_pc_folder: radar_combined
     lidar_folder: lidar

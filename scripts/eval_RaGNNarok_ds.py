@@ -78,6 +78,8 @@ def run_evaluation(base_eval_mode, model_label, dataset_config_file, results_bas
             eval_module_name = f"ragnnarok_gnn_{platform}"
         elif base_eval_mode == "naive_integrator":
             eval_module_name = f"naive_integrator_ragnnarok_{platform}"
+        elif base_eval_mode == "naive_radar":
+            eval_module_name = f"naive_radar_ragnnarok_{platform}"
         else:
             eval_module_name = f"{base_eval_mode}_{platform}"
             
@@ -218,7 +220,7 @@ if __name__ == "__main__":
         {"base_mode": "ragnnarok_gnn", "model_label": "RaGNNarok_gnn"},
         {"base_mode": "icaraus_gnn", "model_label": "icaraus_gnn"},
         {"base_mode": "naive_integrator", "model_label": None},
-        {"base_mode": "naive_radar", "model_label": None},
+        {"base_mode": "naive_radar", "model_label": None}
     ]
     
     for config in fold_configs:

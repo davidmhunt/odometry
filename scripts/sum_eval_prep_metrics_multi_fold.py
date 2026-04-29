@@ -14,8 +14,11 @@ from odometry.analyzers.analyzer import Analyzer
 
 # Fold configurations to process - Update this list with your actual fold config filenames
 FOLDS = [
-    "analyzer_config_clustering_tuning.json",
-    "analyzer_config_clustering_tuning_f2.json"
+    "IcaRAus_ds_f1.json",
+    "IcaRAus_ds_f2.json",
+    "IcaRAus_ds_f3.json",
+    "IcaRAus_ds_f4.json",
+    # "IcaRAus_ds_f5.json"
 ]
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyzer_configs")

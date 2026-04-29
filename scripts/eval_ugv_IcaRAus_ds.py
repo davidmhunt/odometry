@@ -193,7 +193,7 @@ if __name__ == "__main__":
         
         #TODO: make on all IcaRAus_ds folds
         # Baselines on IcaRAus Fold 1
-        ("naive_radar", "IcaRAus_ugv_test_f1.yaml"),
+        ("naive_radar_icaraus_ugv", "IcaRAus_ugv_test_f1.yaml"),
         ("naive_integrator", "IcaRAus_ugv_test_f1.yaml"),
         
         #TODO: should be on the IcaRAus_ds_folds, not RaGNNarok ds folds (i.e. RaGNNarok model trained on IcaRAus folds)
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         
         #TODO: make on all IcaRAus_ds_folds
         # Baselines on RaGNNarok Fold 1
-        ("naive_radar", "RaGNNarok_ugv_test_f1.yaml"),
+        ("naive_radar_ragnnarok_ugv", "RaGNNarok_ugv_test_f1.yaml"),
         ("naive_integrator", "RaGNNarok_ugv_test_f1.yaml"),
     ]
     

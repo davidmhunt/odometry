@@ -12,13 +12,13 @@ from odometry.analyzers.analyzer import Analyzer
 CONFIG_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "analyzer_configs",
-    "analyzer_config_icp_tuning.json"
+    "analyzer_config_clustering_tuning.json"
 )
 
 # Output directory for all summary files
 OUTPUT_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "sum_eval_metrics_summary"
+    "sum_eval_metrics_summary_clustering_tuning"
 )
 
 def main():

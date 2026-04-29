@@ -131,7 +131,7 @@ def generate_gnn_dataset(
                 filter_method='ray_trace'
             ),
             occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.25, #originally 0.25, but trying 0.35
+                clustering_eps=0.25,
                 clustering_min_samples=10,
                 angle_res_rad=0.017,
                 occlusion_threshold=0.9,
@@ -244,13 +244,13 @@ if __name__ == "__main__":
     num_frames_history = 50
 
     config_dir = os.path.join(os.path.dirname(__file__), "dataset_configs")
-    # config_filenames = ["IcaRAus_ugv_train_0_35_eps.yaml"]
-    config_filenames = [
-        "IcaRAus_ugv_train_f1.yaml",
-        "IcaRAus_ugv_train_f2.yaml",
-        "IcaRAus_ugv_train_f3.yaml",
-        "IcaRAus_ugv_train_f4.yaml",
-    ]
+    config_filenames = ["IcaRAus_ugv_train_0_35_eps.yaml"]
+    # config_filenames = [
+    #     "IcaRAus_ugv_train_f1.yaml",
+    #     "IcaRAus_ugv_train_f2.yaml",
+    #     "IcaRAus_ugv_train_f3.yaml",
+    #     "IcaRAus_ugv_train_f4.yaml",
+    # ]
 
     for config_file in config_filenames:
         config_path = os.path.join(config_dir, config_file)

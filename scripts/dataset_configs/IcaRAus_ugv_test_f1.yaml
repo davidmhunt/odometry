@@ -1,8 +1,0 @@
-config_label: IcaRAus_ugv_ds_f1
-datasets_to_test:
-  WILK:
-    map: wilk_map.yaml
-    datasets:
-      - IcaRAus_ugv_wilk_1_5m
-      - IcaRAus_ugv_wilk_2_5m
-      - IcaRAus_ugv_wilk_3_5m

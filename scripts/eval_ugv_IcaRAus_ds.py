@@ -186,10 +186,10 @@ if __name__ == "__main__":
     # Format: (eval_mode, dataset_config_file)
     tasks = [
         # IcaRAus Evaluations (4 Folds)
-        ("icaraus_gnn", "IcaRAus_ugv_test_f1.yaml"),
-        ("icaraus_gnn", "IcaRAus_ugv_test_f2.yaml"),
-        ("icaraus_gnn", "IcaRAus_ugv_test_f3.yaml"),
-        ("icaraus_gnn", "IcaRAus_ugv_test_f4.yaml"),
+        ("icaraus_gnn_ugv", "IcaRAus_ugv_test_f1.yaml"),
+        ("icaraus_gnn_ugv", "IcaRAus_ugv_test_f2.yaml"),
+        ("icaraus_gnn_ugv", "IcaRAus_ugv_test_f3.yaml"),
+        ("icaraus_gnn_ugv", "IcaRAus_ugv_test_f4.yaml"),
         
         #TODO: make on all IcaRAus_ds folds
         # Baselines on IcaRAus Fold 1

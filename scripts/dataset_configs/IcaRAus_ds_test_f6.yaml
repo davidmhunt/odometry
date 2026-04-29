@@ -1,0 +1,31 @@
+config_label: IcaRAus_ds_f6
+datasets_to_test:
+  UAV_RADAR_vicon_box:
+    folder_name: vicon_box
+    dataset_path: /data/IcaRAus/datasets/UAV/Radar_datasets
+    map: north_vicon_1.yaml
+    test_bench_module: icaraus_gnn_uav_ds_gen
+    vicon_folder: vicon_x500_8
+    datasets:
+      - vicon_box_1
+      - vicon_box_2_video
+      - vicon_box_3
+      - vicon_box_4
+      - vicon_box_5
+  UAV_RADAR_vicon_cross:
+    folder_name: vicon_cross
+    dataset_path: /data/IcaRAus/datasets/UAV/Radar_datasets
+    map: north_vicon_1.yaml
+    test_bench_module: icaraus_gnn_uav_ds_gen
+    vicon_folder: vicon_x500_8
+    datasets:
+      - vicon_cross_1
+      - vicon_cross_2
+  UAV_RADAR_vicon_box_rotate:
+    folder_name: vicon_box_rotate
+    dataset_path: /data/IcaRAus/datasets/UAV/Radar_datasets
+    map: north_vicon_1.yaml
+    test_bench_module: icaraus_gnn_uav_ds_gen
+    vicon_folder: vicon_x500_8
+    datasets:
+      - vicon_box_rotate_1

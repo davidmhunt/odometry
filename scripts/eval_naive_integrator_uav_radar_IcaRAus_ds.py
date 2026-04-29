@@ -47,11 +47,14 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 normalize_frames = True
 num_frames_history = 50
 
-config_label = "eval_naive_integrator_uav_radar_IcaRAus_ds_icp_tuning_clustering"
+config_label = "eval_naive_integrator_uav_radar_IcaRAus_ds_clustering_0_35_eps"
 
 #model information
-model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
-model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds.pth"
+# model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
+# model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds.pth"
+
+model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds_0_35_eps.py"
+model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_ugv_IcaRAus_ds_0_35_eps.pth"
 
 results_parent_folder = "{}_eval".format(config_label)
 
@@ -151,7 +154,7 @@ def analyze_dataset(
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering=None,
             occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.25,
+                clustering_eps=0.35,
                 clustering_min_samples=10,
                 angle_res_rad=0.017,
                 occlusion_threshold=0.9,

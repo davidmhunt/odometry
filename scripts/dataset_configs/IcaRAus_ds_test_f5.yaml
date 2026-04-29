@@ -1,0 +1,32 @@
+config_label: IcaRAus_ds_f5
+datasets_to_test:
+  UAV_FLOW_vicon_box:
+    folder_name: vicon_box
+    dataset_path: /data/IcaRAus/datasets/UAV/Flow_datasets
+    map: north_vicon_1.yaml
+    test_bench_module: icaraus_gnn_uav_ds_gen
+    vicon_folder: vicon_x500_8
+    datasets:
+      - vicon_box_1
+      - vicon_box_2
+      - vicon_box_3
+      - vicon_box_4
+      - vicon_box_5
+  UAV_FLOW_vicon_diamond:
+    folder_name: vicon_diamond
+    dataset_path: /data/IcaRAus/datasets/UAV/Flow_datasets
+    map: north_vicon_1.yaml
+    test_bench_module: icaraus_gnn_uav_ds_gen
+    vicon_folder: vicon_x500_8
+    datasets:
+      - vicon_diamond_1
+  UAV_FLOW_vicon_box_rotate:
+    folder_name: vicon_box_rotate
+    dataset_path: /data/IcaRAus/datasets/UAV/Flow_datasets
+    map: north_vicon_1.yaml
+    test_bench_module: icaraus_gnn_uav_ds_gen
+    vicon_folder: vicon_x500_8
+    datasets:
+      - vicon_box_rotate_1
+      - vicon_box_rotate_2
+      - vicon_box_rotate_3

@@ -1,8 +1,0 @@
-config_label: IcaRAus_ugv_ds_f3
-datasets_to_test:
-  NORTH_1ST:
-    map: north_1st_map.yaml
-    datasets:
-      - north_1st_3
-      - north_1st_4
-      - north_1st_5

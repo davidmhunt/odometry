@@ -1057,6 +1057,9 @@ class _TestBench:
                         new_pose_m = np.array([vicon_sample[0], vicon_sample[1]])
                         rot = Rotation.from_quat([vicon_sample[4], vicon_sample[5], vicon_sample[6], vicon_sample[3]])
                         new_heading_rad = rot.as_euler('xyz', degrees=False)[2]
+
+                        # Create a yaw-only rotation to zero out pitch and roll
+                        rot_yaw_only = Rotation.from_euler('z', new_heading_rad)
                         
                         self.history_update_pose_gt(
                             position_m=new_pose_m,
@@ -1081,7 +1084,12 @@ class _TestBench:
                             original_pose = Pose()
                             new_pose = Pose(
                                 position=Position(x=new_pose_m[0], y=new_pose_m[1], z=0.0),
-                                orientation=Orientation(qw=rot.as_quat()[3], qx=rot.as_quat()[0], qy=rot.as_quat()[1], qz=rot.as_quat()[2])
+                                orientation=Orientation(
+                                    qw=rot_yaw_only.as_quat()[3], 
+                                    qx=rot_yaw_only.as_quat()[0], 
+                                    qy=rot_yaw_only.as_quat()[1], 
+                                    qz=rot_yaw_only.as_quat()[2]
+                                )
                             )
                             transformation = Transformation.from_orig_to_new(original_pose=original_pose, new_pose=new_pose)
                             gt_points_3d = transformation.apply_transformation(padded_map_points)

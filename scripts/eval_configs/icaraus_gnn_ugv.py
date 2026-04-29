@@ -10,11 +10,11 @@ from mmwave_model_integrator.config import Config
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 from mmwave_model_integrator.torch_training.models.DensifyingDeepDynamicEdgeConvGnn import DensifyingDeepDynamicEdgeConvGnn
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
-from odometry.test_benches._test_bench import PredictionSource, OdomCoordinateFrame
+from odometry.test_benches._test_bench import PredictionSource, OdomCoordinateFrame, GroundTruthSource
 
 
 def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50, normalize_frames=True):
-    """Initializes and returns a TemporalDensityPCIntegratorTB for IcaRAus GNN evaluation.
+    """Initializes and returns a TemporalDensityPCIntegratorTB for IcaRAus GNN UGV evaluation.
 
     Args:
         dataset (CpslDS): The dataset object to be evaluated.
@@ -31,7 +31,7 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
     """
     
     if model_info is None:
-        raise ValueError("model_info is required for icaraus_gnn evaluation")
+        raise ValueError("model_info is required for icaraus_gnn_ugv evaluation")
 
     model_config_path = model_info['model_config_path']
     model_state_dict_path = model_info['model_state_dict_path']
@@ -127,6 +127,6 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
         model_dataset_generator=None,
         use_filters=True,
         prediction_source=PredictionSource.VEHICLE_ODOM,
-        gt_source="lidar", # String or Enum handled by TB
+        gt_source=GroundTruthSource.LIDAR,
         odom_frame=OdomCoordinateFrame.FLU
     )

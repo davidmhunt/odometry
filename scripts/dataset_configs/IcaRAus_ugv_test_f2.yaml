@@ -1,8 +1,0 @@
-config_label: IcaRAus_ugv_ds_f2
-datasets_to_test:
-  CPSL:
-    map: cpsl_map.yaml
-    datasets:
-      - IcaRAus_ugv_cpsl_1_5m
-      - IcaRAus_ugv_cpsl_2_5m
-      - IcaRAus_ugv_cpsl_3_5m

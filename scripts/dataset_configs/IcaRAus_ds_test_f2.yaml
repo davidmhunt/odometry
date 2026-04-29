@@ -1,0 +1,13 @@
+config_label: IcaRAus_ds_f2
+datasets_to_test:
+  CPSL:
+    dataset_path: /data/IcaRAus/datasets/UGV
+    map: cpsl_map.yaml
+    test_bench_module: icaraus_gnn_ugv_ds_gen
+    lidar_folder: lidar
+    camera_folder: camera
+    vehicle_odom_folder: vehicle_odom
+    datasets:
+      - IcaRAus_ugv_cpsl_1_5m
+      - IcaRAus_ugv_cpsl_2_5m
+      - IcaRAus_ugv_cpsl_3_5m

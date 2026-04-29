@@ -1,7 +1,15 @@
 config_label: RaGNNarok_ugv_RaGNNarok_ds_f1
 datasets_to_test:
   CPSL:
+    dataset_path: /data/RaGNNarok/ugv_datasets/
     map: cpsl_full.yaml
+    test_bench_module: ragnnarok_gnn_ugv_ds_gen
+    radar_pc_folder: radar_combined
+    lidar_folder: lidar
+    camera_folder: camera
+    imu_orientation_folder: imu_data
+    imu_full_folder: imu_data_full
+    vehicle_vel_folder: vehicle_vel
     datasets:
       - 'CPSL_Walk_1'
       - 'CPSL_Vel_2'
@@ -13,7 +21,15 @@ datasets_to_test:
       - 'CPSL_Lidar_Test'
       - 'CPSL_vel_cfg_1'
   WILK_BASEMENT:
+    dataset_path: /data/RaGNNarok/ugv_datasets/
     map: wilk_basement_revB.yaml
+    test_bench_module: ragnnarok_gnn_ugv_ds_gen
+    radar_pc_folder: radar_combined
+    lidar_folder: lidar
+    camera_folder: camera
+    imu_orientation_folder: imu_data
+    imu_full_folder: imu_data_full
+    vehicle_vel_folder: vehicle_vel
     datasets:
       - 'wilk_basement_1'
       - 'wilk_basement_2'

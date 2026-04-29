@@ -1,0 +1,13 @@
+config_label: IcaRAus_ds_f3
+datasets_to_test:
+  NORTH_1ST:
+    dataset_path: /data/IcaRAus/datasets/UGV
+    map: north_1st_map.yaml
+    test_bench_module: icaraus_gnn_ugv_ds_gen
+    lidar_folder: lidar
+    camera_folder: camera
+    vehicle_odom_folder: vehicle_odom
+    datasets:
+      - north_1st_3
+      - north_1st_4
+      - north_1st_5

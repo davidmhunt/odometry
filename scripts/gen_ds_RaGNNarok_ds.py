@@ -183,9 +183,9 @@ if __name__ == "__main__":
     
     # List of folds to process
     fold_configs = [
-        "RaGNNarok_ugv_train_f1.yaml",
-        "RaGNNarok_ugv_train_f2.yaml",
-        "RaGNNarok_ugv_train_f3.yaml",
+        "RaGNNarok_ds_train_f1.yaml",
+        "RaGNNarok_ds_train_f2.yaml",
+        "RaGNNarok_ds_train_f3.yaml",
     ]
     
     for config in fold_configs:

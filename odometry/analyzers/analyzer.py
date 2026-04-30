@@ -4,6 +4,8 @@ from IPython.display import display
 import os
 import fnmatch
 import ast
+import matplotlib.pyplot as plt
+from pandas.plotting import table
 
 from odometry.plotting.plotter_analyzer import PlotterAnalyzer
 
@@ -857,4 +859,58 @@ class Analyzer:
             print(f"Saved Odometry Error Comparison Table to {save_path}")
             
         return df
+
+    def save_table_as_image(self, df: pd.DataFrame, save_path: str, title: str = None):
+        """
+        Save a pandas DataFrame as a graphical table (PNG or PDF).
+
+        Args:
+            df (pd.DataFrame): The DataFrame to render.
+            save_path (str): Path to save the image/PDF.
+            title (str, optional): Title for the table.
+        """
+        # Prepare data for table
+        # Round numeric values to 2 decimal places for cleaner display
+        df_display = df.copy()
+        numeric_cols = df_display.select_dtypes(include=[np.number]).columns
+        df_display[numeric_cols] = df_display[numeric_cols].round(2)
+        
+        fig, ax = plt.subplots(figsize=(12, len(df) * 0.4 + 1.5))
+        ax.axis('tight')
+        ax.axis('off')
+        
+        # For MultiIndex columns/rows, pandas rendering is better
+        # but for matplotlib we'll flatten headers if they are MultiIndex for better fit
+        if isinstance(df_display.columns, pd.MultiIndex):
+            df_display.columns = ['\n'.join(col).strip() for col in df_display.columns.values]
+            
+        # If row index is MultiIndex, reset it to columns for the table
+        if isinstance(df_display.index, pd.MultiIndex):
+            df_display = df_display.reset_index()
+        else:
+            # Even if single index, if it's named or has values, we might want it as a column
+            if df_display.index.name or not isinstance(df_display.index, pd.RangeIndex):
+                df_display = df_display.reset_index()
+
+        tbl = table(ax, df_display, loc='center', cellLoc='center')
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(6) # Decreased font size by ~1/2
+        tbl.scale(1.2, 1.5)
+        
+        # Style the header
+        for (row, col), cell in tbl.get_celld().items():
+            if row == 0:
+                cell.set_text_props(weight='bold', color='white')
+                cell.set_facecolor('#40466e')
+            else:
+                cell.set_facecolor('#f1f1f2' if row % 2 == 0 else 'white')
+
+        if title:
+            plt.title(title, fontsize=10, pad=10)
+            
+        plt.tight_layout()
+        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        plt.close(fig)
+        print(f"Saved graphical table to {save_path}")
 

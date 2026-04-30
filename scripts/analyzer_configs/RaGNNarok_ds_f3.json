@@ -1,0 +1,8 @@
+{
+    "IcaRAus UGV": {
+        "IcaRAus": "/data/RaGNNarok/evaluation_results/RaGNNarok_ds_f3_icaraus_gnn_icaraus_gnn_eval/Results",
+        "RaGNNarok": "/data/RaGNNarok/evaluation_results/RaGNNarok_ds_f3_naive_integrator_eval/Results",
+        "Naive Radar": "/data/RaGNNarok/evaluation_results/RaGNNarok_ds_f3_naive_radar_eval/Results",
+        "Naive Integrator": "/data/RaGNNarok/evaluation_results/RaGNNarok_ds_f3_ragnnarok_gnn_RaGNNarok_gnn_eval/Results"
+    }
+}

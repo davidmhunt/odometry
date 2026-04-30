@@ -13,16 +13,29 @@ if repo_root not in sys.path:
 from odometry.analyzers.analyzer import Analyzer
 
 # Fold configurations to process - Update this list with your actual fold config filenames
-FOLDS = [
-    "IcaRAus_ds_f1.json",
-    "IcaRAus_ds_f2.json",
-    "IcaRAus_ds_f3.json",
-    "IcaRAus_ds_f4.json",
-    # "IcaRAus_ds_f5.json"
-]
+ds = "icaraus" #"ragnnarok" or "icaraus"
+
+if ds ==  "icaraus":
+    FOLDS = [
+        "IcaRAus_ds_f1.json",
+        "IcaRAus_ds_f2.json",
+        "IcaRAus_ds_f3.json",
+        "IcaRAus_ds_f4.json",
+        "IcaRAus_ds_f5.json",
+        "IcaRAus_ds_f6.json"
+    ]
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "multi_fold_summary_icaraus")
+elif ds == "ragnnarok":
+    FOLDS = [
+        "RaGNNarok_ds_f1.json",
+        "RaGNNarok_ds_f2.json",
+        # "RaGNNarok_ds_f3.json",
+    ]
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "multi_fold_summary_ragnnarok")
+else:
+    raise ValueError(f"Unknown dataset: {ds}")
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "analyzer_configs")
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "multi_fold_summary")
 
 def main():
     """Processes multiple evaluation folds and generates aggregated summary statistics.
@@ -64,6 +77,7 @@ def main():
             )
             if df_odom is not None:
                 odom_dfs.append(df_odom)
+                analyzer.save_table_as_image(df_odom, odom_save_path.replace(".csv", ".png"), title=f"Odometry Error - {fold_label}")
         except Exception as e:
             print(f"Error generating odom table for {fold_label}: {e}")
             
@@ -78,11 +92,13 @@ def main():
             )
             if df_pc is not None:
                 pc_dfs.append(df_pc)
+                analyzer.save_table_as_image(df_pc, pc_save_path.replace(".csv", ".png"), title=f"PC Quality - {fold_label}")
         except Exception as e:
             print(f"Error generating PC quality table for {fold_label}: {e}")
             
         # 3. Dataset Qualities
         print(f"Extracting Dataset Qualities for {fold_label}...")
+        fold_quality_records = []
         for dataset_name, methods in config.items():
             if not methods:
                 continue
@@ -98,7 +114,7 @@ def main():
                 total_frames = stats["num_frames"]
                 avg_frames_per_trial = np.mean(stats["trial_frames"]) if num_trials > 0 else 0
                 
-                quality_records.append({
+                record = {
                     "Dataset": dataset_name,
                     "Fold": fold_label,
                     "Num Trials": num_trials,
@@ -106,9 +122,18 @@ def main():
                     "Average Trial Distance (m)": avg_trial_distance,
                     "Total Frames": total_frames,
                     "Average Frames per Trial": avg_frames_per_trial
-                })
+                }
+                quality_records.append(record)
+                fold_quality_records.append(record)
             except Exception as e:
                 print(f"Failed to extract qualities for dataset '{dataset_name}' in {fold_label}: {e}")
+        
+        if fold_quality_records:
+            df_fold_q = pd.DataFrame(fold_quality_records)
+            fold_q_save_path = os.path.join(OUTPUT_DIR, f"dataset_qualities_{fold_label}.csv")
+            df_fold_q.to_csv(fold_q_save_path, index=False)
+            analyzer.save_table_as_image(df_fold_q, fold_q_save_path.replace(".csv", ".png"), title=f"Dataset Qualities - {fold_label}")
+            print(f"Saved Fold Dataset Qualities to {fold_q_save_path}")
 
     # --- Cross-Fold Aggregation ---
 
@@ -127,6 +152,7 @@ def main():
         
         summary_save_path = os.path.join(OUTPUT_DIR, "odom_error_multi_fold_summary.csv")
         final_odom.to_csv(summary_save_path)
+        analyzer.save_table_as_image(final_odom, summary_save_path.replace(".csv", ".png"), title="Multi-Fold Odometry Error Summary")
         print(f"Saved Multi-Fold Odom Summary to {summary_save_path}")
         print(final_odom.to_string())
 
@@ -143,6 +169,7 @@ def main():
         
         summary_save_path = os.path.join(OUTPUT_DIR, "pc_quality_multi_fold_summary.csv")
         final_pc.to_csv(summary_save_path)
+        analyzer.save_table_as_image(final_pc, summary_save_path.replace(".csv", ".png"), title="Multi-Fold PC Quality Summary")
         print(f"Saved Multi-Fold PC Quality Summary to {summary_save_path}")
         print(final_pc.to_string())
 
@@ -162,6 +189,7 @@ def main():
         
         summary_save_path = os.path.join(OUTPUT_DIR, "dataset_qualities_multi_fold.csv")
         agg_q.to_csv(summary_save_path)
+        analyzer.save_table_as_image(agg_q, summary_save_path.replace(".csv", ".png"), title="Multi-Fold Dataset Qualities Summary")
         print(f"Saved Multi-Fold Dataset Qualities to {summary_save_path}")
         print(agg_q.to_string())
 

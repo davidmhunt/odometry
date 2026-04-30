@@ -54,15 +54,15 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
             grid_resolution_m=0.1,
             subsample_percentage=1.0,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.35,
-                clustering_min_samples=10,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.9,
-                subsample_percentage=0.20,
-                remove_occluded=False,
-                filter_method='ray_trace'
-            )
+            # occlusion_aware_clustering=OcclusionAwareClustering(
+            #     clustering_eps=0.35,
+            #     clustering_min_samples=10,
+            #     angle_res_rad=0.017,
+            #     occlusion_threshold=0.9,
+            #     subsample_percentage=0.20,
+            #     remove_occluded=False,
+            #     filter_method='ray_trace'
+            # )
         )
     
     return TemporalDensityPCIntegratorTB(

@@ -1,2 +1,2 @@
 model_config_path: "submodules/mmwave_model_integrator/configs/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.py"
-model_state_dict_path: "submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/RaGNNarok_final_RaGNNarok_ds.pth"
+model_state_dict_path: "submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/RaGNNarok_gnn_RaGNNarok_ds_f1.pth"

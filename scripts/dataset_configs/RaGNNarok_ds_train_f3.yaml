@@ -1,9 +1,8 @@
-config_label: RaGNNarok_ugv_ds_f1
+config_label: RaGNNarok_ds_f3
 datasets_to_test:
   WILK:
     dataset_path: /data/RaGNNarok/ugv_datasets/
     map: wilkinson.yaml
-    platform: ugv
     test_bench_module: ragnnarok_gnn_ugv_ds_gen
     radar_pc_folder: radar_combined
     lidar_folder: lidar
@@ -33,3 +32,23 @@ datasets_to_test:
       - 'WILK_Multipath_Test_1_spin_recal'
       - 'WILK_Multipath_Test_2'
       - 'WILK_Slow_3'
+  CPSL:
+    dataset_path: /data/RaGNNarok/ugv_datasets/
+    map: cpsl_full.yaml
+    test_bench_module: ragnnarok_gnn_ugv_ds_gen
+    radar_pc_folder: radar_combined
+    lidar_folder: lidar
+    camera_folder: camera
+    imu_orientation_folder: imu_data
+    imu_full_folder: imu_data_full
+    vehicle_vel_folder: vehicle_vel
+    datasets:
+      - 'CPSL_Walk_1'
+      - 'CPSL_Vel_2'
+      - 'CPSL_NoVel_2'
+      - 'CPSL_Walk_2'
+      - 'CPSL_Vel_1'
+      - 'CPSL_NoVel_1'
+      - 'CPSL_Vel_3'
+      - 'CPSL_Lidar_Test'
+      - 'CPSL_vel_cfg_1'

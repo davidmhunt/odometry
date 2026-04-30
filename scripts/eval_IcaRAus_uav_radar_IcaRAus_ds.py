@@ -47,14 +47,14 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 normalize_frames = True
 num_frames_history = 50
 
-config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_radar_eps_35"
+config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_radar_f5"
 
 #model information
 # model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
 # model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds.pth"
 
-model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds_0_35_eps.py"
-model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_ugv_IcaRAus_ds_0_35_eps.pth"
+model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
+model_state_dict_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds_f5.pth"
 
 
 results_parent_folder = "{}_eval".format(config_label)
@@ -141,7 +141,7 @@ def analyze_dataset(
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
         icp_point_pairs_threshold=10,
-        icp_max_iterations=20,
+        icp_max_iterations=5,
         self_detection_radius_m=1.0 #was 0.25, try 1.0
     )
 

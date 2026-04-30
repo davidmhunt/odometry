@@ -63,15 +63,15 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
                 remove_occluded=True,
                 filter_method='ray_trace'
             ),
-            occlusion_aware_clustering=OcclusionAwareClustering(
-                clustering_eps=0.25,
-                clustering_min_samples=10,
-                angle_res_rad=0.017,
-                occlusion_threshold=0.9,
-                subsample_percentage=0.20,
-                remove_occluded=False,
-                filter_method='ray_trace'
-            )
+            # occlusion_aware_clustering=OcclusionAwareClustering(
+            #     clustering_eps=0.25,
+            #     clustering_min_samples=10,
+            #     angle_res_rad=0.017,
+            #     occlusion_threshold=0.9,
+            #     subsample_percentage=0.20,
+            #     remove_occluded=False,
+            #     filter_method='ray_trace'
+            # )
         )
     
     return TemporalDensityPCIntegratorTB(

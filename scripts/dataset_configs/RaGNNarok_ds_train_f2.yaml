@@ -1,4 +1,4 @@
-config_label: RaGNNarok_ugv_RaGNNarok_ds_f2
+config_label: RaGNNarok_ds_f2
 datasets_to_test:
   WILK:
     dataset_path: /data/RaGNNarok/ugv_datasets/

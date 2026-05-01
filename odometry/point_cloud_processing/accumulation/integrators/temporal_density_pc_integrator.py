@@ -34,6 +34,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             gt_point_labeling_strategy: GtPointLabelingStrategy = GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering: OcclusionAwareClustering = None,
             occlusion_aware_clustering: OcclusionAwareClustering = None,
+            enable_timing: bool = False,
             **kwargs
     ) -> None:
         """
@@ -53,6 +54,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             gt_point_labeling_strategy (GtPointLabelingStrategy, optional): Labeling method.
             gt_occlusion_aware_clustering (OcclusionAwareClustering, optional): For GT processing.
             occlusion_aware_clustering (OcclusionAwareClustering, optional): For detection processing.
+            enable_timing (bool, optional): If True, enables execution timing diagnostics. Defaults to False.
         """
         
         super().__init__(
@@ -68,6 +70,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             gt_point_labeling_strategy=gt_point_labeling_strategy,
             gt_occlusion_aware_clustering=gt_occlusion_aware_clustering,
             occlusion_aware_clustering=occlusion_aware_clustering,
+            enable_timing=enable_timing,
             **kwargs
         )
 
@@ -82,15 +85,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             gt_distance_threshold_m=gt_distance_threshold_m,
             gt_point_labeling_strategy=gt_point_labeling_strategy,
             gt_occlusion_aware_clustering=None,
-            # occlusion_aware_clustering=OcclusionAwareClustering(
-            #     clustering_eps=0.25,
-            #     clustering_min_samples=10,
-            #     angle_res_rad=0.017,
-            #     occlusion_threshold=0.9,
-            #     subsample_percentage=1.0,
-            #     remove_occluded=False,
-            #     filter_method='overlap' #ray_trace or overlap
-            # ),
+            enable_timing=enable_timing,
             **kwargs
         )
 
@@ -106,6 +101,7 @@ class TemporalDensityPCIntegrator(_PointCloudIntegrator):
             gt_point_labeling_strategy=gt_point_labeling_strategy,
             gt_occlusion_aware_clustering=gt_occlusion_aware_clustering,
             occlusion_aware_clustering=occlusion_aware_clustering,
+            enable_timing=enable_timing,
             **kwargs
         )
         

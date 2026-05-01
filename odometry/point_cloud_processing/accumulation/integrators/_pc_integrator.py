@@ -53,6 +53,7 @@ class _PointCloudIntegrator:
             gt_point_labeling_strategy: GtPointLabelingStrategy = GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
             gt_occlusion_aware_clustering:OcclusionAwareClustering=None,
             occlusion_aware_clustering:OcclusionAwareClustering=None,
+            enable_timing: bool = False,
     ) -> None:
         """
         Initialize the _PointCloudIntegrator.
@@ -84,6 +85,7 @@ class _PointCloudIntegrator:
             occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
                 clustering is used to determine pre-filter radar detections. If None, the standard
                 clustering is used. Defaults to None.
+            enable_timing (bool, optional): If True, enables execution timing diagnostics. Defaults to False.
         """
         
         #pose tracking
@@ -110,7 +112,8 @@ class _PointCloudIntegrator:
             gt_occlusion_aware_clustering=gt_occlusion_aware_clustering,
             occlusion_aware_clustering=occlusion_aware_clustering,
             grid_resolution_m=grid_resolution_m,
-            max_detection_range=max_detection_radius
+            max_detection_range=max_detection_radius,
+            enable_timing=enable_timing
         )
 
         self.num_frames_valid_point_history: int = num_frames_valid_point_history
@@ -125,7 +128,8 @@ class _PointCloudIntegrator:
             gt_occlusion_aware_clustering=None,
             occlusion_aware_clustering=None,
             grid_resolution_m=grid_resolution_m,
-            max_detection_range=max_detection_radius
+            max_detection_range=max_detection_radius,
+            enable_timing=enable_timing
         )
         self.valid_points: np.ndarray = None
 

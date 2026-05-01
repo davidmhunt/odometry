@@ -1,0 +1,6 @@
+lidar_map_yaml: "/data/IcaRAus/maps/wilk_map.yaml"
+radar_map_yaml: "/data/IcaRAus/maps/wilk_4th_map_radar_04132026.yaml"
+initial_guess:
+  x: 0.0
+  y: 0.0
+  heading_offset_degrees: -10.0

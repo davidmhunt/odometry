@@ -29,7 +29,7 @@ def get_test_bench(dataset, map_handler, model_dataset_generator, num_frames_his
         icp_best_points_percentile=85,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7,
+        icp_point_pairs_threshold=50,
         icp_max_iterations=5,
         self_detection_radius_m=0
     )
@@ -45,7 +45,7 @@ def get_test_bench(dataset, map_handler, model_dataset_generator, num_frames_his
     )
 
     point_cloud_integrator = TemporalDensityPCIntegrator(
-            gt_distance_threshold_m=1.0,
+            gt_distance_threshold_m=0.4,
             num_frames_history_gt=1,
             valid_fovs_deg=[(-70,70),(110,-110)],
             num_frames_history=num_frames_history,
@@ -54,7 +54,15 @@ def get_test_bench(dataset, map_handler, model_dataset_generator, num_frames_his
             grid_resolution_m=0.1,
             subsample_percentage=1.0,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            # UAV typically doesn't use gt_occlusion_aware_clustering in these scripts
+            gt_occlusion_aware_clustering=OcclusionAwareClustering(
+                clustering_eps=0.5,
+                clustering_min_samples=12,
+                angle_res_rad=0.051,
+                occlusion_threshold=0.7,
+                subsample_percentage=0.75,
+                remove_occluded=True,
+                filter_method='ray_trace'
+            ),
             occlusion_aware_clustering=OcclusionAwareClustering(
                 clustering_eps=0.35,
                 clustering_min_samples=10,

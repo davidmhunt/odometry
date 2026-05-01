@@ -36,6 +36,7 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
             min_detection_radius: float = 0.25,
             max_detection_radius: float = 20.0,
             gt_distance_threshold_m_prob: float = 0.4,
+            **kwargs
     ) -> None:
         """
         Initialize the RagnnarokPointCloudIntegrator.
@@ -71,7 +72,8 @@ class RagnnarokPointCloudIntegrator(_PointCloudIntegrator):
             num_frames_history=num_frames_history_hist + num_frames_history_prob,
             subsample_percentage=subsample_percentage,
             min_detection_radius=min_detection_radius,
-            max_detection_radius=max_detection_radius
+            max_detection_radius=max_detection_radius,
+            **kwargs
         )
         
         #probabilistic point grid for initial detections

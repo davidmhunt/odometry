@@ -41,7 +41,8 @@ class PointCloudIntegratorTB(_TestBench):
             use_filters:bool = True,
             prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
             gt_source=None,
-            odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU
+            odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU,
+            enable_timing:bool = False
             ):
         """
         Initializes the PointCloudIntegratorTB.
@@ -58,6 +59,7 @@ class PointCloudIntegratorTB(_TestBench):
             prediction_source (PredictionSource, optional): Source for pose predictions. Defaults to PredictionSource.IMU_AND_VEL.
             gt_source (optional): Source configuration for ground truth data. Defaults to None.
             odom_frame (OdomCoordinateFrame, optional): Odometry coordinate frame specification. Defaults to OdomCoordinateFrame.FLU.
+            enable_timing (bool, optional): If True, enables execution timing diagnostics. Defaults to False.
         """
         
         super().__init__(
@@ -68,7 +70,8 @@ class PointCloudIntegratorTB(_TestBench):
             use_filters=use_filters,
             prediction_source=prediction_source,
             gt_source=gt_source,
-            odom_frame=odom_frame
+            odom_frame=odom_frame,
+            enable_timing=enable_timing
         )
 
         self.point_cloud_integrator:_PointCloudIntegrator = point_cloud_integrator

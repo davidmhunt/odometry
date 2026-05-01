@@ -13,7 +13,9 @@ class HistoricalPCGrid(_PCGrid):
             grid_max_distance_m: float = 10,
             valid_fovs_deg: list[tuple[float, float]] = [(-180, 180)],
             num_frames_persistance: int = 30,
-            subsample_percentage: float = 1.0):
+            subsample_percentage: float = 1.0,
+            **kwargs
+    ):
         """
         Initialize the HistoricalPCGrid.
 
@@ -36,5 +38,6 @@ class HistoricalPCGrid(_PCGrid):
             grid_max_distance_m=grid_max_distance_m,
             valid_fovs_deg=valid_fovs_deg,
             num_frames_history=num_frames_persistance,
-            subsample_percentage=subsample_percentage
+            subsample_percentage=subsample_percentage,
+            **kwargs
         )

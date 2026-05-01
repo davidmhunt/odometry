@@ -47,7 +47,7 @@ GENERATED_DATASETS_PATH = "/data/IcaRAus/generated_datasets"
 normalize_frames = True
 num_frames_history = 50
 
-config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_radar_f5"
+config_label = "eval_IcaRAus_uav_radar_IcaRAus_ds_radar_gt_tuning"
 
 #model information
 # model_config_path = "/home/david/Documents/odometry/submodules/mmwave_model_integrator/configs/IcaRAus_gnn/IcaRAus_gnn_final_IcaRAus_ds.py"
@@ -172,7 +172,7 @@ def analyze_dataset(
             gnn_runner=runner,
             input_encoder=input_encoder,
             normalize_frames=normalize_frames,
-            gt_distance_threshold_m=1.0, #was 0.4
+            gt_distance_threshold_m=0.4, #was 0.4
             num_frames_history_gt=1,
             valid_fovs_deg=[(-70,70),(110,-110)],
             num_frames_history=num_frames_history,
@@ -181,15 +181,15 @@ def analyze_dataset(
             grid_resolution_m=0.1,
             subsample_percentage=1.0,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            # gt_occlusion_aware_clustering=OcclusionAwareClustering(
-            #     clustering_eps=0.5,
-            #     clustering_min_samples=12,
-            #     angle_res_rad=0.017,
-            #     occlusion_threshold=0.7,
-            #     subsample_percentage=1.0,
-            #     remove_occluded=True,
-            #     filter_method='ray_trace'
-            # ),
+            gt_occlusion_aware_clustering=OcclusionAwareClustering(
+                clustering_eps=0.5,
+                clustering_min_samples=12,
+                angle_res_rad=0.051,
+                occlusion_threshold=0.7,
+                subsample_percentage=0.75,
+                remove_occluded=True,
+                filter_method='ray_trace'
+            ),
             occlusion_aware_clustering=OcclusionAwareClustering(
                 clustering_eps=0.35,
                 clustering_min_samples=10,

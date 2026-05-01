@@ -29,7 +29,7 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
         icp_best_points_percentile=85,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7,
+        icp_point_pairs_threshold=50,
         icp_max_iterations=5,
         self_detection_radius_m=0
     )
@@ -45,7 +45,7 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
     )
 
     point_cloud_integrator = TemporalDensityPCIntegrator(
-            gt_distance_threshold_m=1.0,
+            gt_distance_threshold_m=0.4,
             num_frames_history_gt=1,
             valid_fovs_deg=[(-70,70),(110,-110)],
             num_frames_history=num_frames_history,
@@ -54,15 +54,6 @@ def get_test_bench(dataset, map_handler, model_info=None, num_frames_history=50,
             grid_resolution_m=0.1,
             subsample_percentage=1.0,
             gt_point_labeling_strategy=GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION,
-            # occlusion_aware_clustering=OcclusionAwareClustering(
-            #     clustering_eps=0.35,
-            #     clustering_min_samples=10,
-            #     angle_res_rad=0.017,
-            #     occlusion_threshold=0.9,
-            #     subsample_percentage=0.20,
-            #     remove_occluded=False,
-            #     filter_method='ray_trace'
-            # )
         )
     
     return TemporalDensityPCIntegratorTB(

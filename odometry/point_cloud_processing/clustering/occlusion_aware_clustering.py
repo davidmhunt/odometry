@@ -20,6 +20,7 @@ class OcclusionAwareClustering:
             subsample_percentage: float = 1.0,
             remove_occluded: bool = True,
             filter_method: str = "overlap",
+            enable_timing: bool = False,
     ) -> None:
         """Initializes the detector with clustering and visibility parameters.
 
@@ -37,6 +38,7 @@ class OcclusionAwareClustering:
             remove_occluded (bool): Whether to remove occluded points after clustering.
             filter_method (str): Method used to remove occluded points. Options 
                 are "overlap" (default) or "ray_trace".
+            enable_timing (bool): If True, enables execution timing diagnostics.
         """
         self.clusterer = DBSCAN(eps=clustering_eps, min_samples=clustering_min_samples)
         self.angle_res_rad = angle_res_rad
@@ -45,6 +47,15 @@ class OcclusionAwareClustering:
         self.subsample_percentage = subsample_percentage
         self.remove_occluded = remove_occluded
         self.filter_method = filter_method
+        
+        self.enable_timing = enable_timing
+        import time
+        self._time = time # Store time module
+        self.timing_stats = {
+            "Subsample": 0.0,
+            "Clustering_Core": 0.0,
+            "Occlusion_Logic": 0.0
+        }
 
     def _get_spherical_coordinates(self, points: np.ndarray) -> np.ndarray:
         """Converts input points to 3D spherical coordinates [r, theta, phi]."""
@@ -217,7 +228,7 @@ class OcclusionAwareClustering:
 
         pc_filtered, closest_point_indices = self._ray_trace_filtering_with_threshold(
             points,
-            threshold=0.1)
+            threshold=0.2)
 
         
         return pc_filtered, labels[closest_point_indices], visible_labels
@@ -225,7 +236,7 @@ class OcclusionAwareClustering:
     def _ray_trace_filtering_with_threshold(
         self,
         pc_cartesian: np.ndarray,
-        threshold: float = 0.1):
+        threshold: float = 0.2):
         """
         Args:
             pc_cartesian (np.ndarray): Nx2 or Nx3 array of point detections.
@@ -321,11 +332,14 @@ class OcclusionAwareClustering:
                 - labels: The cluster labels for the filtered points.
                 - visible_labels: List of unique labels that passed the filter.
         """
-
         #1. Subsample points
+        t_sub = self._time.time()
         pc_cartesian = self._subsample_points(pc_cartesian)
+        if self.enable_timing:
+            self.timing_stats["Subsample"] += self._time.time() - t_sub
 
         #2. perform clustering (with or without occlusion filter)
+        t_core = self._time.time()
         if self.remove_occluded:
             if self.filter_method == "ray_trace":
                 filtered_points, labels, visible_labels = self._ray_trace_occlusion_clustering(pc_cartesian)
@@ -333,5 +347,8 @@ class OcclusionAwareClustering:
                 filtered_points, labels, visible_labels = self._occlusion_aware_clustering(pc_cartesian)
         else:
             filtered_points, labels, visible_labels = self._cluster_points(pc_cartesian)
+        
+        if self.enable_timing:
+            self.timing_stats["Clustering_Core"] += self._time.time() - t_core
 
         return filtered_points, labels, visible_labels

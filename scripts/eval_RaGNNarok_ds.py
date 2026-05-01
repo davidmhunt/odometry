@@ -210,8 +210,8 @@ if __name__ == "__main__":
     
     # List of folds to process
     fold_configs = [
-        # "RaGNNarok_ds_test_f1.yaml",
-        # "RaGNNarok_ds_test_f2.yaml",
+        "RaGNNarok_ds_test_f1.yaml",
+        "RaGNNarok_ds_test_f2.yaml",
         "RaGNNarok_ds_test_f3.yaml",
     ]
     

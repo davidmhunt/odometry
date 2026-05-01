@@ -19,7 +19,9 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             num_frames_history: int = 10,
             subsample_percentage: float = 1.0,
             occupancy_threshold: float = 0.5,
-            gt_distance_threshold_m: float = None):
+            gt_distance_threshold_m: float = None,
+            **kwargs
+        ):
         """
         Initialize the ProbabilisticPCGridGNN.
 
@@ -47,7 +49,8 @@ class ProbabilisticPCGridGNN(ProbabilisticPCGrid):
             num_frames_history=num_frames_history,
             subsample_percentage=subsample_percentage,
             occupancy_threshold=occupancy_threshold,
-            gt_distance_threshold_m=gt_distance_threshold_m
+            gt_distance_threshold_m=gt_distance_threshold_m,
+            **kwargs
         )
         
         self.input_encoder = _NodeEncoder()

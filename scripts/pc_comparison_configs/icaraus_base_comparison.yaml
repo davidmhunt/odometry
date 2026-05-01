@@ -1,0 +1,28 @@
+config_label: icaraus_base_comparison
+dataset:
+  name: IcaRAus_ugv_wilk_1_5m
+  group_name: WILK
+  dataset_path: /data/IcaRAus/datasets/UGV
+  maps_path: /data/IcaRAus/maps
+  map: wilk_map.yaml
+  platform: ugv
+  lidar_folder: lidar
+  camera_folder: camera
+  vehicle_odom_folder: vehicle_odom
+  gyro_bias: null
+
+# Specific frames to sample and plot point clouds for
+frame_indices: [100, 200, 300, 400, 500]
+
+# List of evaluation modes to run
+# eval_config specifies the factory script in scripts/eval_configs/
+# model_info specifies the yaml in scripts/eval_configs/model_info/ (or null if naive)
+eval_modes:
+  - eval_config: "icaraus_gnn_ugv.py"
+    model_info: "icaraus_gnn_IcaRAus_ds_base.yaml"
+  - eval_config: "ragnnarok_gnn_icaraus_ugv.py"
+    model_info: "RaGNNarok_gnn_IcaRAus_ds_f1.yaml"
+  - eval_config: "naive_integrator_icaraus_ugv.py"
+    model_info: null
+  - eval_config: "naive_radar_icaraus_ugv.py"
+    model_info: null

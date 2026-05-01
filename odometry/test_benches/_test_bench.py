@@ -53,11 +53,29 @@ class _TestBench:
                  use_filters:bool = True,
                  prediction_source:PredictionSource = PredictionSource.IMU_AND_VEL,
                  gt_source:GroundTruthSource = GroundTruthSource.LIDAR,
-                 odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU) -> None:
+                 odom_frame:OdomCoordinateFrame = OdomCoordinateFrame.FLU,
+                 enable_timing:bool = False) -> None:
         
         #initialize the localizer
         self.localizer:_Localizer = localizer
         self.gt_localizer:icp2DLocalization = gt_localizer
+        self.map_handler:MapHandler = map_handler
+        self.dataset:CpslDS = dataset
+        self.point_cloud_integrator = None #child to implement
+        self.dynamic_point_cloud_integrator = None #child to implement
+        self.prediction_source:PredictionSource = prediction_source
+        self.gt_source:GroundTruthSource = gt_source
+        self.odom_frame:OdomCoordinateFrame = odom_frame
+
+        self.enable_timing = enable_timing
+        self.timing_stats = {
+            "GT_Processing": 0.0,
+            "Radar_Loading": 0.0,
+            "Velocity_Filtering": 0.0,
+            "PC_Integration": 0.0,
+            "Radar_Localization": 0.0,
+            "Total_Loop": 0.0
+        }
         self.gt_source:GroundTruthSource = gt_source
         self.odom_frame:OdomCoordinateFrame = odom_frame
 
@@ -993,7 +1011,7 @@ class _TestBench:
         for i in tqdm(range(start_frame,max_frame)):
 
             #start time tracking
-            start_time = time.time()
+            loop_start = time.time()
 
             if self.use_filters:
 
@@ -1003,6 +1021,7 @@ class _TestBench:
                     gt_enabled=gt_enabled)
 
             #process lidar ground truth
+            gt_start = time.time()
             if gt_enabled and (self.gt_localizer is not None or self.gt_source == GroundTruthSource.MOTION_CAPTURE):
                 if self.gt_source == GroundTruthSource.LIDAR and self.gt_localizer:
                     # update the lidar ground truth
@@ -1098,8 +1117,12 @@ class _TestBench:
                 
             else:
                 gt_points = np.empty(shape=(0,3))
+            
+            if self.enable_timing:
+                self.timing_stats["GT_Processing"] += time.time() - gt_start
 
             #process radar detections
+            radar_start = time.time()
             if self.localizer and self.vehicle_moving:
                 
                 #get the combined radar point cloud [x,y,z,vel]
@@ -1112,7 +1135,11 @@ class _TestBench:
                     ego_vel = np.array([self.filter.x[3],0.0])
                 else:
                     ego_vel = np.array([0.0,0.0])
-
+                
+                if self.enable_timing:
+                    self.timing_stats["Radar_Loading"] += time.time() - radar_start
+                
+                vel_filt_start = time.time()
                 static_points = self.vel_filtering.get_static_detections(
                     detections=radar_points,
                     ego_vel=ego_vel
@@ -1122,6 +1149,9 @@ class _TestBench:
                     detections=radar_points,
                     ego_vel=ego_vel
                 )
+                
+                if self.enable_timing:
+                    self.timing_stats["Velocity_Filtering"] += time.time() - vel_filt_start
 
                 #get the current pose
                 current_pose = Pose(
@@ -1148,6 +1178,7 @@ class _TestBench:
                 )
 
                 #process the point cloud
+                integration_start = time.time()
                 pc = self.process_point_cloud(
                     point_cloud_raw=radar_points,
                     static_points=static_points,
@@ -1155,7 +1186,10 @@ class _TestBench:
                     current_pose=inertial_pose,
                     gt_points=gt_points
                 )
+                if self.enable_timing:
+                    self.timing_stats["PC_Integration"] += time.time() - integration_start
 
+                loc_start = time.time()
                 if pc.shape[0] > 0:
                    
                     est_heading_rad,est_pose_m = self.localizer.update_odometry(
@@ -1188,11 +1222,15 @@ class _TestBench:
                                 gt_position_m=self.filter_gt.x[0:2],
                                 gt_heading_rad=self.filter_gt.x[2]
                             )
+                if self.enable_timing:
+                    self.timing_stats["Radar_Localization"] += time.time() - loc_start
+                    self.timing_stats["Total_Loop"] += time.time() - loop_start
+
                 #update the time tracking
                 stop_time = time.time()
                 self.history_current_update_period_time += (1/20.0)
                 self.history_current_active_compute_time += \
-                    (stop_time - start_time)
+                    (stop_time - loop_start)
                 self.history_timing_save_compute_time()
 
             if self.use_filters:    

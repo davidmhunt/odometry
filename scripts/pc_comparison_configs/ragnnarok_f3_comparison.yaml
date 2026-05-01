@@ -1,0 +1,31 @@
+config_label: ragnnarok_f3_comparison
+dataset:
+  name: wilk_basement_3
+  group_name: WILK_BASEMENT
+  dataset_path: /data/RaGNNarok/ugv_datasets/
+  maps_path: /data/RaGNNarok/ugv_datasets/maps
+  map: wilk_basement_revB.yaml
+  platform: ugv
+  lidar_folder: lidar
+  camera_folder: camera
+  imu_orientation_folder: imu_data
+  imu_full_folder: imu_data_full
+  vehicle_vel_folder: vehicle_vel
+  radar_pc_folder: radar_combined
+  gyro_bias: -0.0024
+
+# Specific frames to sample and plot point clouds for
+frame_indices: [100, 200, 300, 400, 500]
+
+# List of evaluation modes to run
+# eval_config specifies the factory script in scripts/eval_configs/
+# model_info specifies the yaml in scripts/eval_configs/model_info/ (or null if naive)
+eval_modes:
+  - eval_config: "icaraus_gnn_ragnnarok_ugv.py"
+    model_info: "icaraus_gnn_RaGNNarok_ds_f3.yaml"
+  - eval_config: "ragnnarok_gnn_ugv.py"
+    model_info: "RaGNNarok_gnn_RaGNNarok_ds_f3.yaml"
+  - eval_config: "naive_radar_ragnnarok_ugv.py"
+    model_info: null
+  - eval_config: "naive_integrator_ragnnarok_ugv.py"
+    model_info: null

@@ -22,10 +22,10 @@ def get_test_bench(dataset, map_handler, model_info=None, **kwargs):
     # initialize the localizers
     radar_odometry = icp2DLocalization(
         icp_matching_distance_threshold=0.25,
-        icp_best_points_percentile=85,
+        icp_best_points_percentile=60,
         icp_convergence_translation_threshold=1e-3,
         icp_convergence_rotation_threshold=1e-4,
-        icp_point_pairs_threshold=7,
+        icp_point_pairs_threshold=50,
         icp_max_iterations=5,
         self_detection_radius_m=0
     )

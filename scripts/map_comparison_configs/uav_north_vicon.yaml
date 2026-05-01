@@ -1,0 +1,6 @@
+lidar_map_yaml: "/data/IcaRAus/maps/north_vicon_1.yaml"
+radar_map_yaml: "/data/IcaRAus/maps/north_vicon_map_radar_04292026.yaml"
+initial_guess:
+  x: 0.0
+  y: 0.0
+  heading_offset_degrees: -90.0

@@ -13,7 +13,7 @@ if repo_root not in sys.path:
 from odometry.analyzers.analyzer import Analyzer
 
 # Fold configurations to process - Update this list with your actual fold config filenames
-ds = "icaraus" #"ragnnarok" or "icaraus"
+ds = "ragnnarok" #"ragnnarok" or "icaraus"
 
 if ds ==  "icaraus":
     FOLDS = [
@@ -29,7 +29,7 @@ elif ds == "ragnnarok":
     FOLDS = [
         "RaGNNarok_ds_f1.json",
         "RaGNNarok_ds_f2.json",
-        # "RaGNNarok_ds_f3.json",
+        "RaGNNarok_ds_f3.json",
     ]
     OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "multi_fold_summary_ragnnarok")
 else:

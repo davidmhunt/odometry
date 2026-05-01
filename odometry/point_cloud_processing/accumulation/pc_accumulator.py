@@ -2,6 +2,7 @@ import numpy as np
 from enum import Enum
 from geometries.transforms.transformation import Transformation
 from scipy.spatial import cKDTree
+import time
 from odometry.point_cloud_processing.clustering.occlusion_aware_clustering import OcclusionAwareClustering
 from odometry.point_cloud_processing.pc_range_filter import pcRangeFilter
 from odometry.point_cloud_processing.pc_fov_filter import pcFovFilter
@@ -41,6 +42,7 @@ class PcAccumulator:
             occlusion_aware_clustering:OcclusionAwareClustering=None,
             grid_resolution_m: float = 0.1,
             max_detection_range: float = 20.0,
+            enable_timing: bool = False,
             **kwargs
     ):
         """
@@ -58,18 +60,22 @@ class PcAccumulator:
             subsample_percentage (float, optional): Percentage of new points to keep.
                 Should be between 0.0 and 1.0. Defaults to 1.0 (no subsampling).
             efficient (bool, optional): If True, utilizes a spatial KNN validation to 
-                avoid duplication of perfectly overlapping points. Defaults to False.
+                avoid duplication of redundant overlapping points. Defaults to False.
             gt_point_labeling_strategy (GtPointLabelingStrategy, optional): The strategy to use for labeling gt points.
-                Defaults to GtPointLabelingStrategy.USE_VALID_POINTS_FOR_GT_CLASSIFICATION.
-            gt_occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
-                clustering is used to determine gt points. If None, the standard
-                clustering is used. Defaults to None.
-            occlusion_aware_clustering (OcclusionAwareClustering, optional): If not None, the occlusion aware
-                clustering is used to determine pre-filter radar detections. If None, the standard
-                clustering is used. Defaults to None.
-            grid_resolution_m (float, optional): Resolution of the grid. Defaults to 0.1.
-            max_detection_range (float, optional): Maximum distance from center for the grid. Defaults to 20.0.
+            gt_occlusion_aware_clustering (OcclusionAwareClustering, optional): The occlusion aware clustering for gt points.
+            occlusion_aware_clustering (OcclusionAwareClustering, optional): The occlusion aware clustering for detection points.
+            grid_resolution_m (float, optional): The grid resolution in meters. Defaults to 0.1.
+            max_detection_range (float, optional): The maximum detection range in meters. Defaults to 20.0.
+            enable_timing (bool, optional): If True, tracks execution timing for diagnostics.
+            **kwargs: Additional parameters.
         """
+        self.enable_timing = enable_timing
+        self.timing_stats = {
+            "Prune_Points": 0.0,
+            "Update_Radar": 0.0,
+            "Update_GT": 0.0,
+            "Update_Labels": 0.0
+        }
 
         self.gt_distance_threshold_m:float = gt_distance_threshold_m
         self.num_frames_history:int = num_frames_history
@@ -108,7 +114,7 @@ class PcAccumulator:
         #collection of post processed points
         self.points:np.ndarray = None
         self.gt_points:np.ndarray = None
-        
+
         self.reset()
     
     def reset(
@@ -174,14 +180,26 @@ class PcAccumulator:
 
         #prune out expired points
         # print(f"adding {new_points.shape[0]} points")
+        t_prune = time.time()
         self._prune_points_array()
+        if self.enable_timing:
+            self.timing_stats["Prune_Points"] += time.time() - t_prune
         
+        t_radar = time.time()
         self._update_points(new_points)
+        if self.enable_timing:
+            self.timing_stats["Update_Radar"] += time.time() - t_radar
 
         if new_gt_points.shape[0] > 0:
+            t_gt = time.time()
             self._update_gt_points(new_gt_points)
+            if self.enable_timing:
+                self.timing_stats["Update_GT"] += time.time() - t_gt
             
+        t_labels = time.time()
         self._update_gt_labels()
+        if self.enable_timing:
+            self.timing_stats["Update_Labels"] += time.time() - t_labels
     
     def _prune_points_array(self):
         """
@@ -450,14 +468,14 @@ class PcAccumulator:
         Raises:
             ValueError: If inputs are not Nx3 arrays.
         """
-        if gt_points.shape[1] == 3 and dets.shape[1] == 3:
+        if gt_points.shape[1] >= 2 and dets.shape[1] >= 2:
             
             if gt_points.shape[0] == 0 or dets.shape[0] == 0:
-                return np.empty(shape=(0, 3))
+                return np.empty(shape=(0, dets.shape[1]))
             
-            # Use cKDTree for efficient nearest neighbor search
-            tree = cKDTree(gt_points)
-            dists, _ = tree.query(dets, distance_upper_bound=threshold)
+            # Use cKDTree for efficient nearest neighbor search (2D matching)
+            tree = cKDTree(gt_points[:, 0:2])
+            dists, _ = tree.query(dets[:, 0:2], distance_upper_bound=threshold)
             
             mask = dists <= threshold
             dets = dets[mask]
@@ -486,14 +504,14 @@ class PcAccumulator:
         Raises:
             ValueError: If inputs are not Nx3 arrays.
         """
-        if gt_points.shape[1] == 3 and dets.shape[1] == 3:
+        if gt_points.shape[1] >= 2 and dets.shape[1] >= 2:
             
             if gt_points.shape[0] == 0 or dets.shape[0] == 0:
-                return np.empty(shape=(0, 3))
+                return np.empty(shape=(0, gt_points.shape[1]))
             
-            # Use cKDTree for efficient nearest neighbor search
-            tree = cKDTree(dets)
-            dists, _ = tree.query(gt_points, distance_upper_bound=threshold)
+            # Use cKDTree for efficient nearest neighbor search (2D matching)
+            tree = cKDTree(dets[:, 0:2])
+            dists, _ = tree.query(gt_points[:, 0:2], distance_upper_bound=threshold)
             
             mask = dists <= threshold
             gt_points = gt_points[mask]
